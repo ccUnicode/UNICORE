@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AreaModule } from './area/area.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         },
       }),
     }),
+    AreaModule,
   ],
 })
 export class AppModule {}
