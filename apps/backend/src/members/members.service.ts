@@ -4,6 +4,10 @@ import { QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 
+type DatabaseErrorWithCode = {
+  code: string;
+};
+
 @Injectable()
 export class MembersService {
   constructor(
@@ -17,16 +21,20 @@ export class MembersService {
     try {
       return await this.membersRepository.save(member);
     } catch (error) {
-      if (
+      const databaseError =
         error instanceof QueryFailedError &&
         typeof error.driverError === 'object' &&
         error.driverError !== null &&
-        'code' in error.driverError &&
-        error.driverError.code === '23505'
-      ) {
-        throw new ConflictException(
-          `A member with UNI code "${createMemberDto.uniCode}" already exists.`,
-        );
+        'code' in error.driverError
+          ? (error.driverError as DatabaseErrorWithCode)
+          : null;
+
+      if (databaseError?.code === '23505') {
+        const duplicateMessage = createMemberDto.studentCode
+          ? `A member with institution "${createMemberDto.institution}" and student code "${createMemberDto.studentCode}" already exists.`
+          : `A member with institution "${createMemberDto.institution}" already exists.`;
+
+        throw new ConflictException(duplicateMessage);
       }
 
       throw error;

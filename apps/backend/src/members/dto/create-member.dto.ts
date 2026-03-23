@@ -5,10 +5,24 @@ import {
   IsDateString,
   IsString,
   Length,
+  ValidateIf,
 } from 'class-validator';
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
+
+const normalizeInstitution = ({ value }: { value: unknown }) => {
+  if (value === undefined) {
+    return 'UNI';
+  }
+
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const normalized = value.trim().replace(/\s+/g, ' ');
+  return normalized === '' ? '' : normalized.toUpperCase();
+};
 
 const trimSkills = ({ value }: { value: unknown }) => {
   if (!Array.isArray(value)) {
@@ -16,15 +30,25 @@ const trimSkills = ({ value }: { value: unknown }) => {
   }
 
   return value
-    .map((item) => (typeof item === 'string' ? item.trim() : item))
-    .filter((item) => typeof item === 'string' && item.length > 0);
+    .filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 };
 
 export class CreateMemberDto {
+  @Transform(normalizeInstitution)
+  @IsString()
+  @Length(1, 120)
+  institution: string = 'UNI';
+
   @Transform(trimString)
+  @ValidateIf(
+    (member: CreateMemberDto) =>
+      member.institution === 'UNI' || member.studentCode !== undefined,
+  )
   @IsString()
   @Length(1, 20)
-  uniCode: string;
+  studentCode?: string;
 
   @Transform(trimString)
   @IsString()

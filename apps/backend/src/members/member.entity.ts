@@ -8,13 +8,16 @@ import {
 } from 'typeorm';
 
 @Entity({ name: 'members' })
-@Unique(['uniCode'])
+@Unique(['institution', 'studentCode'])
 export class Member {
   @PrimaryGeneratedColumn()
   id: number;
 
-  @Column({ name: 'uni_code', type: 'varchar', length: 20 })
-  uniCode: string;
+  @Column({ type: 'varchar', length: 120, default: 'UNI' })
+  institution: string;
+
+  @Column({ name: 'student_code', type: 'varchar', length: 20, nullable: true })
+  studentCode: string | null;
 
   @Column({ name: 'first_names', type: 'varchar', length: 120 })
   firstNames: string;
