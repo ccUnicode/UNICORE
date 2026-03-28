@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   Delete,
+  ParseIntPipe,
 } from '@nestjs/common';
 import { AreaService } from './area.service';
 import { CreateAreaDto } from './dto/create-area.dto';
@@ -26,17 +27,17 @@ export class AreaController {
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', ParseIntPipe) id: number) {
     return this.areaService.findOne(id);
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() updateAreaDto: UpdateAreaDto) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() updateAreaDto: UpdateAreaDto) {
     return this.areaService.update(id, updateAreaDto);
   }
 
   @Delete(':id')
-  archive(@Param('id') id: string) {
+  archive(@Param('id', ParseIntPipe) id: number) {
     return this.areaService.archive(id);
   }
 }

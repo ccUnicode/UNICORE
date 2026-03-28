@@ -24,15 +24,17 @@ export class AreaService {
     });
   }
 
-  async findOne(id: string): Promise<Area> {
-    const area = await this.areaRepository.findOne({ where: { id } });
+  async findOne(id: number): Promise<Area> {
+    const area = await this.areaRepository.findOne({ 
+      where: { id, isArchived: false } 
+    });
     if (!area) {
       throw new NotFoundException(`Area with ID "${id}" not found`);
     }
     return area;
   }
 
-  async update(id: string, updateAreaDto: UpdateAreaDto): Promise<Area> {
+  async update(id: number, updateAreaDto: UpdateAreaDto): Promise<Area> {
     const area = await this.findOne(id);
     
     // Merge the updates into the existing area
@@ -41,7 +43,7 @@ export class AreaService {
     return this.areaRepository.save(area);
   }
 
-  async archive(id: string): Promise<Area> {
+  async archive(id: number): Promise<Area> {
     const area = await this.findOne(id);
     area.isArchived = true;
     return this.areaRepository.save(area);
