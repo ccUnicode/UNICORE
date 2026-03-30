@@ -1,11 +1,15 @@
+
 import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinTable,
+  ManyToMany,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import { Skill } from '../skills/skill.entity';
 
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
@@ -31,9 +35,10 @@ export class Member {
   @Column({ name: 'birth_date', type: 'date' })
   birthDate: string;
 
-  @Column({ type: 'text', array: true })
-  skills: string[];
-
+  @ManyToMany(() => Skill, (skill) => skill.members)
+  @JoinTable()
+  skills: Skill[];
+  
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

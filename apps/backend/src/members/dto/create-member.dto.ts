@@ -31,7 +31,7 @@ const trimSkills = ({ value }: { value: unknown }) => {
 
   return value
     .filter((item): item is string => typeof item === 'string')
-    .map((item) => item.trim())
+    .map((item) => item.trim().replace(/\s+/g, ' ').toLowerCase())
     .filter((item) => item.length > 0);
 };
 

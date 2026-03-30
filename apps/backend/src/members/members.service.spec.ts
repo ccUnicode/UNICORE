@@ -3,14 +3,18 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
+import { Skill } from '../skills/skill.entity';
 import { MembersService } from './members.service';
 
-type RepositoryMock = Partial<Record<keyof Repository<Member>, jest.Mock>>;
+type MemberRepositoryMock = Partial<Record<keyof Repository<Member>, jest.Mock>>;
+type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 
 describe('MembersService', () => {
   let service: MembersService;
-  let repository: RepositoryMock;
+  let membersRepository: MemberRepositoryMock;
+  let skillsRepository: SkillRepositoryMock;
   let persistedMember: Member;
+  let persistedSkills: Skill[];
 
   const createMemberDto: CreateMemberDto = {
     institution: 'UNI',
@@ -19,7 +23,7 @@ describe('MembersService', () => {
     lastNames: 'Rojas Perez',
     major: 'Ingenieria de Sistemas',
     birthDate: '2004-04-18',
-    skills: ['TypeScript', 'Testing'],
+    skills: ['typescript', 'testing'],
   };
 
   const externalMemberDto: CreateMemberDto = {
@@ -28,14 +32,19 @@ describe('MembersService', () => {
     lastNames: 'Campos Rivera',
     major: 'Diseno',
     birthDate: '2001-09-10',
-    skills: ['Facilitacion'],
+    skills: ['facilitacion'],
   };
 
   beforeEach(async () => {
-    repository = {
+    membersRepository = {
       create: jest.fn(),
       save: jest.fn(),
       find: jest.fn(),
+    };
+    skillsRepository = {
+      find: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -43,38 +52,73 @@ describe('MembersService', () => {
         MembersService,
         {
           provide: getRepositoryToken(Member),
-          useValue: repository,
+          useValue: membersRepository,
+        },
+        {
+          provide: getRepositoryToken(Skill),
+          useValue: skillsRepository,
         },
       ],
     }).compile();
 
     service = module.get<MembersService>(MembersService);
+    persistedSkills = [
+      {
+        id: 1,
+        name: 'typescript',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 2,
+        name: 'testing',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
     persistedMember = {
-      id: 1,
+      id: 10,
       institution: createMemberDto.institution,
       studentCode: createMemberDto.studentCode ?? null,
       firstNames: createMemberDto.firstNames,
       lastNames: createMemberDto.lastNames,
       major: createMemberDto.major,
       birthDate: createMemberDto.birthDate,
-      skills: createMemberDto.skills,
+      skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
   });
 
   it('creates and persists a member', async () => {
-    repository.create?.mockReturnValue(persistedMember);
-    repository.save?.mockResolvedValue(persistedMember);
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockResolvedValue(persistedMember);
 
     await expect(service.create(createMemberDto)).resolves.toEqual(
       persistedMember,
     );
-    expect(repository.create).toHaveBeenCalledWith(createMemberDto);
-    expect(repository.save).toHaveBeenCalledWith(persistedMember);
+    expect(skillsRepository.find).toHaveBeenCalledWith({
+      where: {
+        name: expect.anything(),
+      },
+    });
+    expect(membersRepository.create).toHaveBeenCalledWith({
+      ...createMemberDto,
+      skills: persistedSkills,
+    });
+    expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
   });
 
   it('creates and persists an external member without student code', async () => {
+    const externalSkills: Skill[] = [
+      {
+        id: 3,
+        name: 'facilitacion',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
     const persistedMember: Member = {
       id: 2,
       institution: 'PUCP',
@@ -83,19 +127,23 @@ describe('MembersService', () => {
       lastNames: 'Campos Rivera',
       major: 'Diseno',
       birthDate: '2001-09-10',
-      skills: ['Facilitacion'],
+      skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
-    repository.create?.mockReturnValue(persistedMember);
-    repository.save?.mockResolvedValue(persistedMember);
+    skillsRepository.find?.mockResolvedValue(externalSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockResolvedValue(persistedMember);
 
     await expect(service.create(externalMemberDto)).resolves.toEqual(
       persistedMember,
     );
-    expect(repository.create).toHaveBeenCalledWith(externalMemberDto);
-    expect(repository.save).toHaveBeenCalledWith(persistedMember);
+    expect(membersRepository.create).toHaveBeenCalledWith({
+      ...externalMemberDto,
+      skills: externalSkills,
+    });
+    expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
   });
 
   it('raises a conflict when the institution and student code already exist', async () => {
@@ -109,8 +157,9 @@ describe('MembersService', () => {
       driverError,
     );
 
-    repository.create?.mockReturnValue(persistedMember);
-    repository.save?.mockRejectedValue(duplicateError);
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockRejectedValue(duplicateError);
 
     await expect(service.create(createMemberDto)).rejects.toMatchObject({
       message:
@@ -128,16 +177,26 @@ describe('MembersService', () => {
         lastNames: 'Alva Ruiz',
         major: 'Arquitectura',
         birthDate: '2003-10-02',
-        skills: ['Gestion'],
+        skills: [
+          {
+            id: 4,
+            name: 'gestion',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
     ];
 
-    repository.find?.mockResolvedValue(storedMembers);
+    membersRepository.find?.mockResolvedValue(storedMembers);
 
     await expect(service.findAll()).resolves.toEqual(storedMembers);
-    expect(repository.find).toHaveBeenCalledWith({
+    expect(membersRepository.find).toHaveBeenCalledWith({
+      relations: {
+        skills: true,
+      },
       order: {
         lastNames: 'ASC',
         firstNames: 'ASC',
