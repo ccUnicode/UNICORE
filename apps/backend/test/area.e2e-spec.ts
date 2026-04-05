@@ -1,12 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { INestApplication } from '@nestjs/common';
+import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { AppModule } from './../src/app.module';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Area } from './../src/area/entities/area.entity';
 
 describe('AreaController (e2e)', () => {
-  let app: INestApplication;
+  let app: INestApplication | undefined;
+
+  const getApp = (): INestApplication => {
+    if (!app) {
+      throw new Error('Application not initialized');
+    }
+
+    return app;
+  };
 
   const mockAreaRepository = {
     create: jest.fn().mockImplementation((dto) => dto),
@@ -20,7 +28,7 @@ describe('AreaController (e2e)', () => {
     }),
   };
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     })
@@ -29,6 +37,15 @@ describe('AreaController (e2e)', () => {
       .compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        transform: true,
+        transformOptions: {
+          enableImplicitConversion: true,
+        },
+      }),
+    );
     await app.init();
   });
 
@@ -37,11 +54,13 @@ describe('AreaController (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.close();
+    if (app) {
+      await app.close();
+    }
   });
 
   it('/areas (POST) - should create an area', () => {
-    return request(app.getHttpServer())
+    return request(getApp().getHttpServer())
       .post('/areas')
       .send({ name: 'New E2E Area' })
       .expect(201)
@@ -54,7 +73,7 @@ describe('AreaController (e2e)', () => {
   });
 
   it('/areas (GET) - should return all areas', () => {
-    return request(app.getHttpServer())
+    return request(getApp().getHttpServer())
       .get('/areas')
       .expect(200)
       .expect((res) => {
@@ -65,7 +84,7 @@ describe('AreaController (e2e)', () => {
   });
 
   it('/areas/:id (GET) - should return a single area', () => {
-    return request(app.getHttpServer())
+    return request(getApp().getHttpServer())
       .get('/areas/1')
       .expect(200)
       .expect((res) => {
@@ -75,13 +94,13 @@ describe('AreaController (e2e)', () => {
   });
 
   it('/areas/:id (GET) - should return 404 if area not found', () => {
-    return request(app.getHttpServer())
+    return request(getApp().getHttpServer())
       .get('/areas/999')
       .expect(404);
   });
 
   it('/areas/:id (PATCH) - should update an area', () => {
-    return request(app.getHttpServer())
+    return request(getApp().getHttpServer())
       .patch('/areas/1')
       .send({ name: 'Updated Area' })
       .expect(200)
@@ -91,7 +110,7 @@ describe('AreaController (e2e)', () => {
   });
 
   it('/areas/:id/archive (PATCH) - should archive an area', () => {
-    return request(app.getHttpServer())
+    return request(getApp().getHttpServer())
       .patch('/areas/1/archive')
       .expect(200)
       .expect((res) => {

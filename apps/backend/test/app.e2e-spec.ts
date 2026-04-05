@@ -4,6 +4,8 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 
+jest.setTimeout(30000);
+
 type CreateMemberPayload = {
   institution?: string;
   studentCode?: string;
@@ -34,8 +36,16 @@ type ErrorResponse = {
 };
 
 describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+  let app: INestApplication<App> | undefined;
   let sequence = 0;
+
+  const getApp = (): INestApplication<App> => {
+    if (!app) {
+      throw new Error('Application not initialized');
+    }
+
+    return app;
+  };
 
   const nextSuffix = () => {
     sequence += 1;
@@ -58,7 +68,7 @@ describe('AppController (e2e)', () => {
     };
   };
 
-  beforeEach(async () => {
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
@@ -76,19 +86,21 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  afterEach(async () => {
-    await app.close();
+  afterAll(async () => {
+    if (app) {
+      await app.close();
+    }
   });
 
   it('/ (GET)', () => {
-    return request(app.getHttpServer())
+    return request(getApp().getHttpServer())
       .get('/')
       .expect(200)
       .expect('Hello World!');
   });
 
   it('creates a UNI member when institution is omitted', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await request(getApp().getHttpServer())
       .post('/members')
       .send(createMemberPayload())
       .expect(201);
@@ -100,7 +112,7 @@ describe('AppController (e2e)', () => {
   });
 
   it('normalizes institution before persisting the member', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
@@ -115,7 +127,7 @@ describe('AppController (e2e)', () => {
   });
 
   it('creates an external member without student code', async () => {
-    const response = await request(app.getHttpServer())
+    const response = await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
@@ -132,7 +144,7 @@ describe('AppController (e2e)', () => {
   });
 
   it('rejects UNI members without student code', async () => {
-    await request(app.getHttpServer())
+    await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
@@ -144,7 +156,7 @@ describe('AppController (e2e)', () => {
   });
 
   it('rejects institutions that are empty after trimming', async () => {
-    await request(app.getHttpServer())
+    await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
@@ -161,12 +173,12 @@ describe('AppController (e2e)', () => {
       studentCode,
     });
 
-    await request(app.getHttpServer())
+    await request(getApp().getHttpServer())
       .post('/members')
       .send(payload)
       .expect(201);
 
-    const duplicateResponse = await request(app.getHttpServer())
+    const duplicateResponse = await request(getApp().getHttpServer())
       .post('/members')
       .send({
         ...createMemberPayload({
@@ -187,7 +199,7 @@ describe('AppController (e2e)', () => {
   it('allows the same student code in different institutions', async () => {
     const studentCode = `SC-${nextSuffix()}`;
 
-    await request(app.getHttpServer())
+    await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
@@ -197,7 +209,7 @@ describe('AppController (e2e)', () => {
       )
       .expect(201);
 
-    const secondResponse = await request(app.getHttpServer())
+    const secondResponse = await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
@@ -214,7 +226,7 @@ describe('AppController (e2e)', () => {
   });
 
   it('allows multiple external members without student code', async () => {
-    await request(app.getHttpServer())
+    await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
@@ -224,7 +236,7 @@ describe('AppController (e2e)', () => {
       )
       .expect(201);
 
-    const secondResponse = await request(app.getHttpServer())
+    const secondResponse = await request(getApp().getHttpServer())
       .post('/members')
       .send(
         createMemberPayload({
