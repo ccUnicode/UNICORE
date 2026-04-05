@@ -1,0 +1,207 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
+import { CreateMemberDto } from './dto/create-member.dto';
+import { Member } from './member.entity';
+import { Skill } from '../skills/skill.entity';
+import { MembersService } from './members.service';
+
+type MemberRepositoryMock = Partial<Record<keyof Repository<Member>, jest.Mock>>;
+type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
+
+describe('MembersService', () => {
+  let service: MembersService;
+  let membersRepository: MemberRepositoryMock;
+  let skillsRepository: SkillRepositoryMock;
+  let persistedMember: Member;
+  let persistedSkills: Skill[];
+
+  const createMemberDto: CreateMemberDto = {
+    institution: 'UNI',
+    studentCode: '20230001',
+    firstNames: 'Ana Lucia',
+    lastNames: 'Rojas Perez',
+    major: 'Ingenieria de Sistemas',
+    birthDate: '2004-04-18',
+    skills: ['typescript', 'testing'],
+  };
+
+  const externalMemberDto: CreateMemberDto = {
+    institution: 'PUCP',
+    firstNames: 'Lucia',
+    lastNames: 'Campos Rivera',
+    major: 'Diseno',
+    birthDate: '2001-09-10',
+    skills: ['facilitacion'],
+  };
+
+  beforeEach(async () => {
+    membersRepository = {
+      create: jest.fn(),
+      save: jest.fn(),
+      find: jest.fn(),
+    };
+    skillsRepository = {
+      find: jest.fn(),
+      create: jest.fn(),
+      save: jest.fn(),
+    };
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        MembersService,
+        {
+          provide: getRepositoryToken(Member),
+          useValue: membersRepository,
+        },
+        {
+          provide: getRepositoryToken(Skill),
+          useValue: skillsRepository,
+        },
+      ],
+    }).compile();
+
+    service = module.get<MembersService>(MembersService);
+    persistedSkills = [
+      {
+        id: 1,
+        name: 'typescript',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+      {
+        id: 2,
+        name: 'testing',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    persistedMember = {
+      id: 10,
+      institution: createMemberDto.institution,
+      studentCode: createMemberDto.studentCode ?? null,
+      firstNames: createMemberDto.firstNames,
+      lastNames: createMemberDto.lastNames,
+      major: createMemberDto.major,
+      birthDate: createMemberDto.birthDate,
+      skills: persistedSkills,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+  });
+
+  it('creates and persists a member', async () => {
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockResolvedValue(persistedMember);
+
+    await expect(service.create(createMemberDto)).resolves.toEqual(
+      persistedMember,
+    );
+    expect(skillsRepository.find).toHaveBeenCalledWith({
+      where: {
+        name: expect.anything(),
+      },
+    });
+    expect(membersRepository.create).toHaveBeenCalledWith({
+      ...createMemberDto,
+      skills: persistedSkills,
+    });
+    expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
+  });
+
+  it('creates and persists an external member without student code', async () => {
+    const externalSkills: Skill[] = [
+      {
+        id: 3,
+        name: 'facilitacion',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+    const persistedMember: Member = {
+      id: 2,
+      institution: 'PUCP',
+      studentCode: null,
+      firstNames: 'Lucia',
+      lastNames: 'Campos Rivera',
+      major: 'Diseno',
+      birthDate: '2001-09-10',
+      skills: externalSkills,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    skillsRepository.find?.mockResolvedValue(externalSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockResolvedValue(persistedMember);
+
+    await expect(service.create(externalMemberDto)).resolves.toEqual(
+      persistedMember,
+    );
+    expect(membersRepository.create).toHaveBeenCalledWith({
+      ...externalMemberDto,
+      skills: externalSkills,
+    });
+    expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
+  });
+
+  it('raises a conflict when the institution and student code already exist', async () => {
+    const driverError: Error & { code: string } = Object.assign(
+      new Error('duplicate key value'),
+      { code: '23505' },
+    );
+    const duplicateError = new QueryFailedError(
+      'INSERT INTO members',
+      [],
+      driverError,
+    );
+
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockRejectedValue(duplicateError);
+
+    await expect(service.create(createMemberDto)).rejects.toMatchObject({
+      message:
+        'A member with institution "UNI" and student code "20230001" already exists.',
+    });
+  });
+
+  it('lists members ordered by last name and first name', async () => {
+    const storedMembers: Member[] = [
+      {
+        id: 2,
+        institution: 'UNI',
+        studentCode: '20230011',
+        firstNames: 'Bruno',
+        lastNames: 'Alva Ruiz',
+        major: 'Arquitectura',
+        birthDate: '2003-10-02',
+        skills: [
+          {
+            id: 4,
+            name: 'gestion',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
+        ],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    membersRepository.find?.mockResolvedValue(storedMembers);
+
+    await expect(service.findAll()).resolves.toEqual(storedMembers);
+    expect(membersRepository.find).toHaveBeenCalledWith({
+      relations: {
+        skills: true,
+      },
+      order: {
+        lastNames: 'ASC',
+        firstNames: 'ASC',
+        createdAt: 'ASC',
+      },
+    });
+  });
+});
