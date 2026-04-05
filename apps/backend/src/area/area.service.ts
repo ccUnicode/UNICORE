@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { CreateAreaDto } from './dto/create-area.dto';
@@ -13,6 +13,13 @@ export class AreaService {
   ) {}
 
   async create(createAreaDto: CreateAreaDto): Promise<Area> {
+    const existingArea = await this.areaRepository.findOne({
+      where: { name: createAreaDto.name },
+    });
+    if (existingArea) {
+      throw new ConflictException(`Area with name "${createAreaDto.name}" already exists`);
+    }
+
     const area = this.areaRepository.create(createAreaDto);
     return this.areaRepository.save(area);
   }

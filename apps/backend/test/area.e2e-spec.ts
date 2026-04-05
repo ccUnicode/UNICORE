@@ -90,9 +90,9 @@ describe('AreaController (e2e)', () => {
       });
   });
 
-  it('/areas/:id (DELETE) - should archive an area', () => {
+  it('/areas/:id/archive (PATCH) - should archive an area', () => {
     return request(app.getHttpServer())
-      .delete('/areas/1')
+      .patch('/areas/1/archive')
       .expect(200)
       .expect((res) => {
         expect(res.body.isArchived).toBe(true);

@@ -5,7 +5,6 @@ import {
   Body,
   Patch,
   Param,
-  Delete,
   ParseIntPipe,
 } from '@nestjs/common';
 import { AreaService } from './area.service';
@@ -36,7 +35,7 @@ export class AreaController {
     return this.areaService.update(id, updateAreaDto);
   }
 
-  @Delete(':id')
+  @Patch(':id/archive')
   archive(@Param('id', ParseIntPipe) id: number) {
     return this.areaService.archive(id);
   }
