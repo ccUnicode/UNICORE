@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AreaModule } from './area/area.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MembersModule } from './members/members.module';
@@ -30,6 +31,7 @@ import { MembersModule } from './members/members.module';
         };
       },
     }),
+    AreaModule,
     MembersModule,
   ],
   controllers: [AppController],
