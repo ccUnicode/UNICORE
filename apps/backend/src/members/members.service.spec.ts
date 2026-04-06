@@ -1,13 +1,24 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { In, QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
 import { MembersService } from './members.service';
 
-type MemberRepositoryMock = Partial<Record<keyof Repository<Member>, jest.Mock>>;
+type MemberRepositoryMock = Partial<
+  Record<keyof Repository<Member>, jest.Mock>
+>;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
+
+const createSkill = (overrides: Partial<Skill> = {}): Skill => ({
+  id: 1,
+  name: 'typescript',
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  members: [],
+  ...overrides,
+});
 
 describe('MembersService', () => {
   let service: MembersService;
@@ -63,18 +74,8 @@ describe('MembersService', () => {
 
     service = module.get<MembersService>(MembersService);
     persistedSkills = [
-      {
-        id: 1,
-        name: 'typescript',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: 2,
-        name: 'testing',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+      createSkill({ id: 1, name: 'typescript' }),
+      createSkill({ id: 2, name: 'testing' }),
     ];
     persistedMember = {
       id: 10,
@@ -100,7 +101,7 @@ describe('MembersService', () => {
     );
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
-        name: expect.anything(),
+        name: In(createMemberDto.skills),
       },
     });
     expect(membersRepository.create).toHaveBeenCalledWith({
@@ -112,12 +113,7 @@ describe('MembersService', () => {
 
   it('creates and persists an external member without student code', async () => {
     const externalSkills: Skill[] = [
-      {
-        id: 3,
-        name: 'facilitacion',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
+      createSkill({ id: 3, name: 'facilitacion' }),
     ];
     const persistedMember: Member = {
       id: 2,
@@ -177,14 +173,7 @@ describe('MembersService', () => {
         lastNames: 'Alva Ruiz',
         major: 'Arquitectura',
         birthDate: '2003-10-02',
-        skills: [
-          {
-            id: 4,
-            name: 'gestion',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
+        skills: [createSkill({ id: 4, name: 'gestion' })],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
