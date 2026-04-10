@@ -15,5 +15,5 @@ export class SkillsController {
   @Get()
   findAll(): Promise<Skill[]> {
     return this.skillsService.findAll();
-    }
+  }
 }

@@ -6,7 +6,9 @@ import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
 import { MembersService } from './members.service';
 
-type MemberRepositoryMock = Partial<Record<keyof Repository<Member>, jest.Mock>>;
+type MemberRepositoryMock = Partial<
+  Record<keyof Repository<Member>, jest.Mock>
+>;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 
 describe('MembersService', () => {
@@ -69,12 +71,14 @@ describe('MembersService', () => {
         name: 'typescript',
         createdAt: new Date(),
         updatedAt: new Date(),
+        members: [] as any,
       },
       {
         id: 2,
         name: 'testing',
         createdAt: new Date(),
         updatedAt: new Date(),
+        members: [] as any,
       },
     ];
     persistedMember = {
@@ -120,6 +124,7 @@ describe('MembersService', () => {
         name: 'facilitacion',
         createdAt: new Date(),
         updatedAt: new Date(),
+        members: [] as any,
       },
     ];
     const persistedMember: Member = {
@@ -188,6 +193,7 @@ describe('MembersService', () => {
             name: 'gestion',
             createdAt: new Date(),
             updatedAt: new Date(),
+            members: [] as any,
           },
         ],
         createdAt: new Date(),
@@ -206,13 +212,24 @@ describe('MembersService', () => {
       getMany: jest.fn().mockResolvedValue(storedMembers),
     };
 
-    membersRepository.createQueryBuilder?.mockReturnValue(queryBuilderMock as any);
+    membersRepository.createQueryBuilder?.mockReturnValue(
+      queryBuilderMock as any,
+    );
 
     await expect(service.findAll()).resolves.toEqual(storedMembers);
     expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith('member');
-    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith('member.skills', 'skill');
-    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith('member.area', 'area');
-    expect(queryBuilderMock.orderBy).toHaveBeenCalledWith('member.lastNames', 'ASC');
+    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+      'member.skills',
+      'skill',
+    );
+    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+      'member.area',
+      'area',
+    );
+    expect(queryBuilderMock.orderBy).toHaveBeenCalledWith(
+      'member.lastNames',
+      'ASC',
+    );
     expect(queryBuilderMock.getMany).toHaveBeenCalled();
   });
 });

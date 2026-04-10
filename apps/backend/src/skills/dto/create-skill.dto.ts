@@ -1,15 +1,12 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
-import {
-  IsString,
-  Length,
-} from 'class-validator';
+import { IsString, Length } from 'class-validator';
 
 const normalizeSkill = ({ value }: TransformFnParams) => {
   if (typeof value !== 'string') {
     return value;
   }
   return value.trim().replace(/\s+/g, ' ').toLowerCase();
-}
+};
 
 export class CreateSkillDto {
   @Transform(normalizeSkill)

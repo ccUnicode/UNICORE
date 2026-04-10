@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsArray, IsEnum, IsNumber, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsEnum,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 import { MemberStatus } from '../member.entity';
 
 export class GetMembersFilterDto {
@@ -24,8 +30,8 @@ export class GetMembersFilterDto {
   @IsOptional()
   @Transform(({ value }) => {
     if (value === undefined) return value;
-    
-    let arr = [];
+
+    let arr: any[] = [];
     if (typeof value === 'string') arr = [value];
     else if (Array.isArray(value)) arr = value;
     else return undefined;

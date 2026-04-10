@@ -55,7 +55,8 @@ export class MembersService {
     const areaId = filterDto?.areaId;
     const skills = filterDto?.skills;
 
-    const query = this.membersRepository.createQueryBuilder('member')
+    const query = this.membersRepository
+      .createQueryBuilder('member')
       .leftJoinAndSelect('member.skills', 'skill')
       .leftJoinAndSelect('member.area', 'area')
       .orderBy('member.lastNames', 'ASC')
@@ -71,15 +72,18 @@ export class MembersService {
     }
 
     if (skills && skills.length > 0) {
-      query.andWhere((qb) => {
-        const subQuery = qb.subQuery()
-          .select('member_sub.id')
-          .from(Member, 'member_sub')
-          .innerJoin('member_sub.skills', 'skill_sub')
-          .where('skill_sub.name IN (:...skills)')
-          .getQuery();
-        return `member.id IN ${subQuery}`;
-      }).setParameter('skills', skills);
+      query
+        .andWhere((qb) => {
+          const subQuery = qb
+            .subQuery()
+            .select('member_sub.id')
+            .from(Member, 'member_sub')
+            .innerJoin('member_sub.skills', 'skill_sub')
+            .where('skill_sub.name IN (:...skills)')
+            .getQuery();
+          return `member.id IN ${subQuery}`;
+        })
+        .setParameter('skills', skills);
     }
 
     return query.getMany();
@@ -94,7 +98,9 @@ export class MembersService {
       },
     });
 
-    const existingSkillNames = new Set(existingSkills.map((skill) => skill.name));
+    const existingSkillNames = new Set(
+      existingSkills.map((skill) => skill.name),
+    );
 
     const newSkills = uniqueSkillNames
       .filter((name) => !existingSkillNames.has(name))

@@ -23,7 +23,8 @@ describe('AreaController (e2e)', () => {
       .mockImplementation((area) => Promise.resolve({ id: 1, ...area })),
     find: jest.fn().mockResolvedValue([{ id: 1, name: 'Test Area' }]),
     findOne: jest.fn().mockImplementation(({ where: { id } }) => {
-      if (id === 1) return Promise.resolve({ id: 1, name: 'Test Area', isArchived: false });
+      if (id === 1)
+        return Promise.resolve({ id: 1, name: 'Test Area', isArchived: false });
       return Promise.resolve(null);
     }),
   };
@@ -94,9 +95,7 @@ describe('AreaController (e2e)', () => {
   });
 
   it('/areas/:id (GET) - should return 404 if area not found', () => {
-    return request(getApp().getHttpServer())
-      .get('/areas/999')
-      .expect(404);
+    return request(getApp().getHttpServer()).get('/areas/999').expect(404);
   });
 
   it('/areas/:id (PATCH) - should update an area', () => {

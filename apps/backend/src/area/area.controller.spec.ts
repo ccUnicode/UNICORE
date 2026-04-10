@@ -35,7 +35,13 @@ describe('AreaController', () => {
   describe('create', () => {
     it('should create an area', async () => {
       const createAreaDto = { name: 'Area 1' };
-      const expectedResult = { id: 1, ...createAreaDto, isArchived: false, createdAt: new Date(), updatedAt: new Date() };
+      const expectedResult = {
+        id: 1,
+        ...createAreaDto,
+        isArchived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       mockAreaService.create.mockResolvedValue(expectedResult as any);
 
       const result = await controller.create(createAreaDto);
