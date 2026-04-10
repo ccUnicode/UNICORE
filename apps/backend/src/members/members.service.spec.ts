@@ -40,6 +40,7 @@ describe('MembersService', () => {
       create: jest.fn(),
       save: jest.fn(),
       find: jest.fn(),
+      createQueryBuilder: jest.fn(),
     };
     skillsRepository = {
       find: jest.fn(),
@@ -87,6 +88,8 @@ describe('MembersService', () => {
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      status: 'Available' as any,
+      area: null as any,
     };
   });
 
@@ -130,6 +133,8 @@ describe('MembersService', () => {
       skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      status: 'Available' as any,
+      area: null as any,
     };
 
     skillsRepository.find?.mockResolvedValue(externalSkills);
@@ -187,21 +192,27 @@ describe('MembersService', () => {
         ],
         createdAt: new Date(),
         updatedAt: new Date(),
+        status: 'Available' as any,
+        area: null as any,
       },
     ];
 
-    membersRepository.find?.mockResolvedValue(storedMembers);
+    const queryBuilderMock = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(storedMembers),
+    };
+
+    membersRepository.createQueryBuilder?.mockReturnValue(queryBuilderMock as any);
 
     await expect(service.findAll()).resolves.toEqual(storedMembers);
-    expect(membersRepository.find).toHaveBeenCalledWith({
-      relations: {
-        skills: true,
-      },
-      order: {
-        lastNames: 'ASC',
-        firstNames: 'ASC',
-        createdAt: 'ASC',
-      },
-    });
+    expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith('member');
+    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith('member.skills', 'skill');
+    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith('member.area', 'area');
+    expect(queryBuilderMock.orderBy).toHaveBeenCalledWith('member.lastNames', 'ASC');
+    expect(queryBuilderMock.getMany).toHaveBeenCalled();
   });
 });

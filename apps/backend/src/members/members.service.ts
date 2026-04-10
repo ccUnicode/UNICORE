@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
+import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
 
@@ -49,17 +50,39 @@ export class MembersService {
     }
   }
 
-  findAll(): Promise<Member[]> {
-    return this.membersRepository.find({
-      relations: {
-        skills: true,
-      },
-      order: {
-        lastNames: 'ASC',
-        firstNames: 'ASC',
-        createdAt: 'ASC',
-      },
-    });
+  findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
+    const status = filterDto?.status;
+    const areaId = filterDto?.areaId;
+    const skills = filterDto?.skills;
+
+    const query = this.membersRepository.createQueryBuilder('member')
+      .leftJoinAndSelect('member.skills', 'skill')
+      .leftJoinAndSelect('member.area', 'area')
+      .orderBy('member.lastNames', 'ASC')
+      .addOrderBy('member.firstNames', 'ASC')
+      .addOrderBy('member.createdAt', 'ASC');
+
+    if (status) {
+      query.andWhere('member.status = :status', { status });
+    }
+
+    if (areaId !== undefined) {
+      query.andWhere('area.id = :areaId', { areaId });
+    }
+
+    if (skills && skills.length > 0) {
+      query.andWhere((qb) => {
+        const subQuery = qb.subQuery()
+          .select('member_sub.id')
+          .from(Member, 'member_sub')
+          .innerJoin('member_sub.skills', 'skill_sub')
+          .where('skill_sub.name IN (:...skills)')
+          .getQuery();
+        return `member.id IN ${subQuery}`;
+      }).setParameter('skills', skills);
+    }
+
+    return query.getMany();
   }
 
   private async resolveSkills(skillNames: string[]): Promise<Skill[]> {

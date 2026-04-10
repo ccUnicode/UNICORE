@@ -10,4 +10,5 @@ import { Skill } from '../skills/skill.entity';
   controllers: [MembersController],
   providers: [MembersService],
 })
-export class MembersModule {}
+export class MembersModule { }
+
