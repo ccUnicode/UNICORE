@@ -21,8 +21,11 @@ export class GetMembersFilterDto {
 
   @IsOptional()
   @Transform(({ value }) => {
-    const parsed = parseInt(value, 10);
-    return isNaN(parsed) ? value : parsed;
+    if (typeof value === 'string') {
+      const parsed = Number(value);
+      return isNaN(parsed) || value.trim() === '' ? value : parsed;
+    }
+    return value;
   })
   @IsNumber()
   areaId?: number;
