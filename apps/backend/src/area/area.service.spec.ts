@@ -1,10 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ForbiddenException } from '@nestjs/common';
+import { AreaRole } from '../common/enums/area-role.enum';
 import { AreaService } from './area.service';
 import { Area } from './entities/area.entity';
 
 describe('AreaService', () => {
   let service: AreaService;
+  let repository: typeof mockAreaRepository;
 
   const mockAreaRepository = {
     create: jest.fn(),
@@ -26,9 +29,74 @@ describe('AreaService', () => {
     }).compile();
 
     service = module.get<AreaService>(AreaService);
+    repository = module.get(getRepositoryToken(Area));
   });
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('lists every area for Presidencia', async () => {
+    const storedAreas: Area[] = [
+      {
+        id: 1,
+        name: 'Tecnologia',
+        description: 'Area tech',
+        isArchived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ];
+
+    repository.find.mockResolvedValue(storedAreas);
+
+    await expect(
+      service.findAccessible({ role: AreaRole.PRESIDENCIA }),
+    ).resolves.toEqual(storedAreas);
+    expect(repository.find).toHaveBeenCalledWith({
+      where: { isArchived: false },
+      order: { name: 'ASC' },
+    });
+  });
+
+  it('lists only the assigned area for Directiva de Area', async () => {
+    const storedArea: Area = {
+      id: 3,
+      name: 'Diseno',
+      description: 'Area de diseno',
+      isArchived: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    repository.findOne.mockResolvedValue(storedArea);
+
+    await expect(
+      service.findAccessible({
+        role: AreaRole.DIRECTIVA_DE_AREA,
+        areaId: '3',
+      }),
+    ).resolves.toEqual([storedArea]);
+    expect(repository.findOne).toHaveBeenCalledWith({
+      where: { id: 3, isArchived: false },
+    });
+  });
+
+  it('rejects area listing for Miembro', async () => {
+    await expect(
+      service.findAccessible({ role: AreaRole.MIEMBRO, projectIds: ['proj-1'] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('rejects Directiva de Area on a foreign area lookup', async () => {
+    await expect(
+      service.findAccessibleById(
+        {
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          areaId: '3',
+        },
+        4,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

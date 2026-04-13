@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { ForbiddenException } from '@nestjs/common';
 import { QueryFailedError, Repository } from 'typeorm';
+import { AreaRole } from '../common/enums/area-role.enum';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
@@ -23,6 +25,8 @@ describe('MembersService', () => {
     lastNames: 'Rojas Perez',
     major: 'Ingenieria de Sistemas',
     birthDate: '2004-04-18',
+    areaId: 3,
+    role: AreaRole.MIEMBRO,
     skills: ['typescript', 'testing'],
   };
 
@@ -32,6 +36,7 @@ describe('MembersService', () => {
     lastNames: 'Campos Rivera',
     major: 'Diseno',
     birthDate: '2001-09-10',
+    role: AreaRole.MIEMBRO,
     skills: ['facilitacion'],
   };
 
@@ -84,6 +89,9 @@ describe('MembersService', () => {
       lastNames: createMemberDto.lastNames,
       major: createMemberDto.major,
       birthDate: createMemberDto.birthDate,
+      role: createMemberDto.role,
+      areaId: createMemberDto.areaId ?? null,
+      area: null,
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -127,6 +135,9 @@ describe('MembersService', () => {
       lastNames: 'Campos Rivera',
       major: 'Diseno',
       birthDate: '2001-09-10',
+      role: AreaRole.MIEMBRO,
+      areaId: null,
+      area: null,
       skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -141,6 +152,7 @@ describe('MembersService', () => {
     );
     expect(membersRepository.create).toHaveBeenCalledWith({
       ...externalMemberDto,
+      areaId: null,
       skills: externalSkills,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
@@ -177,6 +189,9 @@ describe('MembersService', () => {
         lastNames: 'Alva Ruiz',
         major: 'Arquitectura',
         birthDate: '2003-10-02',
+        role: AreaRole.MIEMBRO,
+        areaId: 3,
+        area: null,
         skills: [
           {
             id: 4,
@@ -203,5 +218,40 @@ describe('MembersService', () => {
         createdAt: 'ASC',
       },
     });
+  });
+
+  it('lists only members from the assigned area for Directiva de Area', async () => {
+    const scopedMembers: Member[] = [persistedMember];
+
+    membersRepository.find?.mockResolvedValue(scopedMembers);
+
+    await expect(
+      service.findAccessible({
+        role: AreaRole.DIRECTIVA_DE_AREA,
+        areaId: '3',
+      }),
+    ).resolves.toEqual(scopedMembers);
+    expect(membersRepository.find).toHaveBeenCalledWith({
+      where: {
+        areaId: 3,
+      },
+      relations: {
+        skills: true,
+      },
+      order: {
+        lastNames: 'ASC',
+        firstNames: 'ASC',
+        createdAt: 'ASC',
+      },
+    });
+  });
+
+  it('rejects member listing for Miembro until project persistence exists', async () => {
+    expect(() =>
+      service.findAccessible({
+        role: AreaRole.MIEMBRO,
+        projectIds: ['project-1'],
+      }),
+    ).toThrow(ForbiddenException);
   });
 });
