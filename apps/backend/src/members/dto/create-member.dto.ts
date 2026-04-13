@@ -1,12 +1,16 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEnum,
+  IsInt,
   IsString,
   Length,
+  Min,
   ValidateIf,
 } from 'class-validator';
+import { AreaRole } from '../../common/enums/area-role.enum';
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -67,6 +71,18 @@ export class CreateMemberDto {
 
   @IsDateString()
   birthDate: string;
+
+  @IsEnum(AreaRole)
+  role: AreaRole = AreaRole.MIEMBRO;
+
+  @ValidateIf(
+    (member: CreateMemberDto) =>
+      member.role === AreaRole.DIRECTIVA_DE_AREA || member.areaId !== undefined,
+  )
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  areaId?: number;
 
   @Transform(trimSkills)
   @IsArray()

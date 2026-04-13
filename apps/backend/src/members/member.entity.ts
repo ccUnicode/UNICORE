@@ -4,11 +4,15 @@ import {
   CreateDateColumn,
   Entity,
   JoinTable,
+  JoinColumn,
   ManyToMany,
+  ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { Area } from '../area/entities/area.entity';
 import { Skill } from '../skills/skill.entity';
 
 @Entity({ name: 'members' })
@@ -34,6 +38,20 @@ export class Member {
 
   @Column({ name: 'birth_date', type: 'date' })
   birthDate: string;
+
+  @Column({
+    type: 'enum',
+    enum: AreaRole,
+    default: AreaRole.MIEMBRO,
+  })
+  role: AreaRole;
+
+  @Column({ name: 'area_id', type: 'int', nullable: true })
+  areaId: number | null;
+
+  @ManyToOne(() => Area, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'area_id' })
+  area: Area | null;
 
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()

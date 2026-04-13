@@ -1,6 +1,8 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, QueryFailedError, Repository } from 'typeorm';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
@@ -23,6 +25,8 @@ export class MembersService {
 
     const member = this.membersRepository.create({
       ...createMemberDto,
+      role: createMemberDto.role ?? AreaRole.MIEMBRO,
+      areaId: createMemberDto.areaId ?? null,
       skills: resolvedSkills,
     });
 
@@ -62,6 +66,34 @@ export class MembersService {
     });
   }
 
+  findAccessible(accessActor: RequestAccessActor): Promise<Member[]> {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return this.findAll();
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const areaId = this.parseAreaId(accessActor.areaId);
+
+      return this.membersRepository.find({
+        where: {
+          areaId,
+        },
+        relations: {
+          skills: true,
+        },
+        order: {
+          lastNames: 'ASC',
+          firstNames: 'ASC',
+          createdAt: 'ASC',
+        },
+      });
+    }
+
+    throw new ForbiddenException(
+      'Project-scoped member access is not available on this endpoint yet',
+    );
+  }
+
   private async resolveSkills(skillNames: string[]): Promise<Skill[]> {
     const uniqueSkillNames = [...new Set(skillNames)];
 
@@ -81,5 +113,15 @@ export class MembersService {
       newSkills.length > 0 ? await this.skillsRepository.save(newSkills) : [];
 
     return [...existingSkills, ...savedNewSkills];
+  }
+
+  private parseAreaId(areaId: string | undefined): number {
+    const parsedAreaId = Number(areaId);
+
+    if (!Number.isInteger(parsedAreaId) || parsedAreaId <= 0) {
+      throw new ForbiddenException('Area-scoped access requires a valid area header');
+    }
+
+    return parsedAreaId;
   }
 }
