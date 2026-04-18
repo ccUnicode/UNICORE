@@ -4,7 +4,9 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
+import { AreaMembership } from '../../area-memberships/entities/area-membership.entity';
 
 @Entity('areas')
 export class Area {
@@ -19,6 +21,9 @@ export class Area {
 
   @Column({ type: 'boolean', default: false })
   isArchived: boolean;
+
+  @OneToMany(() => AreaMembership, (membership) => membership.area)
+  memberships: AreaMembership[];
 
   @CreateDateColumn()
   createdAt: Date;

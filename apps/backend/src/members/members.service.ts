@@ -58,7 +58,8 @@ export class MembersService {
     const query = this.membersRepository
       .createQueryBuilder('member')
       .leftJoinAndSelect('member.skills', 'skill')
-      .leftJoinAndSelect('member.area', 'area')
+      .leftJoinAndSelect('member.memberships', 'membership')
+      .leftJoinAndSelect('membership.area', 'area')
       .orderBy('member.lastNames', 'ASC')
       .addOrderBy('member.firstNames', 'ASC')
       .addOrderBy('member.createdAt', 'ASC');

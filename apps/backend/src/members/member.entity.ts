@@ -7,11 +7,10 @@ import {
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
+  OneToMany,
 } from 'typeorm';
 import { Skill } from '../skills/skill.entity';
-import { Area } from '../area/entities/area.entity';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 
 export enum MemberStatus {
   Available = 'Available',
@@ -56,7 +55,6 @@ export class Member {
   @Column({ type: 'varchar', length: 20, default: MemberStatus.Available })
   status: MemberStatus;
 
-  @ManyToOne(() => Area, { nullable: true })
-  @JoinColumn({ name: 'area_id' })
-  area: Area;
+  @OneToMany(() => AreaMembership, (membership) => membership.member)
+  memberships: AreaMembership[];
 }
