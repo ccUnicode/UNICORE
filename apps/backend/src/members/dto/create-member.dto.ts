@@ -6,7 +6,11 @@ import {
   IsString,
   Length,
   ValidateIf,
+  IsEnum,
+  IsOptional,
+  IsInt,
 } from 'class-validator';
+import { MemberStatus } from '../member.entity';
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -74,4 +78,12 @@ export class CreateMemberDto {
   @IsString({ each: true })
   @Length(1, 80, { each: true })
   skills: string[];
+
+  @IsEnum(MemberStatus)
+  @IsOptional()
+  status?: MemberStatus;
+
+  @IsInt()
+  @IsOptional()
+  areaId?: number;
 }

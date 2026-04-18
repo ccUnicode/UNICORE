@@ -110,9 +110,11 @@ describe('MembersService', () => {
         name: expect.anything(),
       },
     });
+    const { skills, areaId, ...restDto } = createMemberDto as any;
     expect(membersRepository.create).toHaveBeenCalledWith({
-      ...createMemberDto,
+      ...restDto,
       skills: persistedSkills,
+      area: undefined,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
   });
@@ -149,9 +151,11 @@ describe('MembersService', () => {
     await expect(service.create(externalMemberDto)).resolves.toEqual(
       persistedMember,
     );
+    const { skills, areaId, ...restDto } = externalMemberDto as any;
     expect(membersRepository.create).toHaveBeenCalledWith({
-      ...externalMemberDto,
+      ...restDto,
       skills: externalSkills,
+      area: undefined,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
   });

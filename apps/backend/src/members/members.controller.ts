@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Param, ParseIntPipe, Patch, Post, Query } from '@nestjs/common';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { Member } from './member.entity';
@@ -22,5 +22,13 @@ export class MembersController {
   @HttpCode(200)
   search(@Body() filterDto: GetMembersFilterDto): Promise<Member[]> {
     return this.membersService.findAll(filterDto);
+  }
+
+  @Patch(':id')
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateMemberDto: any,
+  ): Promise<Member> {
+    return this.membersService.update(id, updateMemberDto);
   }
 }

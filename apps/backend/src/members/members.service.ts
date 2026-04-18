@@ -1,4 +1,4 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
@@ -20,11 +20,13 @@ export class MembersService {
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const resolvedSkills = await this.resolveSkills(createMemberDto.skills);
+    const { skills, areaId, ...restDto } = createMemberDto;
+    const resolvedSkills = await this.resolveSkills(skills);
 
     const member = this.membersRepository.create({
-      ...createMemberDto,
+      ...restDto,
       skills: resolvedSkills,
+      area: areaId ? { id: areaId } : undefined,
     });
 
     try {
@@ -48,6 +50,26 @@ export class MembersService {
 
       throw error;
     }
+  }
+
+  async update(id: number, updateMemberDto: any): Promise<Member> {
+    const { status, areaId } = updateMemberDto;
+
+    const preloadData = {
+      id,
+      ...(status !== undefined && { status }),
+      ...(areaId !== undefined && {
+        area: areaId === null ? null : { id: areaId },
+      }),
+    } as any;
+
+    const member = await this.membersRepository.preload(preloadData);
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    return this.membersRepository.save(member);
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
