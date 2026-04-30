@@ -5,6 +5,7 @@ import { AreaModule } from './area/area.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MembersModule } from './members/members.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { MembersModule } from './members/members.module';
     }),
     AreaModule,
     MembersModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
