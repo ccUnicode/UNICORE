@@ -26,7 +26,7 @@ export class MembersService {
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
     const { skills, areaId, ...restDto } = createMemberDto;
 
-    if (areaId) {
+    if (areaId !== undefined && areaId !== null) {
       await this.validateAreaExists(areaId);
     }
 
@@ -35,7 +35,8 @@ export class MembersService {
     const member = this.membersRepository.create({
       ...restDto,
       skills: resolvedSkills,
-      area: areaId ? { id: areaId } : undefined,
+      area:
+        areaId !== undefined && areaId !== null ? { id: areaId } : undefined,
     });
 
     try {

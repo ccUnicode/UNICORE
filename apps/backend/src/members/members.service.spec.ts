@@ -5,16 +5,19 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
 import { MembersService } from './members.service';
+import { Area } from '../area/entities/area.entity';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
 >;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
+type AreaRepositoryMock = Partial<Record<keyof Repository<Area>, jest.Mock>>;
 
 describe('MembersService', () => {
   let service: MembersService;
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
+  let areasRepository: AreaRepositoryMock;
   let persistedMember: Member;
   let persistedSkills: Skill[];
 
@@ -49,6 +52,9 @@ describe('MembersService', () => {
       create: jest.fn(),
       save: jest.fn(),
     };
+    areasRepository = {
+      exists: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -60,6 +66,10 @@ describe('MembersService', () => {
         {
           provide: getRepositoryToken(Skill),
           useValue: skillsRepository,
+        },
+        {
+          provide: getRepositoryToken(Area),
+          useValue: areasRepository,
         },
       ],
     }).compile();
@@ -117,6 +127,24 @@ describe('MembersService', () => {
       area: undefined,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
+  });
+
+  it('rejects an unknown area id when creating a member', async () => {
+    areasRepository.exists?.mockResolvedValue(false);
+
+    await expect(
+      service.create({
+        ...createMemberDto,
+        areaId: 0,
+      }),
+    ).rejects.toMatchObject({
+      message: 'Area with ID 0 not found',
+    });
+    expect(areasRepository.exists).toHaveBeenCalledWith({
+      where: { id: 0 },
+    });
+    expect(skillsRepository.find).not.toHaveBeenCalled();
+    expect(membersRepository.create).not.toHaveBeenCalled();
   });
 
   it('creates and persists an external member without student code', async () => {
