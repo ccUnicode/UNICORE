@@ -1,8 +1,9 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { DeepPartial, In, QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
 
@@ -52,16 +53,16 @@ export class MembersService {
     }
   }
 
-  async update(id: number, updateMemberDto: any): Promise<Member> {
+  async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
     const { status, areaId } = updateMemberDto;
 
-    const preloadData = {
+    const preloadData: DeepPartial<Member> = {
       id,
       ...(status !== undefined && { status }),
       ...(areaId !== undefined && {
         area: areaId === null ? null : { id: areaId },
       }),
-    } as any;
+    };
 
     const member = await this.membersRepository.preload(preloadData);
 

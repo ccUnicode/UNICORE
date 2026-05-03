@@ -58,5 +58,5 @@ export class Member {
 
   @ManyToOne(() => Area, { nullable: true })
   @JoinColumn({ name: 'area_id' })
-  area: Area;
+  area: Area | null;
 }
