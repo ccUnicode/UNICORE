@@ -5,6 +5,7 @@ import { AreaMembership } from './entities/area-membership.entity';
 import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
 import { Area } from '../area/entities/area.entity';
 import { Member } from '../members/member.entity';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 type DatabaseErrorWithCode = {
   code: string;
@@ -61,9 +62,23 @@ export class AreaMembershipsService {
     }
   }
 
-  findAll(): Promise<AreaMembership[]> {
-    return this.areaMembershipsRepository.find({
+  async findAll(paginationDto: PaginationDto) {
+    const { page = 1, limit = 10 } = paginationDto;
+    const skip = (page - 1) * limit;
+
+    const [data, total] = await this.areaMembershipsRepository.findAndCount({
       relations: ['member', 'area'],
+      skip,
+      take: limit,
     });
+
+    return {
+      data,
+      meta: {
+        total,
+        page,
+        lastPage: Math.ceil(total / limit),
+      },
+    };
   }
 }

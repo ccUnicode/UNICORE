@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { AreaMembershipsService } from './area-memberships.service';
 import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
+import { PaginationDto } from '../common/dto/pagination.dto';
 
 @Controller('area-memberships')
 export class AreaMembershipsController {
@@ -12,7 +13,7 @@ export class AreaMembershipsController {
   }
 
   @Get()
-  findAll() {
-    return this.areaMembershipsService.findAll();
+  findAll(@Query() paginationDto: PaginationDto) {
+    return this.areaMembershipsService.findAll(paginationDto);
   }
 }
