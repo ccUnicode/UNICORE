@@ -1,4 +1,5 @@
-import { IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, Min } from 'class-validator';
+import { AreaRole } from '../entities/area-membership.entity';
 
 export class CreateAreaMembershipDto {
   @IsInt()
@@ -11,7 +12,7 @@ export class CreateAreaMembershipDto {
   @IsNotEmpty()
   areaId: number;
 
-  @IsString()
+  @IsEnum(AreaRole)
   @IsNotEmpty()
-  role: string;
+  role: AreaRole;
 }
