@@ -1,8 +1,13 @@
-import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, QueryFailedError, Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
@@ -66,13 +71,13 @@ export class MembersService {
     });
   }
 
-  findAccessible(accessActor: RequestAccessActor): Promise<Member[]> {
+  async findAccessible(accessActor: RequestAccessActor): Promise<Member[]> {
     if (accessActor.role === AreaRole.PRESIDENCIA) {
       return this.findAll();
     }
 
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
-      const areaId = this.parseAreaId(accessActor.areaId);
+      const areaId = parseAreaId(accessActor.areaId);
 
       return this.membersRepository.find({
         where: {
@@ -103,7 +108,9 @@ export class MembersService {
       },
     });
 
-    const existingSkillNames = new Set(existingSkills.map((skill) => skill.name));
+    const existingSkillNames = new Set(
+      existingSkills.map((skill) => skill.name),
+    );
 
     const newSkills = uniqueSkillNames
       .filter((name) => !existingSkillNames.has(name))
@@ -113,15 +120,5 @@ export class MembersService {
       newSkills.length > 0 ? await this.skillsRepository.save(newSkills) : [];
 
     return [...existingSkills, ...savedNewSkills];
-  }
-
-  private parseAreaId(areaId: string | undefined): number {
-    const parsedAreaId = Number(areaId);
-
-    if (!Number.isInteger(parsedAreaId) || parsedAreaId <= 0) {
-      throw new ForbiddenException('Area-scoped access requires a valid area header');
-    }
-
-    return parsedAreaId;
   }
 }

@@ -84,19 +84,10 @@ describe('AreaService', () => {
 
   it('rejects area listing for Miembro', async () => {
     await expect(
-      service.findAccessible({ role: AreaRole.MIEMBRO, projectIds: ['proj-1'] }),
-    ).rejects.toBeInstanceOf(ForbiddenException);
-  });
-
-  it('rejects Directiva de Area on a foreign area lookup', async () => {
-    await expect(
-      service.findAccessibleById(
-        {
-          role: AreaRole.DIRECTIVA_DE_AREA,
-          areaId: '3',
-        },
-        4,
-      ),
+      service.findAccessible({
+        role: AreaRole.MIEMBRO,
+        projectIds: ['proj-1'],
+      }),
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

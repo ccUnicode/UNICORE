@@ -34,6 +34,10 @@ export const extractRequestAccessActor = (
     return null;
   }
 
+  if (role === AreaRole.MIEMBRO && !projectIds?.length) {
+    return null;
+  }
+
   return {
     role,
     areaId: areaId || undefined,

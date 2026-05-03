@@ -4,11 +4,13 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
-  IsInt,
   IsString,
   Length,
-  Min,
+  Validate,
   ValidateIf,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 import { AreaRole } from '../../common/enums/area-role.enum';
 
@@ -38,6 +40,29 @@ const trimSkills = ({ value }: { value: unknown }) => {
     .map((item) => item.trim().replace(/\s+/g, ' ').toLowerCase())
     .filter((item) => item.length > 0);
 };
+
+@ValidatorConstraint({ name: 'ValidMemberAreaAssignment', async: false })
+class ValidMemberAreaAssignment implements ValidatorConstraintInterface {
+  validate(areaId: unknown, args: ValidationArguments): boolean {
+    const member = args.object as CreateMemberDto;
+
+    if (member.role === AreaRole.DIRECTIVA_DE_AREA) {
+      return Number.isInteger(areaId) && Number(areaId) > 0;
+    }
+
+    return areaId === undefined;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    const member = args.object as CreateMemberDto;
+
+    if (member.role === AreaRole.DIRECTIVA_DE_AREA) {
+      return 'areaId is required for directiva_de_area members';
+    }
+
+    return 'areaId is only allowed for directiva_de_area members';
+  }
+}
 
 export class CreateMemberDto {
   @Transform(normalizeInstitution)
@@ -75,13 +100,8 @@ export class CreateMemberDto {
   @IsEnum(AreaRole)
   role: AreaRole = AreaRole.MIEMBRO;
 
-  @ValidateIf(
-    (member: CreateMemberDto) =>
-      member.role === AreaRole.DIRECTIVA_DE_AREA || member.areaId !== undefined,
-  )
   @Type(() => Number)
-  @IsInt()
-  @Min(1)
+  @Validate(ValidMemberAreaAssignment)
   areaId?: number;
 
   @Transform(trimSkills)

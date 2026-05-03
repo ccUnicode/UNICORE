@@ -8,6 +8,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
 import { Area } from './entities/area.entity';
@@ -24,7 +25,9 @@ export class AreaService {
       where: { name: createAreaDto.name },
     });
     if (existingArea) {
-      throw new ConflictException(`Area with name "${createAreaDto.name}" already exists`);
+      throw new ConflictException(
+        `Area with name "${createAreaDto.name}" already exists`,
+      );
     }
 
     const area = this.areaRepository.create(createAreaDto);
@@ -68,42 +71,9 @@ export class AreaService {
     }
 
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
-      return [await this.findOne(this.parseAreaId(accessActor.areaId))];
+      return [await this.findOne(parseAreaId(accessActor.areaId))];
     }
 
     throw new ForbiddenException('You do not have permission to list areas');
-  }
-
-  async findAccessibleById(
-    accessActor: RequestAccessActor,
-    areaId: number,
-  ): Promise<Area> {
-    if (accessActor.role === AreaRole.PRESIDENCIA) {
-      return this.findOne(areaId);
-    }
-
-    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
-      const ownAreaId = this.parseAreaId(accessActor.areaId);
-
-      if (ownAreaId !== areaId) {
-        throw new ForbiddenException(
-          'Area-scoped access is limited to your own area',
-        );
-      }
-
-      return this.findOne(areaId);
-    }
-
-    throw new ForbiddenException('You do not have permission to access areas');
-  }
-
-  private parseAreaId(areaId: string | undefined): number {
-    const parsedAreaId = Number(areaId);
-
-    if (!Number.isInteger(parsedAreaId) || parsedAreaId <= 0) {
-      throw new ForbiddenException('Area-scoped access requires a valid area header');
-    }
-
-    return parsedAreaId;
   }
 }

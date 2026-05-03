@@ -38,11 +38,8 @@ export class AreaController {
   @Get(':id')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   @AccessScope({ areaIdParam: 'id' })
-  findOne(
-    @Param('id', ParseIntPipe) id: number,
-    @CurrentAccessActor() accessActor: RequestAccessActor,
-  ) {
-    return this.areaService.findAccessibleById(accessActor, id);
+  findOne(@Param('id', ParseIntPipe) id: number) {
+    return this.areaService.findOne(id);
   }
 
   @Patch(':id')

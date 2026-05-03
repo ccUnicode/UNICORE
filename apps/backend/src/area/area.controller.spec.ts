@@ -13,7 +13,7 @@ describe('AreaController', () => {
   const mockAreaService = {
     create: jest.fn(),
     findAccessible: jest.fn(),
-    findAccessibleById: jest.fn(),
+    findOne: jest.fn(),
     update: jest.fn(),
     archive: jest.fn(),
   };
@@ -40,7 +40,13 @@ describe('AreaController', () => {
   describe('create', () => {
     it('should create an area', async () => {
       const createAreaDto = { name: 'Area 1' };
-      const expectedResult = { id: 1, ...createAreaDto, isArchived: false, createdAt: new Date(), updatedAt: new Date() };
+      const expectedResult = {
+        id: 1,
+        ...createAreaDto,
+        isArchived: false,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
       mockAreaService.create.mockResolvedValue(expectedResult as any);
 
       const result = await controller.create(createAreaDto);
@@ -67,18 +73,11 @@ describe('AreaController', () => {
   describe('findOne', () => {
     it('should return an area', async () => {
       const expectedResult = { id: 1, name: 'Area 1' };
-      const accessActor = {
-        role: AreaRole.DIRECTIVA_DE_AREA,
-        areaId: '1',
-      };
-      mockAreaService.findAccessibleById.mockResolvedValue(expectedResult as any);
+      mockAreaService.findOne.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.findOne(1, accessActor);
+      const result = await controller.findOne(1);
       expect(result).toEqual(expectedResult);
-      expect(mockAreaService.findAccessibleById).toHaveBeenCalledWith(
-        accessActor,
-        1,
-      );
+      expect(mockAreaService.findOne).toHaveBeenCalledWith(1);
     });
   });
 
@@ -107,9 +106,10 @@ describe('AreaController', () => {
 
   describe('access metadata', () => {
     it('uses RolesGuard at controller level', () => {
-      const guards = Reflect.getMetadata(GUARDS_METADATA, AreaController) as Array<
-        new (...args: unknown[]) => unknown
-      >;
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        AreaController,
+      ) as Array<new (...args: unknown[]) => unknown>;
 
       expect(guards).toContain(RolesGuard);
     });

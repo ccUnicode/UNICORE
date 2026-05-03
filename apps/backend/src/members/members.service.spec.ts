@@ -8,7 +8,9 @@ import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
 import { MembersService } from './members.service';
 
-type MemberRepositoryMock = Partial<Record<keyof Repository<Member>, jest.Mock>>;
+type MemberRepositoryMock = Partial<
+  Record<keyof Repository<Member>, jest.Mock>
+>;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 
 describe('MembersService', () => {
@@ -26,7 +28,7 @@ describe('MembersService', () => {
     major: 'Ingenieria de Sistemas',
     birthDate: '2004-04-18',
     areaId: 3,
-    role: AreaRole.MIEMBRO,
+    role: AreaRole.DIRECTIVA_DE_AREA,
     skills: ['typescript', 'testing'],
   };
 
@@ -135,7 +137,7 @@ describe('MembersService', () => {
       lastNames: 'Campos Rivera',
       major: 'Diseno',
       birthDate: '2001-09-10',
-      role: AreaRole.MIEMBRO,
+      role: AreaRole.DIRECTIVA_DE_AREA,
       areaId: null,
       area: null,
       skills: externalSkills,
@@ -247,11 +249,11 @@ describe('MembersService', () => {
   });
 
   it('rejects member listing for Miembro until project persistence exists', async () => {
-    expect(() =>
+    await expect(
       service.findAccessible({
         role: AreaRole.MIEMBRO,
         projectIds: ['project-1'],
       }),
-    ).toThrow(ForbiddenException);
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 });

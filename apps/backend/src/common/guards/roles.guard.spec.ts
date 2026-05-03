@@ -58,7 +58,9 @@ describe('RolesGuard', () => {
   it('rejects requests with missing actor headers', () => {
     setupReflector([AreaRole.PRESIDENCIA]);
 
-    expect(() => guard.canActivate(createContext({}))).toThrow(ForbiddenException);
+    expect(() => guard.canActivate(createContext({}))).toThrow(
+      ForbiddenException,
+    );
   });
 
   it('rejects requests with invalid role headers', () => {
@@ -130,6 +132,21 @@ describe('RolesGuard', () => {
 
   it('rejects Miembro when the role is not allowed', () => {
     setupReflector([AreaRole.DIRECTIVA_DE_AREA]);
+
+    expect(() =>
+      guard.canActivate(
+        createContext({
+          headers: {
+            'x-role': AreaRole.MIEMBRO,
+            'x-project-ids': 'project-1',
+          },
+        }),
+      ),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('rejects Miembro without project ids', () => {
+    setupReflector([AreaRole.MIEMBRO]);
 
     expect(() =>
       guard.canActivate(

@@ -41,7 +41,7 @@ describe('MembersController', () => {
       major: 'Ingenieria de Sistemas',
       birthDate: '2004-04-18',
       role: AreaRole.MIEMBRO,
-      areaId: 2,
+      areaId: null,
       area: null,
       skills: [],
       createdAt: new Date(),
@@ -56,7 +56,6 @@ describe('MembersController', () => {
       major: 'Ingenieria de Sistemas',
       birthDate: '2004-04-18',
       role: AreaRole.MIEMBRO,
-      areaId: 2,
       skills: [],
     };
 
@@ -77,7 +76,9 @@ describe('MembersController', () => {
 
     mockMembersService.findAccessible.mockResolvedValue(storedMembers);
 
-    await expect(controller.findAll(accessActor)).resolves.toEqual(storedMembers);
+    await expect(controller.findAll(accessActor)).resolves.toEqual(
+      storedMembers,
+    );
     expect(mockMembersService.findAccessible).toHaveBeenCalledWith(accessActor);
   });
 
