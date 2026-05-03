@@ -6,13 +6,19 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Area } from './../src/area/entities/area.entity';
 import { CreateAreaDto } from './../src/area/dto/create-area.dto';
 import { UpdateAreaDto } from './../src/area/dto/update-area.dto';
+import {
+  hasNumberProperty,
+  hasOptionalBooleanProperty,
+  hasOptionalStringProperty,
+  hasStringProperty,
+  isRecord,
+  parseResponse,
+  parseResponseList,
+} from './utils/response-parsers';
 
 type AreaPayload = CreateAreaDto | UpdateAreaDto | Partial<Area>;
 type AreaResponse = Pick<Area, 'id' | 'name'> &
   Partial<Pick<Area, 'description' | 'isArchived'>>;
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === 'object' && value !== null;
 
 const isAreaResponse = (value: unknown): value is AreaResponse => {
   if (!isRecord(value)) {
@@ -20,29 +26,18 @@ const isAreaResponse = (value: unknown): value is AreaResponse => {
   }
 
   return (
-    typeof value.id === 'number' &&
-    typeof value.name === 'string' &&
-    (value.description === undefined ||
-      typeof value.description === 'string') &&
-    (value.isArchived === undefined || typeof value.isArchived === 'boolean')
+    hasNumberProperty(value, 'id') &&
+    hasStringProperty(value, 'name') &&
+    hasOptionalStringProperty(value, 'description') &&
+    hasOptionalBooleanProperty(value, 'isArchived')
   );
 };
 
-const parseAreaResponse = (body: unknown): AreaResponse => {
-  if (!isAreaResponse(body)) {
-    throw new Error('Unexpected area response body');
-  }
+const parseAreaResponse = (body: unknown): AreaResponse =>
+  parseResponse(body, isAreaResponse, 'Unexpected area response body');
 
-  return body;
-};
-
-const parseAreaListResponse = (body: unknown): AreaResponse[] => {
-  if (!Array.isArray(body) || !body.every(isAreaResponse)) {
-    throw new Error('Unexpected area list response body');
-  }
-
-  return body;
-};
+const parseAreaListResponse = (body: unknown): AreaResponse[] =>
+  parseResponseList(body, isAreaResponse, 'Unexpected area list response body');
 
 describe('AreaController (e2e)', () => {
   let app: INestApplication | undefined;
