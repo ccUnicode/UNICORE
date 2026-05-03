@@ -223,7 +223,11 @@ describe('MembersService', () => {
       'skill',
     );
     expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
-      'member.area',
+      'member.memberships',
+      'membership',
+    );
+    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+      'membership.area',
       'area',
     );
     expect(queryBuilderMock.orderBy).toHaveBeenCalledWith(
