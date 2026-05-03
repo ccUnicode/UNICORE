@@ -12,20 +12,19 @@ concurrency:
 
 jobs:
   checks:
-    name: ${{ matrix.name }}
+    name: ${{ matrix.workspace }} / ${{ matrix.command }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: lint
-            command: npm run lint
-          - name: type-check
-            command: npm run type-check
-          - name: test
-            command: npm run test
-          - name: build
-            command: npm run build
+        workspace:
+          - apps/backend
+          - apps/frontend
+        command:
+          - lint
+          - type-check
+          - test
+          - build
 
     steps:
       - name: Check out repository
@@ -34,11 +33,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Run ${{ matrix.name }}
-        run: ${{ matrix.command }}
+      - name: Run ${{ matrix.command }}
+        run: npm run ${{ matrix.command }} --workspace ${{ matrix.workspace }} --if-present
