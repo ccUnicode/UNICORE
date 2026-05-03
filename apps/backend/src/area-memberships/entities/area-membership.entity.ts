@@ -18,7 +18,7 @@ export enum AreaRole {
 }
 
 @Entity('area_memberships')
-@Unique(['member', 'area'])
+@Unique(['memberId', 'areaId'])
 export class AreaMembership {
   @PrimaryGeneratedColumn('increment')
   id: number;
@@ -26,9 +26,15 @@ export class AreaMembership {
   @Column({ type: 'varchar', length: 100, default: AreaRole.Miembro })
   role: AreaRole;
 
+  @Column({ name: 'member_id', insert: false, update: false })
+  memberId: number;
+
   @ManyToOne(() => Member, (member) => member.memberships, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'member_id' })
   member: Member;
+
+  @Column({ name: 'area_id', insert: false, update: false })
+  areaId: number;
 
   @ManyToOne(() => Area, (area) => area.memberships, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'area_id' })
