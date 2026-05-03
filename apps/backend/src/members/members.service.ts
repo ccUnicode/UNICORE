@@ -6,6 +6,7 @@ import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
+import { Area } from '../area/entities/area.entity';
 
 type DatabaseErrorWithCode = {
   code: string;
@@ -18,10 +19,17 @@ export class MembersService {
     private readonly membersRepository: Repository<Member>,
     @InjectRepository(Skill)
     private readonly skillsRepository: Repository<Skill>,
+    @InjectRepository(Area)
+    private readonly areasRepository: Repository<Area>,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
     const { skills, areaId, ...restDto } = createMemberDto;
+
+    if (areaId) {
+      await this.validateAreaExists(areaId);
+    }
+
     const resolvedSkills = await this.resolveSkills(skills);
 
     const member = this.membersRepository.create({
@@ -55,6 +63,10 @@ export class MembersService {
 
   async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
     const { status, areaId } = updateMemberDto;
+
+    if (areaId !== undefined && areaId !== null) {
+      await this.validateAreaExists(areaId);
+    }
 
     const preloadData: DeepPartial<Member> = {
       id,
@@ -133,5 +145,14 @@ export class MembersService {
       newSkills.length > 0 ? await this.skillsRepository.save(newSkills) : [];
 
     return [...existingSkills, ...savedNewSkills];
+  }
+
+  private async validateAreaExists(areaId: number): Promise<void> {
+    const areaExists = await this.areasRepository.exists({
+      where: { id: areaId },
+    });
+    if (!areaExists) {
+      throw new NotFoundException(`Area with ID ${areaId} not found`);
+    }
   }
 }
