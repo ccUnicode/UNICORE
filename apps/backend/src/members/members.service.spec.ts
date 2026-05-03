@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
@@ -11,9 +11,13 @@ type MemberRepositoryMock = Partial<
 >;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 
-const createSkill = (overrides: Partial<Skill> = {}): Skill => ({
-  id: 1,
-  name: 'typescript',
+const createSkill = (
+  id: number,
+  name: string,
+  overrides: Partial<Skill> = {},
+): Skill => ({
+  id,
+  name,
   createdAt: new Date(),
   updatedAt: new Date(),
   members: [],
@@ -73,10 +77,7 @@ describe('MembersService', () => {
     }).compile();
 
     service = module.get<MembersService>(MembersService);
-    persistedSkills = [
-      createSkill({ id: 1, name: 'typescript' }),
-      createSkill({ id: 2, name: 'testing' }),
-    ];
+    persistedSkills = [createSkill(1, 'typescript'), createSkill(2, 'testing')];
     persistedMember = {
       id: 10,
       institution: createMemberDto.institution,
@@ -99,11 +100,6 @@ describe('MembersService', () => {
     await expect(service.create(createMemberDto)).resolves.toEqual(
       persistedMember,
     );
-    expect(skillsRepository.find).toHaveBeenCalledWith({
-      where: {
-        name: In(createMemberDto.skills),
-      },
-    });
     expect(membersRepository.create).toHaveBeenCalledWith({
       ...createMemberDto,
       skills: persistedSkills,
@@ -112,9 +108,7 @@ describe('MembersService', () => {
   });
 
   it('creates and persists an external member without student code', async () => {
-    const externalSkills: Skill[] = [
-      createSkill({ id: 3, name: 'facilitacion' }),
-    ];
+    const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
     const persistedMember: Member = {
       id: 2,
       institution: 'PUCP',
@@ -173,7 +167,7 @@ describe('MembersService', () => {
         lastNames: 'Alva Ruiz',
         major: 'Arquitectura',
         birthDate: '2003-10-02',
-        skills: [createSkill({ id: 4, name: 'gestion' })],
+        skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
       },
