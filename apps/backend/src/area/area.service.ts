@@ -4,7 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Not, Repository } from 'typeorm';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
 import { Area } from './entities/area.entity';
@@ -49,6 +49,18 @@ export class AreaService {
 
   async update(id: number, updateAreaDto: UpdateAreaDto): Promise<Area> {
     const area = await this.findOne(id);
+
+    if (updateAreaDto.name) {
+      const existingArea = await this.areaRepository.findOne({
+        where: { name: updateAreaDto.name, id: Not(id) },
+      });
+
+      if (existingArea) {
+        throw new ConflictException(
+          `Area with name "${updateAreaDto.name}" already exists`,
+        );
+      }
+    }
 
     // Merge the updates into the existing area
     Object.assign(area, updateAreaDto);

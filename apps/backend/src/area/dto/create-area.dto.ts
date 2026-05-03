@@ -14,5 +14,6 @@ export class CreateAreaDto {
   @Transform(trimString)
   @IsString()
   @IsOptional()
+  @MaxLength(1000)
   description?: string;
 }
