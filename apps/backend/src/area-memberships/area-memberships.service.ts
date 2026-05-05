@@ -6,10 +6,7 @@ import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
 import { Area } from '../area/entities/area.entity';
 import { Member } from '../members/member.entity';
 import { PaginationDto } from '../common/dto/pagination.dto';
-
-type DatabaseErrorWithCode = {
-  code: string;
-};
+import { isUniqueViolation } from '../common/utils/database-errors.util';
 
 @Injectable()
 export class AreaMembershipsService {
@@ -44,15 +41,7 @@ export class AreaMembershipsService {
     try {
       return await this.areaMembershipsRepository.save(membership);
     } catch (error) {
-      const databaseError =
-        error instanceof QueryFailedError &&
-        typeof error.driverError === 'object' &&
-        error.driverError !== null &&
-        'code' in error.driverError
-          ? (error.driverError as DatabaseErrorWithCode)
-          : null;
-
-      if (databaseError?.code === '23505') {
+      if (isUniqueViolation(error)) {
         throw new ConflictException(
           `Member ${memberId} is already assigned to Area ${areaId}`,
         );

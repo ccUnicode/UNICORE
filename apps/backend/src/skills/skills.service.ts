@@ -3,10 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
 import { CreateSkillDto } from './dto/create-skill.dto';
 import { Skill } from './skill.entity';
-
-type DatabaseErrorWithCode = {
-  code: string;
-};
+import { isUniqueViolation } from '../common/utils/database-errors.util';
 
 @Injectable()
 export class SkillsService {
@@ -21,15 +18,7 @@ export class SkillsService {
     try {
       return await this.skillsRepository.save(skill);
     } catch (error) {
-      const databaseError =
-        error instanceof QueryFailedError &&
-        typeof error.driverError === 'object' &&
-        error.driverError !== null &&
-        'code' in error.driverError
-          ? (error.driverError as DatabaseErrorWithCode)
-          : null;
-
-      if (databaseError?.code === '23505') {
+      if (isUniqueViolation(error)) {
         throw new ConflictException(
           `A skill with name "${createSkillDto.name}" already exists.`,
         );

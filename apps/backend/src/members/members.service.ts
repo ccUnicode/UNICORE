@@ -5,10 +5,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
-
-type DatabaseErrorWithCode = {
-  code: string;
-};
+import { isUniqueViolation } from '../common/utils/database-errors.util';
 
 @Injectable()
 export class MembersService {
@@ -30,15 +27,7 @@ export class MembersService {
     try {
       return await this.membersRepository.save(member);
     } catch (error) {
-      const databaseError =
-        error instanceof QueryFailedError &&
-        typeof error.driverError === 'object' &&
-        error.driverError !== null &&
-        'code' in error.driverError
-          ? (error.driverError as DatabaseErrorWithCode)
-          : null;
-
-      if (databaseError?.code === '23505') {
+      if (isUniqueViolation(error)) {
         const duplicateMessage = createMemberDto.studentCode
           ? `A member with institution "${createMemberDto.institution}" and student code "${createMemberDto.studentCode}" already exists.`
           : `A member with institution "${createMemberDto.institution}" already exists.`;
