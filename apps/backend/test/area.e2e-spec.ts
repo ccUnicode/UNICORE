@@ -19,6 +19,20 @@ import {
 type AreaPayload = CreateAreaDto | UpdateAreaDto | Partial<Area>;
 type AreaResponse = Pick<Area, 'id' | 'name'> &
   Partial<Pick<Area, 'description' | 'isArchived'>>;
+type AreaFindOneArgs = {
+  where: {
+    id?: unknown;
+    name?: unknown;
+  };
+};
+
+const getFindOperatorValue = (value: unknown): unknown => {
+  if (typeof value !== 'object' || value === null || !('value' in value)) {
+    return value;
+  }
+
+  return (value as { value: unknown }).value;
+};
 
 const isAreaResponse = (value: unknown): value is AreaResponse => {
   if (!isRecord(value)) {
@@ -63,19 +77,32 @@ describe('AreaController (e2e)', () => {
     find: jest
       .fn()
       .mockResolvedValue([{ id: 1, name: 'Test Area', isArchived: false }]),
-    findOne: jest
-      .fn()
-      .mockImplementation(({ where: { id } }: { where: { id: number } }) => {
-        if (id === 1) {
+    findOne: jest.fn().mockImplementation(({ where }: AreaFindOneArgs) => {
+      const id = getFindOperatorValue(where.id);
+      const name = getFindOperatorValue(where.name);
+
+      if (typeof name === 'string') {
+        if (name.toLowerCase() === 'existing area') {
           return Promise.resolve({
-            id: 1,
-            name: 'Test Area',
+            id: 2,
+            name: 'Existing Area',
             isArchived: false,
           });
         }
 
         return Promise.resolve(null);
-      }),
+      }
+
+      if (id === 1) {
+        return Promise.resolve({
+          id: 1,
+          name: 'Test Area',
+          isArchived: false,
+        });
+      }
+
+      return Promise.resolve(null);
+    }),
   };
 
   beforeAll(async () => {
@@ -158,6 +185,13 @@ describe('AreaController (e2e)', () => {
       .expect((res: { body: unknown }) => {
         expect(parseAreaResponse(res.body).name).toBe('Updated Area');
       });
+  });
+
+  it('/areas/:id (PATCH) - should reject duplicate area names', () => {
+    return request(getHttpServer())
+      .patch('/areas/1')
+      .send({ name: 'Existing Area' })
+      .expect(409);
   });
 
   it('/areas/:id/archive (PATCH) - should archive an area', () => {
