@@ -1,9 +1,11 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { NotFoundException } from '@nestjs/common';
 import { QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
-import { Member } from './member.entity';
+import { Member, MemberStatus } from './member.entity';
 import { Skill } from '../skills/skill.entity';
+import { Area } from '../area/entities/area.entity';
 import { MembersService } from './members.service';
 import { Area } from '../area/entities/area.entity';
 
@@ -46,6 +48,7 @@ describe('MembersService', () => {
       save: jest.fn(),
       find: jest.fn(),
       createQueryBuilder: jest.fn(),
+      preload: jest.fn(),
     };
     skillsRepository = {
       find: jest.fn(),
@@ -263,5 +266,81 @@ describe('MembersService', () => {
       'ASC',
     );
     expect(queryBuilderMock.getMany).toHaveBeenCalled();
+  });
+
+  describe('update', () => {
+    it('successfully updates a member status', async () => {
+      const updateDto = { status: MemberStatus.Unavailable };
+      const updatedMember = { ...persistedMember, status: MemberStatus.Unavailable };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(updatedMember);
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        status: MemberStatus.Unavailable,
+      });
+      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+    });
+
+    it('throws NotFoundException when updating with a non-existent areaId', async () => {
+      const updateDto = { areaId: 999 };
+
+      areasRepository.exists?.mockResolvedValue(false);
+
+      await expect(service.update(10, updateDto)).rejects.toThrow(
+        new NotFoundException('Area with ID 999 not found'),
+      );
+      expect(areasRepository.exists).toHaveBeenCalledWith({ where: { id: 999 } });
+      expect(membersRepository.preload).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when member to update does not exist', async () => {
+      const updateDto = { status: MemberStatus.Disabled };
+
+      membersRepository.preload?.mockResolvedValue(null);
+
+      await expect(service.update(99, updateDto)).rejects.toThrow(
+        new NotFoundException('Member with ID 99 not found'),
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 99,
+        status: MemberStatus.Disabled,
+      });
+      expect(membersRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('successfully unassigns area when areaId is null', async () => {
+      const updateDto = { areaId: null };
+      const updatedMember = { ...persistedMember, area: null };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(updatedMember);
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        area: null,
+      });
+      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+    });
+
+    it('successfully updates area when areaId is a valid existing area', async () => {
+      const updateDto = { areaId: 5 };
+      const updatedMember = { ...persistedMember, area: { id: 5 } as any };
+
+      areasRepository.exists?.mockResolvedValue(true);
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(updatedMember);
+      expect(areasRepository.exists).toHaveBeenCalledWith({ where: { id: 5 } });
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        area: { id: 5 },
+      });
+      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+    });
   });
 });
