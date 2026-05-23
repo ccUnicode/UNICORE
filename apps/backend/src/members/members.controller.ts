@@ -19,12 +19,6 @@ export class MembersController {
     return this.membersService.findAll(filterDto);
   }
 
-  @Post('search')
-  @HttpCode(200)
-  search(@Body() filterDto: GetMembersFilterDto): Promise<Member[]> {
-    return this.membersService.findAll(filterDto);
-  }
-
   @Patch(':id')
   update(
     @Param('id', ParseIntPipe) id: number,
