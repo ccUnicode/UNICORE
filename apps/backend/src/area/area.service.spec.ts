@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { AreaService } from './area.service';
 import { Area } from './entities/area.entity';
@@ -77,6 +77,20 @@ describe('AreaService', () => {
         areaId: '3',
       }),
     ).resolves.toEqual([storedArea]);
+    expect(repository.findOne).toHaveBeenCalledWith({
+      where: { id: 3, isArchived: false },
+    });
+  });
+
+  it('propagates NotFoundException when Directiva de Area has no active area', async () => {
+    repository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.findAccessible({
+        role: AreaRole.DIRECTIVA_DE_AREA,
+        areaId: '3',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(repository.findOne).toHaveBeenCalledWith({
       where: { id: 3, isArchived: false },
     });

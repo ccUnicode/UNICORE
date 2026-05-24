@@ -17,10 +17,10 @@ describe('MembersService', () => {
   let service: MembersService;
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
-  let persistedMember: Member;
+  let persistedAreaDirectiveMember: Member;
   let persistedSkills: Skill[];
 
-  const createMemberDto: CreateMemberDto = {
+  const areaDirectiveMemberDto: CreateMemberDto = {
     institution: 'UNI',
     studentCode: '20230001',
     firstNames: 'Ana Lucia',
@@ -83,16 +83,16 @@ describe('MembersService', () => {
         updatedAt: new Date(),
       },
     ];
-    persistedMember = {
+    persistedAreaDirectiveMember = {
       id: 10,
-      institution: createMemberDto.institution,
-      studentCode: createMemberDto.studentCode ?? null,
-      firstNames: createMemberDto.firstNames,
-      lastNames: createMemberDto.lastNames,
-      major: createMemberDto.major,
-      birthDate: createMemberDto.birthDate,
-      role: createMemberDto.role,
-      areaId: createMemberDto.areaId ?? null,
+      institution: areaDirectiveMemberDto.institution,
+      studentCode: areaDirectiveMemberDto.studentCode ?? null,
+      firstNames: areaDirectiveMemberDto.firstNames,
+      lastNames: areaDirectiveMemberDto.lastNames,
+      major: areaDirectiveMemberDto.major,
+      birthDate: areaDirectiveMemberDto.birthDate,
+      role: areaDirectiveMemberDto.role,
+      areaId: areaDirectiveMemberDto.areaId ?? null,
       area: null,
       skills: persistedSkills,
       createdAt: new Date(),
@@ -100,13 +100,13 @@ describe('MembersService', () => {
     };
   });
 
-  it('creates and persists a member', async () => {
+  it('creates and persists an area directive member', async () => {
     skillsRepository.find?.mockResolvedValue(persistedSkills);
-    membersRepository.create?.mockReturnValue(persistedMember);
-    membersRepository.save?.mockResolvedValue(persistedMember);
+    membersRepository.create?.mockReturnValue(persistedAreaDirectiveMember);
+    membersRepository.save?.mockResolvedValue(persistedAreaDirectiveMember);
 
-    await expect(service.create(createMemberDto)).resolves.toEqual(
-      persistedMember,
+    await expect(service.create(areaDirectiveMemberDto)).resolves.toEqual(
+      persistedAreaDirectiveMember,
     );
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
@@ -114,10 +114,12 @@ describe('MembersService', () => {
       },
     });
     expect(membersRepository.create).toHaveBeenCalledWith({
-      ...createMemberDto,
+      ...areaDirectiveMemberDto,
       skills: persistedSkills,
     });
-    expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
+    expect(membersRepository.save).toHaveBeenCalledWith(
+      persistedAreaDirectiveMember,
+    );
   });
 
   it('creates and persists an external member without student code', async () => {
@@ -137,7 +139,7 @@ describe('MembersService', () => {
       lastNames: 'Campos Rivera',
       major: 'Diseno',
       birthDate: '2001-09-10',
-      role: AreaRole.DIRECTIVA_DE_AREA,
+      role: externalMemberDto.role,
       areaId: null,
       area: null,
       skills: externalSkills,
@@ -172,10 +174,10 @@ describe('MembersService', () => {
     );
 
     skillsRepository.find?.mockResolvedValue(persistedSkills);
-    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.create?.mockReturnValue(persistedAreaDirectiveMember);
     membersRepository.save?.mockRejectedValue(duplicateError);
 
-    await expect(service.create(createMemberDto)).rejects.toMatchObject({
+    await expect(service.create(areaDirectiveMemberDto)).rejects.toMatchObject({
       message:
         'A member with institution "UNI" and student code "20230001" already exists.',
     });
@@ -223,7 +225,7 @@ describe('MembersService', () => {
   });
 
   it('lists only members from the assigned area for Directiva de Area', async () => {
-    const scopedMembers: Member[] = [persistedMember];
+    const scopedMembers: Member[] = [persistedAreaDirectiveMember];
 
     membersRepository.find?.mockResolvedValue(scopedMembers);
 

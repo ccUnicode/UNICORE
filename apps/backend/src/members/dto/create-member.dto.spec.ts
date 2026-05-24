@@ -58,4 +58,13 @@ describe('CreateMemberDto', () => {
       ]),
     );
   });
+
+  it('allows Miembro without an areaId', async () => {
+    await expect(
+      validateDto({
+        ...validMember,
+        role: AreaRole.MIEMBRO,
+      }),
+    ).resolves.toHaveLength(0);
+  });
 });

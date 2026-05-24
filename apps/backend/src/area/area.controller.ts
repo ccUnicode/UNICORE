@@ -35,6 +35,8 @@ export class AreaController {
     return this.areaService.findAccessible(accessActor);
   }
 
+  // Route-id access is enforced by AccessScope + RolesGuard; list filtering
+  // stays in findAccessible so controllers keep one authorization convention.
   @Get(':id')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   @AccessScope({ areaIdParam: 'id' })

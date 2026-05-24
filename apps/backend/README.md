@@ -57,21 +57,6 @@ $ npm run test:e2e
 $ npm run test:cov
 ```
 
-## Access-control headers
-
-Protected endpoints read the authenticated actor from headers injected by the
-trusted upstream auth component:
-
-- `x-role`: one of `presidencia`, `directiva_de_area`, or `miembro`.
-- `x-area-id`: required for `directiva_de_area`.
-- `x-member-id`: optional member identifier for member-scoped flows.
-- `x-project-ids`: optional comma-separated project identifiers.
-
-These headers are authorization inputs and must not be accepted directly from
-public clients. Deploy the backend behind an auth gateway/reverse proxy that
-validates the user token, strips any incoming client-provided access-control
-headers, and injects the canonical values before forwarding the request.
-
 ## Deployment
 
 When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
