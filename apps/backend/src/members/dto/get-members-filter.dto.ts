@@ -12,7 +12,10 @@ export class GetMembersFilterDto {
   @IsOptional()
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      return value.charAt(0).toUpperCase() + value.slice(1).toLowerCase();
+      const match = Object.values(MemberStatus).find(
+        (status) => status.toLowerCase() === value.toLowerCase(),
+      );
+      return match || value;
     }
     return value;
   })
