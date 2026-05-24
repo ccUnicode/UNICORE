@@ -3,7 +3,7 @@ import { AreaMembershipsService } from './area-memberships.service';
 import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
 
-// TODO: Add auth guard (tracked in #XX)
+// TODO: Add auth guard (tracked in #18)
 @Controller('area-memberships')
 export class AreaMembershipsController {
   constructor(private readonly areaMembershipsService: AreaMembershipsService) {}
