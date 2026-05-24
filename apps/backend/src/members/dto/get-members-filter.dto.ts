@@ -6,7 +6,7 @@ import {
   IsOptional,
   IsString,
 } from 'class-validator';
-import { MemberStatus } from '../member.entity';
+import { MemberStatus } from '../enums/member-status.enum';
 
 export class GetMembersFilterDto {
   @IsOptional()
