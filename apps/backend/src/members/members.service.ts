@@ -71,7 +71,9 @@ export class MembersService {
       },
     });
 
-    const existingSkillNames = new Set(existingSkills.map((skill) => skill.name));
+    const existingSkillNames = new Set(
+      existingSkills.map((skill) => skill.name),
+    );
 
     const newSkills = uniqueSkillNames
       .filter((name) => !existingSkillNames.has(name))

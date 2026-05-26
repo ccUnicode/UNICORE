@@ -31,7 +31,10 @@ export class AreaController {
   }
 
   @Patch(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() updateAreaDto: UpdateAreaDto) {
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateAreaDto: UpdateAreaDto,
+  ) {
     return this.areaService.update(id, updateAreaDto);
   }
 
