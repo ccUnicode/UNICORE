@@ -1,0 +1,43 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: ${{ matrix.workspace }} / ${{ matrix.command }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        workspace:
+          - apps/backend
+          - apps/frontend
+        command:
+          - lint
+          - type-check
+          - test
+          - build
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ${{ matrix.command }}
+        run: npm run ${{ matrix.command }} --workspace ${{ matrix.workspace }} --if-present

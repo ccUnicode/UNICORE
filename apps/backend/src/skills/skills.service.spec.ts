@@ -92,7 +92,9 @@ describe('SkillsService', () => {
       repository.create!.mockReturnValue(skillEntity);
       repository.save!.mockRejectedValue(databaseError);
 
-      await expect(service.create(createSkillDto)).rejects.toThrow(databaseError);
+      await expect(service.create(createSkillDto)).rejects.toThrow(
+        databaseError,
+      );
     });
   });
 

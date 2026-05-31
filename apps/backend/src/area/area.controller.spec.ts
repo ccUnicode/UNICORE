@@ -7,6 +7,19 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { AreaController } from './area.controller';
 import { AreaService } from './area.service';
 
+const getAreaControllerMethod = (methodName: keyof AreaController) => {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    AreaController.prototype,
+    methodName,
+  );
+
+  if (!descriptor) {
+    throw new Error(`Missing AreaController method: ${String(methodName)}`);
+  }
+
+  return descriptor.value as object;
+};
+
 describe('AreaController', () => {
   let controller: AreaController;
 
@@ -116,28 +129,31 @@ describe('AreaController', () => {
 
     it('guards write actions for Presidencia only', () => {
       expect(
-        Reflect.getMetadata(ROLES_KEY, AreaController.prototype.create),
+        Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('create')),
       ).toEqual([AreaRole.PRESIDENCIA]);
       expect(
-        Reflect.getMetadata(ROLES_KEY, AreaController.prototype.update),
+        Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('update')),
       ).toEqual([AreaRole.PRESIDENCIA]);
       expect(
-        Reflect.getMetadata(ROLES_KEY, AreaController.prototype.archive),
+        Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('archive')),
       ).toEqual([AreaRole.PRESIDENCIA]);
     });
 
     it('allows read access for Presidencia and Directiva de Area', () => {
       expect(
-        Reflect.getMetadata(ROLES_KEY, AreaController.prototype.findAll),
+        Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('findAll')),
       ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
       expect(
-        Reflect.getMetadata(ROLES_KEY, AreaController.prototype.findOne),
+        Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('findOne')),
       ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
     });
 
     it('declares area-scoped enforcement for findOne', () => {
       expect(
-        Reflect.getMetadata(ACCESS_SCOPE_KEY, AreaController.prototype.findOne),
+        Reflect.getMetadata(
+          ACCESS_SCOPE_KEY,
+          getAreaControllerMethod('findOne'),
+        ),
       ).toEqual({ areaIdParam: 'id' });
     });
   });

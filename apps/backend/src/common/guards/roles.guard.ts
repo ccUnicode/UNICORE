@@ -27,7 +27,9 @@ export class RolesGuard implements CanActivate {
       return true;
     }
 
-    const request = context.switchToHttp().getRequest<AccessControlledRequest>();
+    const request = context
+      .switchToHttp()
+      .getRequest<AccessControlledRequest>();
     const accessActor = extractRequestAccessActor(request.headers);
 
     if (!accessActor) {
@@ -41,7 +43,9 @@ export class RolesGuard implements CanActivate {
     }
 
     if (!requiredRoles.includes(accessActor.role)) {
-      throw new ForbiddenException('You do not have permission to access this resource');
+      throw new ForbiddenException(
+        'You do not have permission to access this resource',
+      );
     }
 
     const accessScope = this.reflector.getAllAndOverride<
@@ -75,7 +79,9 @@ export class RolesGuard implements CanActivate {
     );
 
     if (targetAreaId && targetAreaId !== accessActor.areaId) {
-      throw new ForbiddenException('Area-scoped access is limited to your own area');
+      throw new ForbiddenException(
+        'Area-scoped access is limited to your own area',
+      );
     }
   }
 
@@ -95,11 +101,15 @@ export class RolesGuard implements CanActivate {
     }
 
     if (!accessActor.projectIds?.length) {
-      throw new ForbiddenException('Project-scoped access requires project participation');
+      throw new ForbiddenException(
+        'Project-scoped access requires project participation',
+      );
     }
 
     if (targetProjectId && !accessActor.projectIds.includes(targetProjectId)) {
-      throw new ForbiddenException('Project-scoped access is limited to your own projects');
+      throw new ForbiddenException(
+        'Project-scoped access is limited to your own projects',
+      );
     }
   }
 

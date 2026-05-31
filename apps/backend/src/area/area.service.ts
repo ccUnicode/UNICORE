@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ILike, Not, Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { parseAreaId } from '../common/utils/parse-area-id.util';
@@ -22,7 +22,7 @@ export class AreaService {
 
   async create(createAreaDto: CreateAreaDto): Promise<Area> {
     const existingArea = await this.areaRepository.findOne({
-      where: { name: createAreaDto.name },
+      where: { name: ILike(createAreaDto.name) },
     });
     if (existingArea) {
       throw new ConflictException(
@@ -54,6 +54,19 @@ export class AreaService {
   async update(id: number, updateAreaDto: UpdateAreaDto): Promise<Area> {
     const area = await this.findOne(id);
 
+    if (updateAreaDto.name) {
+      const existingArea = await this.areaRepository.findOne({
+        where: { name: ILike(updateAreaDto.name), id: Not(id) },
+      });
+
+      if (existingArea) {
+        throw new ConflictException(
+          `Area with name "${updateAreaDto.name}" already exists`,
+        );
+      }
+    }
+
+    // Merge the updates into the existing area
     Object.assign(area, updateAreaDto);
 
     return this.areaRepository.save(area);

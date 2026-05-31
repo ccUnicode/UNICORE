@@ -1,4 +1,3 @@
-
 import {
   Column,
   CreateDateColumn,
@@ -56,7 +55,7 @@ export class Member {
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()
   skills: Skill[];
-  
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 

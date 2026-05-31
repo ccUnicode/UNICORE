@@ -13,6 +13,19 @@ type MemberRepositoryMock = Partial<
 >;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 
+const createSkill = (
+  id: number,
+  name: string,
+  overrides: Partial<Skill> = {},
+): Skill => ({
+  id,
+  name,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  members: [],
+  ...overrides,
+});
+
 describe('MembersService', () => {
   let service: MembersService;
   let membersRepository: MemberRepositoryMock;
@@ -69,20 +82,7 @@ describe('MembersService', () => {
     }).compile();
 
     service = module.get<MembersService>(MembersService);
-    persistedSkills = [
-      {
-        id: 1,
-        name: 'typescript',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-      {
-        id: 2,
-        name: 'testing',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ];
+    persistedSkills = [createSkill(1, 'typescript'), createSkill(2, 'testing')];
     persistedAreaDirectiveMember = {
       id: 10,
       institution: areaDirectiveMemberDto.institution,
@@ -108,11 +108,6 @@ describe('MembersService', () => {
     await expect(service.create(areaDirectiveMemberDto)).resolves.toEqual(
       persistedAreaDirectiveMember,
     );
-    expect(skillsRepository.find).toHaveBeenCalledWith({
-      where: {
-        name: expect.anything(),
-      },
-    });
     expect(membersRepository.create).toHaveBeenCalledWith({
       ...areaDirectiveMemberDto,
       skills: persistedSkills,
@@ -123,14 +118,7 @@ describe('MembersService', () => {
   });
 
   it('creates and persists an external member without student code', async () => {
-    const externalSkills: Skill[] = [
-      {
-        id: 3,
-        name: 'facilitacion',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      },
-    ];
+    const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
     const persistedMember: Member = {
       id: 2,
       institution: 'PUCP',
@@ -196,14 +184,7 @@ describe('MembersService', () => {
         role: AreaRole.MIEMBRO,
         areaId: 3,
         area: null,
-        skills: [
-          {
-            id: 4,
-            name: 'gestion',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
+        skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
       },

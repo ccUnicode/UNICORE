@@ -7,6 +7,19 @@ import { Member } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
+const getMembersControllerMethod = (methodName: keyof MembersController) => {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    MembersController.prototype,
+    methodName,
+  );
+
+  if (!descriptor) {
+    throw new Error(`Missing MembersController method: ${String(methodName)}`);
+  }
+
+  return descriptor.value as object;
+};
+
 describe('MembersController', () => {
   let controller: MembersController;
 
@@ -94,13 +107,13 @@ describe('MembersController', () => {
 
     it('guards member creation for Presidencia only', () => {
       expect(
-        Reflect.getMetadata(ROLES_KEY, MembersController.prototype.create),
+        Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('create')),
       ).toEqual([AreaRole.PRESIDENCIA]);
     });
 
     it('guards member listing for Presidencia and Directiva de Area', () => {
       expect(
-        Reflect.getMetadata(ROLES_KEY, MembersController.prototype.findAll),
+        Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('findAll')),
       ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
     });
   });
