@@ -7,8 +7,17 @@ import {
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
+  ManyToOne,
+  JoinColumn,
 } from 'typeorm';
 import { Skill } from '../skills/skill.entity';
+import { Area } from '../area/entities/area.entity';
+
+export enum MemberStatus {
+  Available = 'Available',
+  Unavailable = 'Unavailable',
+  Disabled = 'Disabled',
+}
 
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
@@ -43,4 +52,11 @@ export class Member {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @Column({ type: 'varchar', length: 20, default: MemberStatus.Available })
+  status: MemberStatus;
+
+  @ManyToOne(() => Area, { nullable: true })
+  @JoinColumn({ name: 'area_id' })
+  area: Area | null;
 }

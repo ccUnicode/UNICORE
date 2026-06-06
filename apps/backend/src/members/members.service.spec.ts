@@ -1,15 +1,19 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { NotFoundException } from '@nestjs/common';
 import { QueryFailedError, Repository } from 'typeorm';
 import { CreateMemberDto } from './dto/create-member.dto';
-import { Member } from './member.entity';
+import { Member, MemberStatus } from './member.entity';
 import { Skill } from '../skills/skill.entity';
+import { Area } from '../area/entities/area.entity';
 import { MembersService } from './members.service';
+import { Area } from '../area/entities/area.entity';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
 >;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
+type AreaRepositoryMock = Partial<Record<keyof Repository<Area>, jest.Mock>>;
 
 const createSkill = (
   id: number,
@@ -28,6 +32,7 @@ describe('MembersService', () => {
   let service: MembersService;
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
+  let areasRepository: AreaRepositoryMock;
   let persistedMember: Member;
   let persistedSkills: Skill[];
 
@@ -55,11 +60,16 @@ describe('MembersService', () => {
       create: jest.fn(),
       save: jest.fn(),
       find: jest.fn(),
+      createQueryBuilder: jest.fn(),
+      preload: jest.fn(),
     };
     skillsRepository = {
       find: jest.fn(),
       create: jest.fn(),
       save: jest.fn(),
+    };
+    areasRepository = {
+      exists: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -72,6 +82,10 @@ describe('MembersService', () => {
         {
           provide: getRepositoryToken(Skill),
           useValue: skillsRepository,
+        },
+        {
+          provide: getRepositoryToken(Area),
+          useValue: areasRepository,
         },
       ],
     }).compile();
@@ -89,6 +103,8 @@ describe('MembersService', () => {
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      status: 'Available' as any,
+      area: null as any,
     };
   });
 
@@ -100,11 +116,36 @@ describe('MembersService', () => {
     await expect(service.create(createMemberDto)).resolves.toEqual(
       persistedMember,
     );
+    expect(skillsRepository.find).toHaveBeenCalledWith({
+      where: {
+        name: expect.anything(),
+      },
+    });
+    const { skills, areaId, ...restDto } = createMemberDto as any;
     expect(membersRepository.create).toHaveBeenCalledWith({
-      ...createMemberDto,
+      ...restDto,
       skills: persistedSkills,
+      area: undefined,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
+  });
+
+  it('rejects an unknown area id when creating a member', async () => {
+    areasRepository.exists?.mockResolvedValue(false);
+
+    await expect(
+      service.create({
+        ...createMemberDto,
+        areaId: 0,
+      }),
+    ).rejects.toMatchObject({
+      message: 'Area with ID 0 not found',
+    });
+    expect(areasRepository.exists).toHaveBeenCalledWith({
+      where: { id: 0 },
+    });
+    expect(skillsRepository.find).not.toHaveBeenCalled();
+    expect(membersRepository.create).not.toHaveBeenCalled();
   });
 
   it('creates and persists an external member without student code', async () => {
@@ -120,6 +161,8 @@ describe('MembersService', () => {
       skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      status: 'Available' as any,
+      area: null as any,
     };
 
     skillsRepository.find?.mockResolvedValue(externalSkills);
@@ -129,9 +172,11 @@ describe('MembersService', () => {
     await expect(service.create(externalMemberDto)).resolves.toEqual(
       persistedMember,
     );
+    const { skills, areaId, ...restDto } = externalMemberDto as any;
     expect(membersRepository.create).toHaveBeenCalledWith({
-      ...externalMemberDto,
+      ...restDto,
       skills: externalSkills,
+      area: undefined,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
   });
@@ -170,21 +215,114 @@ describe('MembersService', () => {
         skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
+        status: 'Available' as any,
+        area: null as any,
       },
     ];
 
-    membersRepository.find?.mockResolvedValue(storedMembers);
+    const queryBuilderMock = {
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      setParameter: jest.fn().mockReturnThis(),
+      getMany: jest.fn().mockResolvedValue(storedMembers),
+    };
+
+    membersRepository.createQueryBuilder?.mockReturnValue(
+      queryBuilderMock as any,
+    );
 
     await expect(service.findAll()).resolves.toEqual(storedMembers);
-    expect(membersRepository.find).toHaveBeenCalledWith({
-      relations: {
-        skills: true,
-      },
-      order: {
-        lastNames: 'ASC',
-        firstNames: 'ASC',
-        createdAt: 'ASC',
-      },
+    expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith('member');
+    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+      'member.skills',
+      'skill',
+    );
+    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+      'member.area',
+      'area',
+    );
+    expect(queryBuilderMock.orderBy).toHaveBeenCalledWith(
+      'member.lastNames',
+      'ASC',
+    );
+    expect(queryBuilderMock.getMany).toHaveBeenCalled();
+  });
+
+  describe('update', () => {
+    it('successfully updates a member status', async () => {
+      const updateDto = { status: MemberStatus.Unavailable };
+      const updatedMember = { ...persistedMember, status: MemberStatus.Unavailable };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(updatedMember);
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        status: MemberStatus.Unavailable,
+      });
+      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+    });
+
+    it('throws NotFoundException when updating with a non-existent areaId', async () => {
+      const updateDto = { areaId: 999 };
+
+      areasRepository.exists?.mockResolvedValue(false);
+
+      await expect(service.update(10, updateDto)).rejects.toThrow(
+        new NotFoundException('Area with ID 999 not found'),
+      );
+      expect(areasRepository.exists).toHaveBeenCalledWith({ where: { id: 999 } });
+      expect(membersRepository.preload).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when member to update does not exist', async () => {
+      const updateDto = { status: MemberStatus.Disabled };
+
+      membersRepository.preload?.mockResolvedValue(null);
+
+      await expect(service.update(99, updateDto)).rejects.toThrow(
+        new NotFoundException('Member with ID 99 not found'),
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 99,
+        status: MemberStatus.Disabled,
+      });
+      expect(membersRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('successfully unassigns area when areaId is null', async () => {
+      const updateDto = { areaId: null };
+      const updatedMember = { ...persistedMember, area: null };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(updatedMember);
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        area: null,
+      });
+      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+    });
+
+    it('successfully updates area when areaId is a valid existing area', async () => {
+      const updateDto = { areaId: 5 };
+      const updatedMember = { ...persistedMember, area: { id: 5 } as any };
+
+      areasRepository.exists?.mockResolvedValue(true);
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(updatedMember);
+      expect(areasRepository.exists).toHaveBeenCalledWith({ where: { id: 5 } });
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        area: { id: 5 },
+      });
+      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
     });
   });
 });
