@@ -3,7 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { Member } from './member.entity';
+import { Member, MemberStatus } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
@@ -26,6 +26,7 @@ describe('MembersController', () => {
   const mockMembersService = {
     create: jest.fn(),
     findAccessible: jest.fn(),
+    update: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -59,6 +60,7 @@ describe('MembersController', () => {
       skills: [],
       createdAt: new Date(),
       updatedAt: new Date(),
+      status: MemberStatus.Available,
     } satisfies Member;
 
     const createMemberDto = {
@@ -86,13 +88,17 @@ describe('MembersController', () => {
       areaId: '2',
     };
     const storedMembers: Member[] = [];
+    const filterDto = { status: MemberStatus.Available };
 
     mockMembersService.findAccessible.mockResolvedValue(storedMembers);
 
-    await expect(controller.findAll(accessActor)).resolves.toEqual(
+    await expect(controller.findAll(accessActor, filterDto)).resolves.toEqual(
       storedMembers,
     );
-    expect(mockMembersService.findAccessible).toHaveBeenCalledWith(accessActor);
+    expect(mockMembersService.findAccessible).toHaveBeenCalledWith(
+      accessActor,
+      filterDto,
+    );
   });
 
   describe('access metadata', () => {
@@ -115,6 +121,12 @@ describe('MembersController', () => {
       expect(
         Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('findAll')),
       ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
+    });
+
+    it('guards member updates for Presidencia only', () => {
+      expect(
+        Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('update')),
+      ).toEqual([AreaRole.PRESIDENCIA]);
     });
   });
 });

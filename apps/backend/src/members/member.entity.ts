@@ -2,17 +2,23 @@ import {
   Column,
   CreateDateColumn,
   Entity,
-  JoinTable,
   JoinColumn,
+  JoinTable,
   ManyToMany,
   ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
 } from 'typeorm';
-import { AreaRole } from '../common/enums/area-role.enum';
 import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
+
+export enum MemberStatus {
+  Available = 'Available',
+  Unavailable = 'Unavailable',
+  Disabled = 'Disabled',
+}
 
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
@@ -61,4 +67,7 @@ export class Member {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @Column({ type: 'varchar', length: 20, default: MemberStatus.Available })
+  status: MemberStatus;
 }

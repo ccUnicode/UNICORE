@@ -1,10 +1,22 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseIntPipe,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { CreateMemberDto } from './dto/create-member.dto';
+import { GetMembersFilterDto } from './dto/get-members-filter.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
 import { MembersService } from './members.service';
 
@@ -23,7 +35,17 @@ export class MembersController {
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   findAll(
     @CurrentAccessActor() accessActor: RequestAccessActor,
+    @Query() filterDto: GetMembersFilterDto,
   ): Promise<Member[]> {
-    return this.membersService.findAccessible(accessActor);
+    return this.membersService.findAccessible(accessActor, filterDto);
+  }
+
+  @Patch(':id')
+  @Roles(AreaRole.PRESIDENCIA)
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateMemberDto: UpdateMemberDto,
+  ): Promise<Member> {
+    return this.membersService.update(id, updateMemberDto);
   }
 }

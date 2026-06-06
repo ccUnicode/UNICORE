@@ -2,15 +2,19 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { DeepPartial, In, QueryFailedError, Repository } from 'typeorm';
+import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { parseAreaId } from '../common/utils/parse-area-id.util';
-import { CreateMemberDto } from './dto/create-member.dto';
-import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
+import { CreateMemberDto } from './dto/create-member.dto';
+import { GetMembersFilterDto } from './dto/get-members-filter.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
+import { Member } from './member.entity';
 
 type DatabaseErrorWithCode = {
   code: string;
@@ -23,16 +27,25 @@ export class MembersService {
     private readonly membersRepository: Repository<Member>,
     @InjectRepository(Skill)
     private readonly skillsRepository: Repository<Skill>,
+    @InjectRepository(Area)
+    private readonly areasRepository: Repository<Area>,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const resolvedSkills = await this.resolveSkills(createMemberDto.skills);
+    const { skills, areaId, ...restDto } = createMemberDto;
+
+    if (areaId !== undefined && areaId !== null) {
+      await this.validateAreaExists(areaId);
+    }
+
+    const resolvedSkills = await this.resolveSkills(skills);
 
     const member = this.membersRepository.create({
-      ...createMemberDto,
-      role: createMemberDto.role ?? AreaRole.MIEMBRO,
-      areaId: createMemberDto.areaId ?? null,
+      ...restDto,
+      role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
+      area:
+        areaId !== undefined && areaId !== null ? { id: areaId } : undefined,
     });
 
     try {
@@ -58,39 +71,83 @@ export class MembersService {
     }
   }
 
-  findAll(): Promise<Member[]> {
-    return this.membersRepository.find({
-      relations: {
-        skills: true,
-      },
-      order: {
-        lastNames: 'ASC',
-        firstNames: 'ASC',
-        createdAt: 'ASC',
-      },
-    });
+  async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
+    const { status, areaId } = updateMemberDto;
+
+    if (areaId !== undefined && areaId !== null) {
+      await this.validateAreaExists(areaId);
+    }
+
+    const preloadData: DeepPartial<Member> = {
+      id,
+      ...(status !== undefined && { status }),
+      ...(areaId !== undefined && {
+        area: areaId === null ? null : { id: areaId },
+      }),
+    };
+
+    const member = await this.membersRepository.preload(preloadData);
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    return this.membersRepository.save(member);
   }
 
-  async findAccessible(accessActor: RequestAccessActor): Promise<Member[]> {
+  findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
+    const status = filterDto?.status;
+    const areaId = filterDto?.areaId;
+    const skills = filterDto?.skills;
+
+    const query = this.membersRepository
+      .createQueryBuilder('member')
+      .leftJoinAndSelect('member.skills', 'skill')
+      .leftJoinAndSelect('member.area', 'area')
+      .orderBy('member.lastNames', 'ASC')
+      .addOrderBy('member.firstNames', 'ASC')
+      .addOrderBy('member.createdAt', 'ASC');
+
+    if (status) {
+      query.andWhere('member.status = :status', { status });
+    }
+
+    if (areaId !== undefined) {
+      query.andWhere('area.id = :areaId', { areaId });
+    }
+
+    if (skills && skills.length > 0) {
+      query
+        .andWhere((qb) => {
+          const subQuery = qb
+            .subQuery()
+            .select('member_sub.id')
+            .from(Member, 'member_sub')
+            .innerJoin('member_sub.skills', 'skill_sub')
+            .where('skill_sub.name IN (:...skills)')
+            .getQuery();
+          return `member.id IN ${subQuery}`;
+        })
+        .setParameter('skills', skills);
+    }
+
+    return query.getMany();
+  }
+
+  async findAccessible(
+    accessActor: RequestAccessActor,
+    filterDto?: GetMembersFilterDto,
+  ): Promise<Member[]> {
     if (accessActor.role === AreaRole.PRESIDENCIA) {
-      return this.findAll();
+      return this.findAll(filterDto);
     }
 
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
       const areaId = parseAreaId(accessActor.areaId);
 
-      return this.membersRepository.find({
-        where: {
-          areaId,
-        },
-        relations: {
-          skills: true,
-        },
-        order: {
-          lastNames: 'ASC',
-          firstNames: 'ASC',
-          createdAt: 'ASC',
-        },
+      return this.findAll({
+        ...filterDto,
+        areaId,
       });
     }
 
@@ -120,5 +177,14 @@ export class MembersService {
       newSkills.length > 0 ? await this.skillsRepository.save(newSkills) : [];
 
     return [...existingSkills, ...savedNewSkills];
+  }
+
+  private async validateAreaExists(areaId: number): Promise<void> {
+    const areaExists = await this.areasRepository.exists({
+      where: { id: areaId },
+    });
+    if (!areaExists) {
+      throw new NotFoundException(`Area with ID ${areaId} not found`);
+    }
   }
 }
