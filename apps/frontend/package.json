@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint src next.config.ts postcss.config.mjs",
+    "type-check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
     "next": "16.1.6",

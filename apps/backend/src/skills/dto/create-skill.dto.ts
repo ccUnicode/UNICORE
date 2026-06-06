@@ -1,7 +1,7 @@
 import { Transform, type TransformFnParams } from 'class-transformer';
 import { IsString, Length } from 'class-validator';
 
-const normalizeSkill = ({ value }: TransformFnParams) => {
+const normalizeSkill = ({ value }: TransformFnParams): unknown => {
   if (typeof value !== 'string') {
     return value;
   }

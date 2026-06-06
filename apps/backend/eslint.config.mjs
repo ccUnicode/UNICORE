@@ -19,7 +19,8 @@ export default tseslint.config(
       },
       sourceType: 'commonjs',
       parserOptions: {
-        projectService: true,
+        // projectService does not pick up the separate spec/e2e tsconfig here.
+        project: ['./tsconfig.json', './tsconfig.spec.json'],
         tsconfigRootDir: import.meta.dirname,
       },
     },
@@ -29,7 +30,7 @@ export default tseslint.config(
       '@typescript-eslint/no-explicit-any': 'off',
       '@typescript-eslint/no-floating-promises': 'warn',
       '@typescript-eslint/no-unsafe-argument': 'warn',
-      "prettier/prettier": ["error", { endOfLine: "auto" }],
+      'prettier/prettier': ['error', { endOfLine: 'auto' }],
     },
   },
 );
