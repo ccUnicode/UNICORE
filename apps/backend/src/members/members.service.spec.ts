@@ -15,6 +15,19 @@ type MemberRepositoryMock = Partial<
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 type AreaRepositoryMock = Partial<Record<keyof Repository<Area>, jest.Mock>>;
 
+const createSkill = (
+  id: number,
+  name: string,
+  overrides: Partial<Skill> = {},
+): Skill => ({
+  id,
+  name,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  members: [],
+  ...overrides,
+});
+
 describe('MembersService', () => {
   let service: MembersService;
   let membersRepository: MemberRepositoryMock;
@@ -78,22 +91,7 @@ describe('MembersService', () => {
     }).compile();
 
     service = module.get<MembersService>(MembersService);
-    persistedSkills = [
-      {
-        id: 1,
-        name: 'typescript',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        members: [] as any,
-      },
-      {
-        id: 2,
-        name: 'testing',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        members: [] as any,
-      },
-    ];
+    persistedSkills = [createSkill(1, 'typescript'), createSkill(2, 'testing')];
     persistedMember = {
       id: 10,
       institution: createMemberDto.institution,
@@ -151,15 +149,7 @@ describe('MembersService', () => {
   });
 
   it('creates and persists an external member without student code', async () => {
-    const externalSkills: Skill[] = [
-      {
-        id: 3,
-        name: 'facilitacion',
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        members: [] as any,
-      },
-    ];
+    const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
     const persistedMember: Member = {
       id: 2,
       institution: 'PUCP',
@@ -222,15 +212,7 @@ describe('MembersService', () => {
         lastNames: 'Alva Ruiz',
         major: 'Arquitectura',
         birthDate: '2003-10-02',
-        skills: [
-          {
-            id: 4,
-            name: 'gestion',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            members: [] as any,
-          },
-        ],
+        skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
         status: 'Available' as any,

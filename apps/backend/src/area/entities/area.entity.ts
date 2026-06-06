@@ -4,9 +4,11 @@ import {
   Column,
   CreateDateColumn,
   UpdateDateColumn,
+  Unique,
 } from 'typeorm';
 
 @Entity('areas')
+@Unique(['name'])
 export class Area {
   @PrimaryGeneratedColumn('increment')
   id: number;
@@ -14,8 +16,8 @@ export class Area {
   @Column({ type: 'varchar', length: 255 })
   name: string;
 
-  @Column({ type: 'text', nullable: true })
-  description: string;
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  description: string | null;
 
   @Column({ type: 'boolean', default: false })
   isArchived: boolean;
