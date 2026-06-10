@@ -1,10 +1,14 @@
 import {
+  ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
-  ConflictException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ILike, Not, Repository } from 'typeorm';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
 import { Area } from './entities/area.entity';
@@ -72,5 +76,17 @@ export class AreaService {
     const area = await this.findOne(id);
     area.isArchived = true;
     return this.areaRepository.save(area);
+  }
+
+  async findAccessible(accessActor: RequestAccessActor): Promise<Area[]> {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return this.findAll();
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      return [await this.findOne(parseAreaId(accessActor.areaId))];
+    }
+
+    throw new ForbiddenException('You do not have permission to list areas');
   }
 }

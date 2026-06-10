@@ -2,16 +2,17 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   JoinTable,
   ManyToMany,
+  ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
-  ManyToOne,
-  JoinColumn,
 } from 'typeorm';
-import { Skill } from '../skills/skill.entity';
 import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { Skill } from '../skills/skill.entity';
 
 export enum MemberStatus {
   Available = 'Available',
@@ -43,6 +44,20 @@ export class Member {
   @Column({ name: 'birth_date', type: 'date' })
   birthDate: string;
 
+  @Column({
+    type: 'enum',
+    enum: AreaRole,
+    default: AreaRole.MIEMBRO,
+  })
+  role: AreaRole;
+
+  @Column({ name: 'area_id', type: 'int', nullable: true })
+  areaId: number | null;
+
+  @ManyToOne(() => Area, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'area_id' })
+  area: Area | null;
+
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()
   skills: Skill[];
@@ -55,8 +70,4 @@ export class Member {
 
   @Column({ type: 'varchar', length: 20, default: MemberStatus.Available })
   status: MemberStatus;
-
-  @ManyToOne(() => Area, { nullable: true })
-  @JoinColumn({ name: 'area_id' })
-  area: Area | null;
 }

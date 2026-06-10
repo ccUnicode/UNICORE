@@ -1,12 +1,20 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, In, QueryFailedError, Repository } from 'typeorm';
+import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { parseAreaId } from '../common/utils/parse-area-id.util';
+import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
-import { Skill } from '../skills/skill.entity';
-import { Area } from '../area/entities/area.entity';
 
 type DatabaseErrorWithCode = {
   code: string;
@@ -34,6 +42,7 @@ export class MembersService {
 
     const member = this.membersRepository.create({
       ...restDto,
+      role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
       area:
         areaId !== undefined && areaId !== null ? { id: areaId } : undefined,
@@ -123,6 +132,28 @@ export class MembersService {
     }
 
     return query.getMany();
+  }
+
+  async findAccessible(
+    accessActor: RequestAccessActor,
+    filterDto?: GetMembersFilterDto,
+  ): Promise<Member[]> {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return this.findAll(filterDto);
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const areaId = parseAreaId(accessActor.areaId);
+
+      return this.findAll({
+        ...filterDto,
+        areaId,
+      });
+    }
+
+    throw new ForbiddenException(
+      'Project-scoped member access is not available on this endpoint yet',
+    );
   }
 
   private async resolveSkills(skillNames: string[]): Promise<Skill[]> {
