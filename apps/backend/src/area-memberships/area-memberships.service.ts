@@ -7,6 +7,7 @@ import { Area } from '../area/entities/area.entity';
 import { Member } from '../members/member.entity';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
+import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
 @Injectable()
 export class AreaMembershipsService {
@@ -51,7 +52,9 @@ export class AreaMembershipsService {
     }
   }
 
-  async findAll(paginationDto: PaginationDto) {
+  async findAll(
+    paginationDto: PaginationDto,
+  ): Promise<PaginatedResponse<AreaMembership>> {
     const { page = 1, limit = 10 } = paginationDto;
     const skip = (page - 1) * limit;
 
