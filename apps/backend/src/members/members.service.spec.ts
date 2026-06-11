@@ -91,7 +91,7 @@ describe('MembersService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       status: 'Available' as any,
-      area: null as any,
+      memberships: [] as any,
     };
   });
 
@@ -124,7 +124,7 @@ describe('MembersService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       status: 'Available' as any,
-      area: null as any,
+      memberships: [] as any,
     };
 
     skillsRepository.find?.mockResolvedValue(externalSkills);
@@ -176,7 +176,7 @@ describe('MembersService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         status: 'Available' as any,
-        area: null as any,
+        memberships: [] as any,
       },
     ];
 
