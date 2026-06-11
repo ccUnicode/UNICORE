@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query } from '@nestjs/common';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { Member } from './member.entity';
@@ -15,12 +15,6 @@ export class MembersController {
 
   @Get()
   findAll(@Query() filterDto: GetMembersFilterDto): Promise<Member[]> {
-    return this.membersService.findAll(filterDto);
-  }
-
-  @Post('search')
-  @HttpCode(200)
-  search(@Body() filterDto: GetMembersFilterDto): Promise<Member[]> {
     return this.membersService.findAll(filterDto);
   }
 }

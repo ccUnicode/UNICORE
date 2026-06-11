@@ -50,6 +50,18 @@ export class AreaService {
   async update(id: number, updateAreaDto: UpdateAreaDto): Promise<Area> {
     const area = await this.findOne(id);
 
+    if (updateAreaDto.name) {
+      const existingArea = await this.areaRepository.findOne({
+        where: { name: ILike(updateAreaDto.name), id: Not(id) },
+      });
+
+      if (existingArea) {
+        throw new ConflictException(
+          `Area with name "${updateAreaDto.name}" already exists`,
+        );
+      }
+    }
+
     // Merge the updates into the existing area
     Object.assign(area, updateAreaDto);
 
