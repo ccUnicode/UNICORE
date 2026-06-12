@@ -16,6 +16,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
+import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
 import { MembersService } from './members.service';
@@ -36,7 +37,7 @@ export class MembersController {
   findAll(
     @CurrentAccessActor() accessActor: RequestAccessActor,
     @Query() filterDto: GetMembersFilterDto,
-  ): Promise<Member[]> {
+  ): Promise<MemberResponse[]> {
     return this.membersService.findAccessible(accessActor, filterDto);
   }
 
