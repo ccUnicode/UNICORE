@@ -1,10 +1,19 @@
 import { IsEnum, IsInt, IsOptional } from 'class-validator';
-import { MemberStatus } from '../member.entity';
+import { MemberActivityStatus } from '../enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
 
 export class UpdateMemberDto {
-  @IsEnum(MemberStatus)
+  @IsEnum(MemberActivityStatus)
   @IsOptional()
-  status?: MemberStatus;
+  activityStatus?: MemberActivityStatus;
+
+  @IsEnum(MemberAvailabilityStatus)
+  @IsOptional()
+  availabilityStatus?: MemberAvailabilityStatus;
+
+  @IsEnum(MemberAvailabilityStatus)
+  @IsOptional()
+  status?: MemberAvailabilityStatus;
 
   @IsInt()
   @IsOptional()

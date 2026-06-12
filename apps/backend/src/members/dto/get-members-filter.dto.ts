@@ -8,49 +8,84 @@ import {
   IsString,
   Length,
 } from 'class-validator';
-import { MemberStatus } from '../member.entity';
+import { MemberActivityStatus } from '../enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
+
+const normalizeEnumValue = <T extends string>(
+  value: unknown,
+  values: readonly T[],
+): unknown => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  return (
+    values.find((status) => status.toLowerCase() === value.toLowerCase()) ??
+    value
+  );
+};
+
+const normalizeNumber = (value: unknown): unknown => {
+  if (typeof value !== 'string') {
+    return value;
+  }
+
+  const parsed = Number(value);
+  return Number.isNaN(parsed) || value.trim() === '' ? value : parsed;
+};
+
+const normalizeSkills = (value: unknown): unknown => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const items: readonly unknown[] =
+    typeof value === 'string' ? [value] : Array.isArray(value) ? value : [];
+
+  if (
+    items.length === 0 &&
+    !Array.isArray(value) &&
+    typeof value !== 'string'
+  ) {
+    return value;
+  }
+
+  return items.map((item) =>
+    typeof item === 'string'
+      ? item.trim().replace(/\s+/g, ' ').toLowerCase()
+      : item,
+  );
+};
 
 export class GetMembersFilterDto {
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      const match = Object.values(MemberStatus).find(
-        (status) => status.toLowerCase() === value.toLowerCase()
-      );
-      return match || value;
-    }
-    return value;
-  })
-  @IsEnum(MemberStatus)
-  status?: MemberStatus;
+  @Transform(({ value }: { value: unknown }) =>
+    normalizeEnumValue(value, Object.values(MemberAvailabilityStatus)),
+  )
+  @IsEnum(MemberAvailabilityStatus)
+  status?: MemberAvailabilityStatus;
 
   @IsOptional()
-  @Transform(({ value }) => {
-    if (typeof value === 'string') {
-      const parsed = Number(value);
-      return isNaN(parsed) || value.trim() === '' ? value : parsed;
-    }
-    return value;
-  })
+  @Transform(({ value }: { value: unknown }) =>
+    normalizeEnumValue(value, Object.values(MemberActivityStatus)),
+  )
+  @IsEnum(MemberActivityStatus)
+  activityStatus?: MemberActivityStatus;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    normalizeEnumValue(value, Object.values(MemberAvailabilityStatus)),
+  )
+  @IsEnum(MemberAvailabilityStatus)
+  availabilityStatus?: MemberAvailabilityStatus;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => normalizeNumber(value))
   @IsNumber()
   areaId?: number;
 
   @IsOptional()
-  @Transform(({ value }) => {
-    if (value === undefined) return value;
-
-    let arr: any[] = [];
-    if (typeof value === 'string') arr = [value];
-    else if (Array.isArray(value)) arr = value;
-    else return value;
-
-    return arr.map((item) => {
-      if (typeof item === 'string') {
-        return item.trim().replace(/\s+/g, ' ').toLowerCase();
-      }
-      return item;
-    });
-  })
+  @Transform(({ value }: { value: unknown }) => normalizeSkills(value))
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
