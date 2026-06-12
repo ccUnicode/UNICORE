@@ -13,12 +13,8 @@ import {
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
-
-export enum MemberStatus {
-  Available = 'Available',
-  Unavailable = 'Unavailable',
-  Disabled = 'Disabled',
-}
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
@@ -58,6 +54,22 @@ export class Member {
   @JoinColumn({ name: 'area_id' })
   area: Area | null;
 
+  @Column({
+    name: 'activity_status',
+    type: 'enum',
+    enum: MemberActivityStatus,
+    default: MemberActivityStatus.ACTIVE,
+  })
+  activityStatus: MemberActivityStatus;
+
+  @Column({
+    name: 'availability_status',
+    type: 'enum',
+    enum: MemberAvailabilityStatus,
+    default: MemberAvailabilityStatus.AVAILABLE,
+  })
+  availabilityStatus: MemberAvailabilityStatus;
+
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()
   skills: Skill[];
@@ -67,7 +79,4 @@ export class Member {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  @Column({ type: 'varchar', length: 20, default: MemberStatus.Available })
-  status: MemberStatus;
 }
