@@ -1,7 +1,4 @@
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
@@ -9,7 +6,9 @@ import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
-import { Member, MemberStatus } from './member.entity';
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
+import { Member } from './member.entity';
 import { MembersService } from './members.service';
 
 type MemberRepositoryMock = Partial<
@@ -118,10 +117,11 @@ describe('MembersService', () => {
       role: areaDirectiveMemberDto.role,
       areaId: areaDirectiveMemberDto.areaId ?? null,
       area: null,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
-      status: MemberStatus.Available,
     };
   });
 
@@ -184,10 +184,11 @@ describe('MembersService', () => {
       role: AreaRole.MIEMBRO,
       areaId: null,
       area: null,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
-      status: MemberStatus.Available,
     };
 
     skillsRepository.find?.mockResolvedValue(externalSkills);
@@ -241,10 +242,11 @@ describe('MembersService', () => {
         role: AreaRole.MIEMBRO,
         areaId: 3,
         area: null,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
         skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
-        status: MemberStatus.Available,
       },
     ];
     const queryBuilderMock = createQueryBuilderMock(storedMembers);
@@ -271,11 +273,13 @@ describe('MembersService', () => {
   });
 
   describe('update', () => {
-    it('successfully updates a member status', async () => {
-      const updateDto = { status: MemberStatus.Unavailable };
+    it('successfully updates a member availability status', async () => {
+      const updateDto = {
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+      };
       const updatedMember = {
         ...persistedAreaDirectiveMember,
-        status: MemberStatus.Unavailable,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
       };
 
       membersRepository.preload?.mockResolvedValue(updatedMember);
@@ -286,9 +290,47 @@ describe('MembersService', () => {
       );
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,
-        status: MemberStatus.Unavailable,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+    });
+
+    it('supports legacy status update input as availability status', async () => {
+      const updateDto = { status: MemberAvailabilityStatus.UNAVAILABLE };
+      const updatedMember = {
+        ...persistedAreaDirectiveMember,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+      };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        updatedMember,
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+      });
+    });
+
+    it('successfully updates a member activity status', async () => {
+      const updateDto = { activityStatus: MemberActivityStatus.INACTIVE };
+      const updatedMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.INACTIVE,
+      };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        updatedMember,
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        activityStatus: MemberActivityStatus.INACTIVE,
+      });
     });
 
     it('throws NotFoundException when updating with a non-existent areaId', async () => {
@@ -306,7 +348,9 @@ describe('MembersService', () => {
     });
 
     it('throws NotFoundException when member to update does not exist', async () => {
-      const updateDto = { status: MemberStatus.Disabled };
+      const updateDto = {
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      };
 
       membersRepository.preload?.mockResolvedValue(null);
 
@@ -315,7 +359,7 @@ describe('MembersService', () => {
       );
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 99,
-        status: MemberStatus.Disabled,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
       });
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
@@ -376,12 +420,12 @@ describe('MembersService', () => {
           role: AreaRole.DIRECTIVA_DE_AREA,
           areaId: '3',
         },
-        { areaId: 99, status: MemberStatus.Available },
+        { areaId: 99, status: MemberAvailabilityStatus.AVAILABLE },
       ),
     ).resolves.toEqual(scopedMembers);
     expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
-      'member.status = :status',
-      { status: MemberStatus.Available },
+      'member.availabilityStatus = :availabilityStatus',
+      { availabilityStatus: MemberAvailabilityStatus.AVAILABLE },
     );
     expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
       'area.id = :areaId',
