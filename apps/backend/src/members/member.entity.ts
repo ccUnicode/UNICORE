@@ -17,12 +17,6 @@ import { Skill } from '../skills/skill.entity';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { MemberStatus } from './enums/member-status.enum';
 
-export enum MemberStatus {
-  Available = 'Available',
-  Unavailable = 'Unavailable',
-  Disabled = 'Disabled',
-}
-
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
 export class Member {

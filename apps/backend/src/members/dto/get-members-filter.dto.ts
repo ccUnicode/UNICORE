@@ -12,7 +12,7 @@ import { MemberStatus } from '../enums/member-status.enum';
 
 export class GetMembersFilterDto {
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (typeof value === 'string') {
       const match = Object.values(MemberStatus).find(
         (status) => status.toLowerCase() === value.toLowerCase(),
@@ -25,7 +25,7 @@ export class GetMembersFilterDto {
   status?: MemberStatus;
 
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (typeof value === 'string') {
       const parsed = Number(value);
       return isNaN(parsed) || value.trim() === '' ? value : parsed;
@@ -36,10 +36,10 @@ export class GetMembersFilterDto {
   areaId?: number;
 
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }) => {
     if (value === undefined) return value;
 
-    let arr: any[] = [];
+    let arr: unknown[] = [];
     if (typeof value === 'string') arr = [value];
     else if (Array.isArray(value)) arr = value;
     else return value;

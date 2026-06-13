@@ -119,7 +119,7 @@ describe('MembersService', () => {
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
-      memberships: [] as any,
+      memberships: [],
       status: MemberStatus.Available,
     };
   });
@@ -138,9 +138,10 @@ describe('MembersService', () => {
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
-        name: expect.anything(),
+        name: expect.anything() as unknown,
       },
     });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { skills, areaId, ...restDto } = areaDirectiveMemberDto;
     expect(membersRepository.create).toHaveBeenCalledWith({
       ...restDto,
@@ -186,7 +187,7 @@ describe('MembersService', () => {
       skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
-      memberships: [] as any,
+      memberships: [],
       status: MemberStatus.Available,
     };
 
@@ -197,6 +198,7 @@ describe('MembersService', () => {
     await expect(service.create(externalMemberDto)).resolves.toEqual(
       persistedMember,
     );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { skills, areaId, ...restDto } = externalMemberDto;
     expect(membersRepository.create).toHaveBeenCalledWith({
       ...restDto,
@@ -229,7 +231,7 @@ describe('MembersService', () => {
   });
 
   describe('findAll', () => {
-    let queryBuilderMock: any;
+    let queryBuilderMock: ReturnType<typeof createQueryBuilderMock>;
     const storedMembers: Member[] = [
       {
         id: 2,
@@ -245,7 +247,7 @@ describe('MembersService', () => {
         skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
-        memberships: [] as any,
+        memberships: [],
         status: MemberStatus.Available,
       },
     ];
@@ -253,14 +255,14 @@ describe('MembersService', () => {
     beforeEach(() => {
       queryBuilderMock = createQueryBuilderMock(storedMembers);
 
-      membersRepository.createQueryBuilder?.mockReturnValue(
-        queryBuilderMock as any,
-      );
+      membersRepository.createQueryBuilder?.mockReturnValue(queryBuilderMock);
     });
 
     it('lists members ordered by last name and first name', async () => {
       await expect(service.findAll()).resolves.toEqual(storedMembers);
-      expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith('member');
+      expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'member',
+      );
       expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
         'member.skills',
         'skill',
@@ -281,7 +283,7 @@ describe('MembersService', () => {
     });
 
     it('filters by status', async () => {
-      const filterDto = { status: 'Available' as any };
+      const filterDto = { status: MemberStatus.Available };
       await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
       expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
         'member.status = :status',
@@ -312,7 +314,7 @@ describe('MembersService', () => {
 
     it('filters by combination of status, areaId, and skills', async () => {
       const filterDto = {
-        status: 'Available' as any,
+        status: MemberStatus.Available,
         areaId: 3,
         skills: ['typescript'],
       };
@@ -333,7 +335,7 @@ describe('MembersService', () => {
       ]);
     });
   });
-  
+
   describe('update', () => {
     it('successfully updates a member status', async () => {
       const updateDto = { status: MemberStatus.Unavailable };

@@ -8,7 +8,9 @@ import { PaginatedResponse } from '../common/interfaces/paginated-response.inter
 // TODO: Add auth guard (tracked in #18)
 @Controller('area-memberships')
 export class AreaMembershipsController {
-  constructor(private readonly areaMembershipsService: AreaMembershipsService) {}
+  constructor(
+    private readonly areaMembershipsService: AreaMembershipsService,
+  ) {}
 
   @Post()
   create(

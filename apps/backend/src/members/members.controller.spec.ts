@@ -62,6 +62,7 @@ describe('MembersController', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       status: MemberStatus.Available,
+      memberships: [],
     } satisfies Member;
 
     const createMemberDto = {

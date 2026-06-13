@@ -1,6 +1,10 @@
-import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, QueryFailedError } from 'typeorm';
+import { Repository } from 'typeorm';
 import { AreaMembership } from './entities/area-membership.entity';
 import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
 import { Area } from '../area/entities/area.entity';
@@ -20,10 +24,14 @@ export class AreaMembershipsService {
     private readonly areasRepository: Repository<Area>,
   ) {}
 
-  async create(createAreaMembershipDto: CreateAreaMembershipDto): Promise<AreaMembership> {
+  async create(
+    createAreaMembershipDto: CreateAreaMembershipDto,
+  ): Promise<AreaMembership> {
     const { memberId, areaId, role } = createAreaMembershipDto;
 
-    const member = await this.membersRepository.findOne({ where: { id: memberId } });
+    const member = await this.membersRepository.findOne({
+      where: { id: memberId },
+    });
     if (!member) {
       throw new NotFoundException(`Member with ID ${memberId} not found`);
     }

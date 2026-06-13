@@ -29,7 +29,9 @@ export class AreaMembership {
   @Column({ name: 'member_id', insert: false, update: false })
   memberId: number;
 
-  @ManyToOne(() => Member, (member) => member.memberships, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Member, (member) => member.memberships, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'member_id' })
   member: Member;
 
