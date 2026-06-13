@@ -1,8 +1,19 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import { DeepPartial, In, QueryFailedError, Repository } from 'typeorm';
+import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { parseAreaId } from '../common/utils/parse-area-id.util';
+import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
+import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
 import { Skill } from '../skills/skill.entity';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
@@ -14,14 +25,25 @@ export class MembersService {
     private readonly membersRepository: Repository<Member>,
     @InjectRepository(Skill)
     private readonly skillsRepository: Repository<Skill>,
+    @InjectRepository(Area)
+    private readonly areasRepository: Repository<Area>,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const resolvedSkills = await this.resolveSkills(createMemberDto.skills);
+    const { skills, areaId, ...restDto } = createMemberDto;
+
+    if (areaId !== undefined && areaId !== null) {
+      await this.validateAreaExists(areaId);
+    }
+
+    const resolvedSkills = await this.resolveSkills(skills);
 
     const member = this.membersRepository.create({
-      ...createMemberDto,
+      ...restDto,
+      role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
+      area:
+        areaId !== undefined && areaId !== null ? { id: areaId } : undefined,
     });
 
     try {
@@ -37,6 +59,30 @@ export class MembersService {
 
       throw error;
     }
+  }
+
+  async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
+    const { status, areaId } = updateMemberDto;
+
+    if (areaId !== undefined && areaId !== null) {
+      await this.validateAreaExists(areaId);
+    }
+
+    const preloadData: DeepPartial<Member> = {
+      id,
+      ...(status !== undefined && { status }),
+      ...(areaId !== undefined && {
+        area: areaId === null ? null : { id: areaId },
+      }),
+    };
+
+    const member = await this.membersRepository.preload(preloadData);
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    return this.membersRepository.save(member);
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
@@ -79,6 +125,28 @@ export class MembersService {
     return query.getMany();
   }
 
+  async findAccessible(
+    accessActor: RequestAccessActor,
+    filterDto?: GetMembersFilterDto,
+  ): Promise<Member[]> {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return this.findAll(filterDto);
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const areaId = parseAreaId(accessActor.areaId);
+
+      return this.findAll({
+        ...filterDto,
+        areaId,
+      });
+    }
+
+    throw new ForbiddenException(
+      'Project-scoped member access is not available on this endpoint yet',
+    );
+  }
+
   private async resolveSkills(skillNames: string[]): Promise<Skill[]> {
     const uniqueSkillNames = [...new Set(skillNames)];
 
@@ -100,5 +168,14 @@ export class MembersService {
       newSkills.length > 0 ? await this.skillsRepository.save(newSkills) : [];
 
     return [...existingSkills, ...savedNewSkills];
+  }
+
+  private async validateAreaExists(areaId: number): Promise<void> {
+    const areaExists = await this.areasRepository.exists({
+      where: { id: areaId },
+    });
+    if (!areaExists) {
+      throw new NotFoundException(`Area with ID ${areaId} not found`);
+    }
   }
 }

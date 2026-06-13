@@ -1,12 +1,20 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsEnum,
+  IsOptional,
   IsString,
   Length,
+  Validate,
   ValidateIf,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
+import { AreaRole } from '../../common/enums/area-role.enum';
+import { MemberStatus } from '../member.entity';
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -34,6 +42,29 @@ const trimSkills = ({ value }: { value: unknown }) => {
     .map((item) => item.trim().replace(/\s+/g, ' ').toLowerCase())
     .filter((item) => item.length > 0);
 };
+
+@ValidatorConstraint({ name: 'ValidMemberAreaAssignment', async: false })
+class ValidMemberAreaAssignment implements ValidatorConstraintInterface {
+  validate(areaId: unknown, args: ValidationArguments): boolean {
+    const member = args.object as CreateMemberDto;
+
+    if (member.role === AreaRole.DIRECTIVA_DE_AREA) {
+      return Number.isInteger(areaId) && Number(areaId) > 0;
+    }
+
+    return areaId === undefined;
+  }
+
+  defaultMessage(args: ValidationArguments): string {
+    const member = args.object as CreateMemberDto;
+
+    if (member.role === AreaRole.DIRECTIVA_DE_AREA) {
+      return 'areaId is required for directiva_de_area members';
+    }
+
+    return 'areaId is only allowed for directiva_de_area members';
+  }
+}
 
 export class CreateMemberDto {
   @Transform(normalizeInstitution)
@@ -68,10 +99,21 @@ export class CreateMemberDto {
   @IsDateString()
   birthDate: string;
 
+  @IsEnum(AreaRole)
+  role: AreaRole = AreaRole.MIEMBRO;
+
+  @Type(() => Number)
+  @Validate(ValidMemberAreaAssignment)
+  areaId?: number;
+
   @Transform(trimSkills)
   @IsArray()
   @ArrayMinSize(1)
   @IsString({ each: true })
   @Length(1, 80, { each: true })
   skills: string[];
+
+  @IsEnum(MemberStatus)
+  @IsOptional()
+  status?: MemberStatus;
 }

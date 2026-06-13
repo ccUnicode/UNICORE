@@ -1,5 +1,6 @@
 import { Transform } from 'class-transformer';
 import {
+  ArrayMinSize,
   IsArray,
   IsEnum,
   IsNumber,
@@ -40,14 +41,18 @@ export class GetMembersFilterDto {
     let arr: any[] = [];
     if (typeof value === 'string') arr = [value];
     else if (Array.isArray(value)) arr = value;
-    else return undefined;
+    else return value;
 
-    return arr
-      .filter((item): item is string => typeof item === 'string')
-      .map((item) => item.trim().replace(/\s+/g, ' ').toLowerCase())
-      .filter((item) => item.length > 0);
+    return arr.map((item) => {
+      if (typeof item === 'string') {
+        return item.trim().replace(/\s+/g, ' ').toLowerCase();
+      }
+      return item;
+    });
   })
   @IsArray()
+  @ArrayMinSize(1)
   @IsString({ each: true })
+  @Length(1, 80, { each: true })
   skills?: string[];
 }

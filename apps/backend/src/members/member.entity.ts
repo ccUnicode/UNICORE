@@ -2,16 +2,26 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
   JoinTable,
   ManyToMany,
+  ManyToOne,
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
   OneToMany,
 } from 'typeorm';
+import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { MemberStatus } from './enums/member-status.enum';
+
+export enum MemberStatus {
+  Available = 'Available',
+  Unavailable = 'Unavailable',
+  Disabled = 'Disabled',
+}
 
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
@@ -36,6 +46,20 @@ export class Member {
 
   @Column({ name: 'birth_date', type: 'date' })
   birthDate: string;
+
+  @Column({
+    type: 'enum',
+    enum: AreaRole,
+    default: AreaRole.MIEMBRO,
+  })
+  role: AreaRole;
+
+  @Column({ name: 'area_id', type: 'int', nullable: true })
+  areaId: number | null;
+
+  @ManyToOne(() => Area, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'area_id' })
+  area: Area | null;
 
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()
