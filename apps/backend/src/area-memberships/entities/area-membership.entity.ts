@@ -23,7 +23,7 @@ export class AreaMembership {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ type: 'varchar', length: 100, default: AreaRole.Miembro })
+  @Column({ type: 'varchar', length: 30, default: AreaRole.Miembro })
   role: AreaRole;
 
   @Column({ name: 'member_id', insert: false, update: false })
