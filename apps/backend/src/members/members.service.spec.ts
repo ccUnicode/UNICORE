@@ -1,7 +1,4 @@
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
@@ -9,7 +6,8 @@ import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
-import { Member, MemberStatus } from './member.entity';
+import { Member } from './member.entity';
+import { MemberStatus } from './enums/member-status.enum';
 import { MembersService } from './members.service';
 
 type MemberRepositoryMock = Partial<
@@ -121,6 +119,7 @@ describe('MembersService', () => {
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      memberships: [],
       status: MemberStatus.Available,
     };
   });
@@ -139,9 +138,10 @@ describe('MembersService', () => {
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
-        name: expect.anything(),
+        name: expect.anything() as unknown,
       },
     });
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { skills, areaId, ...restDto } = areaDirectiveMemberDto;
     expect(membersRepository.create).toHaveBeenCalledWith({
       ...restDto,
@@ -187,6 +187,7 @@ describe('MembersService', () => {
       skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      memberships: [],
       status: MemberStatus.Available,
     };
 
@@ -197,6 +198,7 @@ describe('MembersService', () => {
     await expect(service.create(externalMemberDto)).resolves.toEqual(
       persistedMember,
     );
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { skills, areaId, ...restDto } = externalMemberDto;
     expect(membersRepository.create).toHaveBeenCalledWith({
       ...restDto,
@@ -228,7 +230,8 @@ describe('MembersService', () => {
     });
   });
 
-  it('lists members ordered by last name and first name', async () => {
+  describe('findAll', () => {
+    let queryBuilderMock: ReturnType<typeof createQueryBuilderMock>;
     const storedMembers: Member[] = [
       {
         id: 2,
@@ -244,30 +247,93 @@ describe('MembersService', () => {
         skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
+        memberships: [],
         status: MemberStatus.Available,
       },
     ];
-    const queryBuilderMock = createQueryBuilderMock(storedMembers);
 
-    membersRepository.createQueryBuilder?.mockReturnValue(
-      queryBuilderMock as any,
-    );
+    beforeEach(() => {
+      queryBuilderMock = createQueryBuilderMock(storedMembers);
 
-    await expect(service.findAll()).resolves.toEqual(storedMembers);
-    expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith('member');
-    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
-      'member.skills',
-      'skill',
-    );
-    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
-      'member.area',
-      'area',
-    );
-    expect(queryBuilderMock.orderBy).toHaveBeenCalledWith(
-      'member.lastNames',
-      'ASC',
-    );
-    expect(queryBuilderMock.getMany).toHaveBeenCalled();
+      membersRepository.createQueryBuilder?.mockReturnValue(queryBuilderMock);
+    });
+
+    it('lists members ordered by last name and first name', async () => {
+      await expect(service.findAll()).resolves.toEqual(storedMembers);
+      expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'member',
+      );
+      expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+        'member.skills',
+        'skill',
+      );
+      expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+        'member.memberships',
+        'membership',
+      );
+      expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+        'membership.area',
+        'area',
+      );
+      expect(queryBuilderMock.orderBy).toHaveBeenCalledWith(
+        'member.lastNames',
+        'ASC',
+      );
+      expect(queryBuilderMock.getMany).toHaveBeenCalled();
+    });
+
+    it('filters by status', async () => {
+      const filterDto = { status: MemberStatus.Available };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'member.status = :status',
+        { status: 'Available' },
+      );
+    });
+
+    it('filters by areaId', async () => {
+      const filterDto = { areaId: 5 };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'area.id = :areaId',
+        { areaId: 5 },
+      );
+    });
+
+    it('filters by skills', async () => {
+      const filterDto = { skills: ['typescript', 'testing'] };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+      expect(queryBuilderMock.setParameter).toHaveBeenCalledWith('skills', [
+        'typescript',
+        'testing',
+      ]);
+    });
+
+    it('filters by combination of status, areaId, and skills', async () => {
+      const filterDto = {
+        status: MemberStatus.Available,
+        areaId: 3,
+        skills: ['typescript'],
+      };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'member.status = :status',
+        { status: 'Available' },
+      );
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'area.id = :areaId',
+        { areaId: 3 },
+      );
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+      expect(queryBuilderMock.setParameter).toHaveBeenCalledWith('skills', [
+        'typescript',
+      ]);
+    });
   });
 
   describe('update', () => {

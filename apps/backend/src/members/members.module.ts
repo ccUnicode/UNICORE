@@ -8,7 +8,10 @@ import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
 @Module({
-  imports: [AccessControlModule, TypeOrmModule.forFeature([Member, Skill, Area])],
+  imports: [
+    AccessControlModule,
+    TypeOrmModule.forFeature([Member, Skill, Area]),
+  ],
   controllers: [MembersController],
   providers: [MembersService],
 })

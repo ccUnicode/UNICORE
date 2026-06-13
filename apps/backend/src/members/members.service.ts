@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, In, QueryFailedError, Repository } from 'typeorm';
+import { DeepPartial, In, Repository } from 'typeorm';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
@@ -15,10 +15,7 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
-
-type DatabaseErrorWithCode = {
-  code: string;
-};
+import { isUniqueViolation } from '../common/utils/database-errors.util';
 
 @Injectable()
 export class MembersService {
@@ -51,15 +48,7 @@ export class MembersService {
     try {
       return await this.membersRepository.save(member);
     } catch (error) {
-      const databaseError =
-        error instanceof QueryFailedError &&
-        typeof error.driverError === 'object' &&
-        error.driverError !== null &&
-        'code' in error.driverError
-          ? (error.driverError as DatabaseErrorWithCode)
-          : null;
-
-      if (databaseError?.code === '23505') {
+      if (isUniqueViolation(error)) {
         const duplicateMessage = createMemberDto.studentCode
           ? `A member with institution "${createMemberDto.institution}" and student code "${createMemberDto.studentCode}" already exists.`
           : `A member with institution "${createMemberDto.institution}" already exists.`;
@@ -103,7 +92,8 @@ export class MembersService {
     const query = this.membersRepository
       .createQueryBuilder('member')
       .leftJoinAndSelect('member.skills', 'skill')
-      .leftJoinAndSelect('member.area', 'area')
+      .leftJoinAndSelect('member.memberships', 'membership')
+      .leftJoinAndSelect('membership.area', 'area')
       .orderBy('member.lastNames', 'ASC')
       .addOrderBy('member.firstNames', 'ASC')
       .addOrderBy('member.createdAt', 'ASC');

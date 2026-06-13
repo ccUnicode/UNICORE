@@ -12,6 +12,7 @@ const createArea = (overrides: Partial<Area> = {}): Area => ({
   isArchived: false,
   createdAt: new Date(),
   updatedAt: new Date(),
+  memberships: [],
   ...overrides,
 });
 
@@ -55,6 +56,7 @@ describe('AreaService', () => {
         isArchived: false,
         createdAt: new Date(),
         updatedAt: new Date(),
+        memberships: [],
       },
     ];
 
@@ -77,6 +79,7 @@ describe('AreaService', () => {
       isArchived: false,
       createdAt: new Date(),
       updatedAt: new Date(),
+      memberships: [],
     };
 
     repository.findOne.mockResolvedValue(storedArea);
