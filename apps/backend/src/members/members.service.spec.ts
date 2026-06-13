@@ -6,7 +6,8 @@ import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
-import { Member, MemberStatus } from './member.entity';
+import { Member } from './member.entity';
+import { MemberStatus } from './enums/member-status.enum';
 import { MembersService } from './members.service';
 
 type MemberRepositoryMock = Partial<
@@ -248,17 +249,9 @@ describe('MembersService', () => {
         status: MemberStatus.Available,
       },
     ];
-    const queryBuilderMock = createQueryBuilderMock(storedMembers);
 
     beforeEach(() => {
-      queryBuilderMock = {
-        leftJoinAndSelect: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        setParameter: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue(storedMembers),
-      };
+      queryBuilderMock = createQueryBuilderMock(storedMembers);
 
       membersRepository.createQueryBuilder?.mockReturnValue(
         queryBuilderMock as any,

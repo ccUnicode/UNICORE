@@ -1,5 +1,5 @@
 import { IsEnum, IsInt, IsOptional } from 'class-validator';
-import { MemberStatus } from '../member.entity';
+import { MemberStatus } from '../enums/member-status.enum';
 
 export class UpdateMemberDto {
   @IsEnum(MemberStatus)
