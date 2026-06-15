@@ -12,12 +12,12 @@ import { MemberStatus } from '../member.entity';
 
 export class GetMembersFilterDto {
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }): unknown => {
     if (typeof value === 'string') {
       const match = Object.values(MemberStatus).find(
-        (status) => status.toLowerCase() === value.toLowerCase()
+        (status) => status.toLowerCase() === value.toLowerCase(),
       );
-      return match || value;
+      return match ?? value;
     }
     return value;
   })
@@ -25,7 +25,7 @@ export class GetMembersFilterDto {
   status?: MemberStatus;
 
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }): unknown => {
     if (typeof value === 'string') {
       const parsed = Number(value);
       return isNaN(parsed) || value.trim() === '' ? value : parsed;
@@ -36,10 +36,10 @@ export class GetMembersFilterDto {
   areaId?: number;
 
   @IsOptional()
-  @Transform(({ value }) => {
+  @Transform(({ value }: { value: unknown }): unknown => {
     if (value === undefined) return value;
 
-    let arr: any[] = [];
+    let arr: unknown[] = [];
     if (typeof value === 'string') arr = [value];
     else if (Array.isArray(value)) arr = value;
     else return value;

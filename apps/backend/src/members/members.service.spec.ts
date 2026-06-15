@@ -1,7 +1,4 @@
-import {
-  ForbiddenException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { QueryFailedError, Repository } from 'typeorm';
@@ -139,14 +136,19 @@ describe('MembersService', () => {
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
-        name: expect.anything(),
+        name: expect.anything() as unknown,
       },
     });
-    const { skills, areaId, ...restDto } = areaDirectiveMemberDto;
     expect(membersRepository.create).toHaveBeenCalledWith({
-      ...restDto,
+      institution: areaDirectiveMemberDto.institution,
+      studentCode: areaDirectiveMemberDto.studentCode,
+      firstNames: areaDirectiveMemberDto.firstNames,
+      lastNames: areaDirectiveMemberDto.lastNames,
+      major: areaDirectiveMemberDto.major,
+      birthDate: areaDirectiveMemberDto.birthDate,
+      role: areaDirectiveMemberDto.role,
       skills: persistedSkills,
-      area: { id: areaId },
+      area: { id: areaDirectiveMemberDto.areaId },
     });
     expect(membersRepository.save).toHaveBeenCalledWith(
       persistedAreaDirectiveMember,
@@ -197,9 +199,13 @@ describe('MembersService', () => {
     await expect(service.create(externalMemberDto)).resolves.toEqual(
       persistedMember,
     );
-    const { skills, areaId, ...restDto } = externalMemberDto;
     expect(membersRepository.create).toHaveBeenCalledWith({
-      ...restDto,
+      institution: externalMemberDto.institution,
+      firstNames: externalMemberDto.firstNames,
+      lastNames: externalMemberDto.lastNames,
+      major: externalMemberDto.major,
+      birthDate: externalMemberDto.birthDate,
+      role: externalMemberDto.role,
       skills: externalSkills,
       area: undefined,
     });
