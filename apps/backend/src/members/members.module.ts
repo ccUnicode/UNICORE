@@ -7,10 +7,12 @@ import { Member } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
+
 @Module({
   imports: [
     AccessControlModule,
-    TypeOrmModule.forFeature([Member, Skill, Area]),
+    TypeOrmModule.forFeature([Member, Skill, Area, AreaMembership]),
   ],
   controllers: [MembersController],
   providers: [MembersService],

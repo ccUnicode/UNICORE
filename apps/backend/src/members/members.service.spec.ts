@@ -9,12 +9,16 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { Member } from './member.entity';
 import { MemberStatus } from './enums/member-status.enum';
 import { MembersService } from './members.service';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
 >;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 type AreaRepositoryMock = Partial<Record<keyof Repository<Area>, jest.Mock>>;
+type AreaMembershipRepositoryMock = Partial<
+  Record<keyof Repository<AreaMembership>, jest.Mock>
+>;
 
 const createSkill = (
   id: number,
@@ -43,6 +47,7 @@ describe('MembersService', () => {
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
   let areasRepository: AreaRepositoryMock;
+  let areaMembershipsRepository: AreaMembershipRepositoryMock;
   let persistedAreaDirectiveMember: Member;
   let persistedSkills: Skill[];
 
@@ -84,6 +89,12 @@ describe('MembersService', () => {
     areasRepository = {
       exists: jest.fn(),
     };
+    areaMembershipsRepository = {
+      create: jest.fn(),
+      save: jest.fn(),
+      findOne: jest.fn(),
+      remove: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -99,6 +110,10 @@ describe('MembersService', () => {
         {
           provide: getRepositoryToken(Area),
           useValue: areasRepository,
+        },
+        {
+          provide: getRepositoryToken(AreaMembership),
+          useValue: areaMembershipsRepository,
         },
       ],
     }).compile();
@@ -151,6 +166,12 @@ describe('MembersService', () => {
     expect(membersRepository.save).toHaveBeenCalledWith(
       persistedAreaDirectiveMember,
     );
+    expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
+      member: persistedAreaDirectiveMember,
+      area: { id: 3 },
+      role: 'Directiva de area',
+    });
+    expect(areaMembershipsRepository.save).toHaveBeenCalled();
   });
 
   it('rejects an unknown area id when creating a member', async () => {
@@ -206,6 +227,7 @@ describe('MembersService', () => {
       area: undefined,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
+    expect(areaMembershipsRepository.create).not.toHaveBeenCalled();
   });
 
   it('raises a conflict when the institution and student code already exist', async () => {
@@ -355,6 +377,7 @@ describe('MembersService', () => {
         status: MemberStatus.Unavailable,
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(areaMembershipsRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when updating with a non-existent areaId', async () => {
@@ -390,6 +413,12 @@ describe('MembersService', () => {
       const updateDto = { areaId: null };
       const updatedMember = { ...persistedAreaDirectiveMember, area: null };
 
+      const mockMembership = {
+        id: 50,
+        memberId: 10,
+        role: 'Directiva de area',
+      };
+      areaMembershipsRepository.findOne.mockResolvedValue(mockMembership);
       membersRepository.preload?.mockResolvedValue(updatedMember);
       membersRepository.save?.mockResolvedValue(updatedMember);
 
@@ -401,6 +430,15 @@ describe('MembersService', () => {
         area: null,
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          member: { id: 10 },
+          role: 'Directiva de area',
+        },
+      });
+      expect(areaMembershipsRepository.remove).toHaveBeenCalledWith(
+        mockMembership,
+      );
     });
 
     it('successfully updates area when areaId is a valid existing area', async () => {
@@ -410,6 +448,13 @@ describe('MembersService', () => {
         area: { id: 5 } as Area,
       };
 
+      const mockMembership = {
+        id: 50,
+        memberId: 10,
+        role: 'Directiva de area',
+        area: { id: 3 },
+      };
+      areaMembershipsRepository.findOne.mockResolvedValue(mockMembership);
       areasRepository.exists?.mockResolvedValue(true);
       membersRepository.preload?.mockResolvedValue(updatedMember);
       membersRepository.save?.mockResolvedValue(updatedMember);
@@ -425,6 +470,18 @@ describe('MembersService', () => {
         area: { id: 5 },
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          member: { id: 10 },
+          role: 'Directiva de area',
+        },
+      });
+      expect(areaMembershipsRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 50,
+          area: { id: 5 },
+        }),
+      );
     });
   });
 

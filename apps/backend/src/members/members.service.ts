@@ -16,6 +16,10 @@ import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
+import {
+  AreaMembership,
+  AreaRole as MembershipAreaRole,
+} from '../area-memberships/entities/area-membership.entity';
 
 @Injectable()
 export class MembersService {
@@ -26,6 +30,8 @@ export class MembersService {
     private readonly skillsRepository: Repository<Skill>,
     @InjectRepository(Area)
     private readonly areasRepository: Repository<Area>,
+    @InjectRepository(AreaMembership)
+    private readonly areaMembershipsRepository: Repository<AreaMembership>,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
@@ -46,7 +52,18 @@ export class MembersService {
     });
 
     try {
-      return await this.membersRepository.save(member);
+      const savedMember = await this.membersRepository.save(member);
+
+      if (areaId !== undefined && areaId !== null) {
+        const membership = this.areaMembershipsRepository.create({
+          member: savedMember,
+          area: { id: areaId },
+          role: MembershipAreaRole.DirectivaArea,
+        });
+        await this.areaMembershipsRepository.save(membership);
+      }
+
+      return savedMember;
     } catch (error) {
       if (isUniqueViolation(error)) {
         const duplicateMessage = createMemberDto.studentCode
@@ -81,7 +98,41 @@ export class MembersService {
       throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    return this.membersRepository.save(member);
+    const savedMember = await this.membersRepository.save(member);
+
+    if (areaId !== undefined) {
+      const existingDirectivaMembership =
+        await this.areaMembershipsRepository.findOne({
+          where: {
+            member: { id },
+            role: MembershipAreaRole.DirectivaArea,
+          },
+        });
+
+      if (areaId === null) {
+        if (existingDirectivaMembership) {
+          await this.areaMembershipsRepository.remove(
+            existingDirectivaMembership,
+          );
+        }
+      } else {
+        if (existingDirectivaMembership) {
+          existingDirectivaMembership.area = { id: areaId } as Area;
+          await this.areaMembershipsRepository.save(
+            existingDirectivaMembership,
+          );
+        } else {
+          const newMembership = this.areaMembershipsRepository.create({
+            member: savedMember,
+            area: { id: areaId },
+            role: MembershipAreaRole.DirectivaArea,
+          });
+          await this.areaMembershipsRepository.save(newMembership);
+        }
+      }
+    }
+
+    return savedMember;
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
