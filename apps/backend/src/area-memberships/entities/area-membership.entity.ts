@@ -10,12 +10,7 @@ import {
 } from 'typeorm';
 import { Member } from '../../members/member.entity';
 import { Area } from '../../area/entities/area.entity';
-
-export enum AreaRole {
-  Presidencia = 'Presidencia',
-  DirectivaArea = 'Directiva de area',
-  Miembro = 'Miembro',
-}
+import { AreaRole } from '../../common/enums/area-role.enum';
 
 @Entity('area_memberships')
 @Unique(['memberId', 'areaId'])
@@ -23,7 +18,7 @@ export class AreaMembership {
   @PrimaryGeneratedColumn('increment')
   id: number;
 
-  @Column({ type: 'varchar', length: 30, default: AreaRole.Miembro })
+  @Column({ type: 'varchar', length: 30, default: AreaRole.MIEMBRO })
   role: AreaRole;
 
   @Column({ name: 'member_id', insert: false, update: false })

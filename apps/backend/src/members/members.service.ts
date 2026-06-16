@@ -16,10 +16,7 @@ import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
-import {
-  AreaMembership,
-  AreaRole as MembershipAreaRole,
-} from '../area-memberships/entities/area-membership.entity';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 
 @Injectable()
 export class MembersService {
@@ -58,7 +55,7 @@ export class MembersService {
         const membership = this.areaMembershipsRepository.create({
           member: savedMember,
           area: { id: areaId },
-          role: MembershipAreaRole.DirectivaArea,
+          role: AreaRole.DIRECTIVA_DE_AREA,
         });
         await this.areaMembershipsRepository.save(membership);
       }
@@ -105,7 +102,7 @@ export class MembersService {
         await this.areaMembershipsRepository.findOne({
           where: {
             member: { id },
-            role: MembershipAreaRole.DirectivaArea,
+            role: AreaRole.DIRECTIVA_DE_AREA,
           },
         });
 
@@ -125,7 +122,7 @@ export class MembersService {
           const newMembership = this.areaMembershipsRepository.create({
             member: savedMember,
             area: { id: areaId },
-            role: MembershipAreaRole.DirectivaArea,
+            role: AreaRole.DIRECTIVA_DE_AREA,
           });
           await this.areaMembershipsRepository.save(newMembership);
         }

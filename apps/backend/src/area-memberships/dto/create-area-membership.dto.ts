@@ -1,5 +1,5 @@
 import { IsEnum, IsInt, IsNotEmpty, Min } from 'class-validator';
-import { AreaRole } from '../entities/area-membership.entity';
+import { AreaRole } from '../../common/enums/area-role.enum';
 
 export class CreateAreaMembershipDto {
   @IsInt()

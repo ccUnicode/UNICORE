@@ -169,7 +169,7 @@ describe('MembersService', () => {
     expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
       member: persistedAreaDirectiveMember,
       area: { id: 3 },
-      role: 'Directiva de area',
+      role: AreaRole.DIRECTIVA_DE_AREA,
     });
     expect(areaMembershipsRepository.save).toHaveBeenCalled();
   });
@@ -416,9 +416,9 @@ describe('MembersService', () => {
       const mockMembership = {
         id: 50,
         memberId: 10,
-        role: 'Directiva de area',
+        role: AreaRole.DIRECTIVA_DE_AREA,
       };
-      areaMembershipsRepository.findOne.mockResolvedValue(mockMembership);
+      areaMembershipsRepository.findOne?.mockResolvedValue(mockMembership);
       membersRepository.preload?.mockResolvedValue(updatedMember);
       membersRepository.save?.mockResolvedValue(updatedMember);
 
@@ -433,7 +433,7 @@ describe('MembersService', () => {
       expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
         where: {
           member: { id: 10 },
-          role: 'Directiva de area',
+          role: AreaRole.DIRECTIVA_DE_AREA,
         },
       });
       expect(areaMembershipsRepository.remove).toHaveBeenCalledWith(
@@ -451,10 +451,10 @@ describe('MembersService', () => {
       const mockMembership = {
         id: 50,
         memberId: 10,
-        role: 'Directiva de area',
+        role: AreaRole.DIRECTIVA_DE_AREA,
         area: { id: 3 },
       };
-      areaMembershipsRepository.findOne.mockResolvedValue(mockMembership);
+      areaMembershipsRepository.findOne?.mockResolvedValue(mockMembership);
       areasRepository.exists?.mockResolvedValue(true);
       membersRepository.preload?.mockResolvedValue(updatedMember);
       membersRepository.save?.mockResolvedValue(updatedMember);
@@ -473,7 +473,7 @@ describe('MembersService', () => {
       expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
         where: {
           member: { id: 10 },
-          role: 'Directiva de area',
+          role: AreaRole.DIRECTIVA_DE_AREA,
         },
       });
       expect(areaMembershipsRepository.save).toHaveBeenCalledWith(
