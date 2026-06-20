@@ -3,7 +3,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { Member, MemberStatus } from './member.entity';
+import { Member } from './member.entity';
+import { MemberStatus } from './enums/member-status.enum';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
@@ -61,6 +62,7 @@ describe('MembersController', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       status: MemberStatus.Available,
+      memberships: [],
     } satisfies Member;
 
     const createMemberDto = {

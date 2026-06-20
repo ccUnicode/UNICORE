@@ -14,7 +14,7 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { AreaRole } from '../../common/enums/area-role.enum';
-import { MemberStatus } from '../member.entity';
+import { MemberStatus } from '../enums/member-status.enum';
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
