@@ -9,12 +9,15 @@ import {
   PrimaryGeneratedColumn,
   Unique,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Area } from '../area/entities/area.entity';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
+import { MemberStatus } from './enums/member-status.enum';
 
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
@@ -79,4 +82,14 @@ export class Member {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @Column({
+    type: 'enum',
+    enum: MemberStatus,
+    default: MemberStatus.Available,
+  })
+  status: MemberStatus;
+
+  @OneToMany(() => AreaMembership, (membership) => membership.member)
+  memberships: AreaMembership[];
 }
