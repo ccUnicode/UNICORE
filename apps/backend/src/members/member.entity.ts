@@ -12,9 +12,11 @@ import {
   OneToMany,
 } from 'typeorm';
 import { Area } from '../area/entities/area.entity';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
-import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 import { MemberStatus } from './enums/member-status.enum';
 
 @Entity({ name: 'members' })
@@ -54,6 +56,22 @@ export class Member {
   @ManyToOne(() => Area, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'area_id' })
   area: Area | null;
+
+  @Column({
+    name: 'activity_status',
+    type: 'enum',
+    enum: MemberActivityStatus,
+    default: MemberActivityStatus.ACTIVE,
+  })
+  activityStatus: MemberActivityStatus;
+
+  @Column({
+    name: 'availability_status',
+    type: 'enum',
+    enum: MemberAvailabilityStatus,
+    default: MemberAvailabilityStatus.AVAILABLE,
+  })
+  availabilityStatus: MemberAvailabilityStatus;
 
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()

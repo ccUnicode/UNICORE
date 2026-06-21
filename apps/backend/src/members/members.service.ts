@@ -32,7 +32,7 @@ export class MembersService {
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const { skills, areaId, ...restDto } = createMemberDto;
+    const { skills, areaId, status, ...restDto } = createMemberDto;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateAreaExists(areaId);
@@ -42,6 +42,10 @@ export class MembersService {
 
     const member = this.membersRepository.create({
       ...restDto,
+      ...(status !== undefined &&
+        restDto.availabilityStatus === undefined && {
+          availabilityStatus: status,
+        }),
       role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
       area:
@@ -75,7 +79,9 @@ export class MembersService {
   }
 
   async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
-    const { status, areaId } = updateMemberDto;
+    const { activityStatus, availabilityStatus, status, areaId } =
+      updateMemberDto;
+    const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateAreaExists(areaId);
@@ -83,7 +89,10 @@ export class MembersService {
 
     const preloadData: DeepPartial<Member> = {
       id,
-      ...(status !== undefined && { status }),
+      ...(activityStatus !== undefined && { activityStatus }),
+      ...(resolvedAvailabilityStatus !== undefined && {
+        availabilityStatus: resolvedAvailabilityStatus,
+      }),
       ...(areaId !== undefined && {
         area: areaId === null ? null : { id: areaId },
       }),
@@ -133,7 +142,9 @@ export class MembersService {
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
-    const status = filterDto?.status;
+    const activityStatus = filterDto?.activityStatus;
+    const availabilityStatus =
+      filterDto?.availabilityStatus ?? filterDto?.status;
     const areaId = filterDto?.areaId;
     const skills = filterDto?.skills;
 
@@ -146,8 +157,16 @@ export class MembersService {
       .addOrderBy('member.firstNames', 'ASC')
       .addOrderBy('member.createdAt', 'ASC');
 
-    if (status) {
-      query.andWhere('member.status = :status', { status });
+    if (activityStatus) {
+      query.andWhere('member.activityStatus = :activityStatus', {
+        activityStatus,
+      });
+    }
+
+    if (availabilityStatus) {
+      query.andWhere('member.availabilityStatus = :availabilityStatus', {
+        availabilityStatus,
+      });
     }
 
     if (areaId !== undefined) {
