@@ -1,6 +1,7 @@
 import { AreaRole } from '../../common/enums/area-role.enum';
 import { MemberActivityStatus } from '../enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
+import { MemberStatus } from '../enums/member-status.enum';
 import { Member } from '../member.entity';
 import { toMemberResponse } from './member-response.util';
 
@@ -17,7 +18,9 @@ const member: Member = {
   area: null,
   activityStatus: MemberActivityStatus.ACTIVE,
   availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+  status: MemberStatus.Available,
   skills: [],
+  memberships: [],
   createdAt: new Date(),
   updatedAt: new Date(),
 };

@@ -5,6 +5,7 @@ import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
+import { MemberStatus } from './enums/member-status.enum';
 import { Member } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
@@ -64,6 +65,8 @@ describe('MembersController', () => {
       skills: [],
       createdAt: new Date(),
       updatedAt: new Date(),
+      status: MemberStatus.Available,
+      memberships: [],
     } satisfies Member;
 
     const createMemberDto = {
