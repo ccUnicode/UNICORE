@@ -14,6 +14,7 @@ import {
 import { Area } from '../area/entities/area.entity';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { Skill } from '../skills/skill.entity';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
@@ -92,4 +93,7 @@ export class Member {
 
   @OneToMany(() => AreaMembership, (membership) => membership.member)
   memberships: AreaMembership[];
+
+  @OneToMany(() => ProjectMembership, (membership) => membership.member)
+  projectMemberships: ProjectMembership[];
 }

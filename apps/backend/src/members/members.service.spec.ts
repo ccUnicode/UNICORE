@@ -139,6 +139,7 @@ describe('MembersService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       memberships: [],
+      projectMemberships: [],
       status: MemberStatus.Available,
     };
   });
@@ -219,6 +220,7 @@ describe('MembersService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       memberships: [],
+      projectMemberships: [],
       status: MemberStatus.Available,
     };
 
@@ -285,6 +287,7 @@ describe('MembersService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         memberships: [],
+        projectMemberships: [],
         status: MemberStatus.Available,
       },
     ];
