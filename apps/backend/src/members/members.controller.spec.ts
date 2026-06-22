@@ -3,7 +3,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { Member, MemberStatus } from './member.entity';
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
+import { MemberStatus } from './enums/member-status.enum';
+import { Member } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 
@@ -57,10 +60,13 @@ describe('MembersController', () => {
       role: AreaRole.MIEMBRO,
       areaId: null,
       area: null,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       skills: [],
       createdAt: new Date(),
       updatedAt: new Date(),
       status: MemberStatus.Available,
+      memberships: [],
     } satisfies Member;
 
     const createMemberDto = {
@@ -88,7 +94,7 @@ describe('MembersController', () => {
       areaId: '2',
     };
     const storedMembers: Member[] = [];
-    const filterDto = { status: MemberStatus.Available };
+    const filterDto = { status: MemberAvailabilityStatus.AVAILABLE };
 
     mockMembersService.findAccessible.mockResolvedValue(storedMembers);
 

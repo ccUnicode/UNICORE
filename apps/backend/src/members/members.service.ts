@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, In, QueryFailedError, Repository } from 'typeorm';
+import { DeepPartial, In, Repository } from 'typeorm';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
@@ -15,10 +15,8 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
-
-type DatabaseErrorWithCode = {
-  code: string;
-};
+import { isUniqueViolation } from '../common/utils/database-errors.util';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 
 @Injectable()
 export class MembersService {
@@ -29,10 +27,12 @@ export class MembersService {
     private readonly skillsRepository: Repository<Skill>,
     @InjectRepository(Area)
     private readonly areasRepository: Repository<Area>,
+    @InjectRepository(AreaMembership)
+    private readonly areaMembershipsRepository: Repository<AreaMembership>,
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const { skills, areaId, ...restDto } = createMemberDto;
+    const { skills, areaId, status, ...restDto } = createMemberDto;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateAreaExists(areaId);
@@ -42,6 +42,10 @@ export class MembersService {
 
     const member = this.membersRepository.create({
       ...restDto,
+      ...(status !== undefined &&
+        restDto.availabilityStatus === undefined && {
+          availabilityStatus: status,
+        }),
       role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
       area:
@@ -49,17 +53,20 @@ export class MembersService {
     });
 
     try {
-      return await this.membersRepository.save(member);
-    } catch (error) {
-      const databaseError =
-        error instanceof QueryFailedError &&
-        typeof error.driverError === 'object' &&
-        error.driverError !== null &&
-        'code' in error.driverError
-          ? (error.driverError as DatabaseErrorWithCode)
-          : null;
+      const savedMember = await this.membersRepository.save(member);
 
-      if (databaseError?.code === '23505') {
+      if (areaId !== undefined && areaId !== null) {
+        const membership = this.areaMembershipsRepository.create({
+          member: savedMember,
+          area: { id: areaId },
+          role: AreaRole.DIRECTIVA_DE_AREA,
+        });
+        await this.areaMembershipsRepository.save(membership);
+      }
+
+      return savedMember;
+    } catch (error) {
+      if (isUniqueViolation(error)) {
         const duplicateMessage = createMemberDto.studentCode
           ? `A member with institution "${createMemberDto.institution}" and student code "${createMemberDto.studentCode}" already exists.`
           : `A member with institution "${createMemberDto.institution}" already exists.`;
@@ -72,7 +79,9 @@ export class MembersService {
   }
 
   async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
-    const { status, areaId } = updateMemberDto;
+    const { activityStatus, availabilityStatus, status, areaId } =
+      updateMemberDto;
+    const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateAreaExists(areaId);
@@ -80,7 +89,10 @@ export class MembersService {
 
     const preloadData: DeepPartial<Member> = {
       id,
-      ...(status !== undefined && { status }),
+      ...(activityStatus !== undefined && { activityStatus }),
+      ...(resolvedAvailabilityStatus !== undefined && {
+        availabilityStatus: resolvedAvailabilityStatus,
+      }),
       ...(areaId !== undefined && {
         area: areaId === null ? null : { id: areaId },
       }),
@@ -92,24 +104,69 @@ export class MembersService {
       throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    return this.membersRepository.save(member);
+    const savedMember = await this.membersRepository.save(member);
+
+    if (areaId !== undefined) {
+      const existingDirectivaMembership =
+        await this.areaMembershipsRepository.findOne({
+          where: {
+            member: { id },
+            role: AreaRole.DIRECTIVA_DE_AREA,
+          },
+        });
+
+      if (areaId === null) {
+        if (existingDirectivaMembership) {
+          await this.areaMembershipsRepository.remove(
+            existingDirectivaMembership,
+          );
+        }
+      } else {
+        if (existingDirectivaMembership) {
+          existingDirectivaMembership.area = { id: areaId } as Area;
+          await this.areaMembershipsRepository.save(
+            existingDirectivaMembership,
+          );
+        } else {
+          const newMembership = this.areaMembershipsRepository.create({
+            member: savedMember,
+            area: { id: areaId },
+            role: AreaRole.DIRECTIVA_DE_AREA,
+          });
+          await this.areaMembershipsRepository.save(newMembership);
+        }
+      }
+    }
+
+    return savedMember;
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
-    const status = filterDto?.status;
+    const activityStatus = filterDto?.activityStatus;
+    const availabilityStatus =
+      filterDto?.availabilityStatus ?? filterDto?.status;
     const areaId = filterDto?.areaId;
     const skills = filterDto?.skills;
 
     const query = this.membersRepository
       .createQueryBuilder('member')
       .leftJoinAndSelect('member.skills', 'skill')
-      .leftJoinAndSelect('member.area', 'area')
+      .leftJoinAndSelect('member.memberships', 'membership')
+      .leftJoinAndSelect('membership.area', 'area')
       .orderBy('member.lastNames', 'ASC')
       .addOrderBy('member.firstNames', 'ASC')
       .addOrderBy('member.createdAt', 'ASC');
 
-    if (status) {
-      query.andWhere('member.status = :status', { status });
+    if (activityStatus) {
+      query.andWhere('member.activityStatus = :activityStatus', {
+        activityStatus,
+      });
+    }
+
+    if (availabilityStatus) {
+      query.andWhere('member.availabilityStatus = :availabilityStatus', {
+        availabilityStatus,
+      });
     }
 
     if (areaId !== undefined) {

@@ -17,6 +17,7 @@ const createArea = (overrides: Partial<Area> = {}): Area => ({
   name: 'Tecnologia',
   description: null,
   isArchived: false,
+  memberships: [],
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,

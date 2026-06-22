@@ -1,19 +1,26 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { QueryFailedError, Repository } from 'typeorm';
+import { In, QueryFailedError, Repository } from 'typeorm';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
-import { Member, MemberStatus } from './member.entity';
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
+import { MemberStatus } from './enums/member-status.enum';
+import { Member } from './member.entity';
 import { MembersService } from './members.service';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
 >;
 type SkillRepositoryMock = Partial<Record<keyof Repository<Skill>, jest.Mock>>;
 type AreaRepositoryMock = Partial<Record<keyof Repository<Area>, jest.Mock>>;
+type AreaMembershipRepositoryMock = Partial<
+  Record<keyof Repository<AreaMembership>, jest.Mock>
+>;
 
 const createSkill = (
   id: number,
@@ -42,6 +49,7 @@ describe('MembersService', () => {
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
   let areasRepository: AreaRepositoryMock;
+  let areaMembershipsRepository: AreaMembershipRepositoryMock;
   let persistedAreaDirectiveMember: Member;
   let persistedSkills: Skill[];
 
@@ -83,6 +91,12 @@ describe('MembersService', () => {
     areasRepository = {
       exists: jest.fn(),
     };
+    areaMembershipsRepository = {
+      create: jest.fn(),
+      save: jest.fn(),
+      findOne: jest.fn(),
+      remove: jest.fn(),
+    };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -98,6 +112,10 @@ describe('MembersService', () => {
         {
           provide: getRepositoryToken(Area),
           useValue: areasRepository,
+        },
+        {
+          provide: getRepositoryToken(AreaMembership),
+          useValue: areaMembershipsRepository,
         },
       ],
     }).compile();
@@ -115,9 +133,12 @@ describe('MembersService', () => {
       role: areaDirectiveMemberDto.role,
       areaId: areaDirectiveMemberDto.areaId ?? null,
       area: null,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      memberships: [],
       status: MemberStatus.Available,
     };
   });
@@ -136,7 +157,7 @@ describe('MembersService', () => {
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
-        name: expect.anything() as unknown,
+        name: In(['typescript', 'testing']),
       },
     });
     expect(membersRepository.create).toHaveBeenCalledWith({
@@ -153,6 +174,12 @@ describe('MembersService', () => {
     expect(membersRepository.save).toHaveBeenCalledWith(
       persistedAreaDirectiveMember,
     );
+    expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
+      member: persistedAreaDirectiveMember,
+      area: { id: 3 },
+      role: AreaRole.DIRECTIVA_DE_AREA,
+    });
+    expect(areaMembershipsRepository.save).toHaveBeenCalled();
   });
 
   it('rejects an unknown area id when creating a member', async () => {
@@ -186,9 +213,12 @@ describe('MembersService', () => {
       role: AreaRole.MIEMBRO,
       areaId: null,
       area: null,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       skills: externalSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
+      memberships: [],
       status: MemberStatus.Available,
     };
 
@@ -210,6 +240,7 @@ describe('MembersService', () => {
       area: undefined,
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
+    expect(areaMembershipsRepository.create).not.toHaveBeenCalled();
   });
 
   it('raises a conflict when the institution and student code already exist', async () => {
@@ -234,7 +265,8 @@ describe('MembersService', () => {
     });
   });
 
-  it('lists members ordered by last name and first name', async () => {
+  describe('findAll', () => {
+    let queryBuilderMock: ReturnType<typeof createQueryBuilderMock>;
     const storedMembers: Member[] = [
       {
         id: 2,
@@ -247,41 +279,108 @@ describe('MembersService', () => {
         role: AreaRole.MIEMBRO,
         areaId: 3,
         area: null,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
         skills: [createSkill(4, 'gestion')],
         createdAt: new Date(),
         updatedAt: new Date(),
+        memberships: [],
         status: MemberStatus.Available,
       },
     ];
-    const queryBuilderMock = createQueryBuilderMock(storedMembers);
 
-    membersRepository.createQueryBuilder?.mockReturnValue(
-      queryBuilderMock as any,
-    );
+    beforeEach(() => {
+      queryBuilderMock = createQueryBuilderMock(storedMembers);
 
-    await expect(service.findAll()).resolves.toEqual(storedMembers);
-    expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith('member');
-    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
-      'member.skills',
-      'skill',
-    );
-    expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
-      'member.area',
-      'area',
-    );
-    expect(queryBuilderMock.orderBy).toHaveBeenCalledWith(
-      'member.lastNames',
-      'ASC',
-    );
-    expect(queryBuilderMock.getMany).toHaveBeenCalled();
+      membersRepository.createQueryBuilder?.mockReturnValue(queryBuilderMock);
+    });
+
+    it('lists members ordered by last name and first name', async () => {
+      await expect(service.findAll()).resolves.toEqual(storedMembers);
+      expect(membersRepository.createQueryBuilder).toHaveBeenCalledWith(
+        'member',
+      );
+      expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+        'member.skills',
+        'skill',
+      );
+      expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+        'member.memberships',
+        'membership',
+      );
+      expect(queryBuilderMock.leftJoinAndSelect).toHaveBeenCalledWith(
+        'membership.area',
+        'area',
+      );
+      expect(queryBuilderMock.orderBy).toHaveBeenCalledWith(
+        'member.lastNames',
+        'ASC',
+      );
+      expect(queryBuilderMock.getMany).toHaveBeenCalled();
+    });
+
+    it('filters legacy status as availability status', async () => {
+      const filterDto = { status: MemberAvailabilityStatus.AVAILABLE };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'member.availabilityStatus = :availabilityStatus',
+        { availabilityStatus: MemberAvailabilityStatus.AVAILABLE },
+      );
+    });
+
+    it('filters by areaId', async () => {
+      const filterDto = { areaId: 5 };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'area.id = :areaId',
+        { areaId: 5 },
+      );
+    });
+
+    it('filters by skills', async () => {
+      const filterDto = { skills: ['typescript', 'testing'] };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+      expect(queryBuilderMock.setParameter).toHaveBeenCalledWith('skills', [
+        'typescript',
+        'testing',
+      ]);
+    });
+
+    it('filters by combination of status, areaId, and skills', async () => {
+      const filterDto = {
+        status: MemberAvailabilityStatus.AVAILABLE,
+        areaId: 3,
+        skills: ['typescript'],
+      };
+      await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'member.availabilityStatus = :availabilityStatus',
+        { availabilityStatus: MemberAvailabilityStatus.AVAILABLE },
+      );
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        'area.id = :areaId',
+        { areaId: 3 },
+      );
+      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
+        expect.any(Function),
+      );
+      expect(queryBuilderMock.setParameter).toHaveBeenCalledWith('skills', [
+        'typescript',
+      ]);
+    });
   });
 
   describe('update', () => {
-    it('successfully updates a member status', async () => {
-      const updateDto = { status: MemberStatus.Unavailable };
+    it('successfully updates a member availability status', async () => {
+      const updateDto = {
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+      };
       const updatedMember = {
         ...persistedAreaDirectiveMember,
-        status: MemberStatus.Unavailable,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
       };
 
       membersRepository.preload?.mockResolvedValue(updatedMember);
@@ -292,9 +391,48 @@ describe('MembersService', () => {
       );
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,
-        status: MemberStatus.Unavailable,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(areaMembershipsRepository.findOne).not.toHaveBeenCalled();
+    });
+
+    it('supports legacy status update input as availability status', async () => {
+      const updateDto = { status: MemberAvailabilityStatus.UNAVAILABLE };
+      const updatedMember = {
+        ...persistedAreaDirectiveMember,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+      };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        updatedMember,
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+      });
+    });
+
+    it('successfully updates a member activity status', async () => {
+      const updateDto = { activityStatus: MemberActivityStatus.INACTIVE };
+      const updatedMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.INACTIVE,
+      };
+
+      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        updatedMember,
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        activityStatus: MemberActivityStatus.INACTIVE,
+      });
     });
 
     it('throws NotFoundException when updating with a non-existent areaId', async () => {
@@ -312,7 +450,9 @@ describe('MembersService', () => {
     });
 
     it('throws NotFoundException when member to update does not exist', async () => {
-      const updateDto = { status: MemberStatus.Disabled };
+      const updateDto = {
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      };
 
       membersRepository.preload?.mockResolvedValue(null);
 
@@ -321,7 +461,7 @@ describe('MembersService', () => {
       );
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 99,
-        status: MemberStatus.Disabled,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
       });
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
@@ -330,6 +470,12 @@ describe('MembersService', () => {
       const updateDto = { areaId: null };
       const updatedMember = { ...persistedAreaDirectiveMember, area: null };
 
+      const mockMembership = {
+        id: 50,
+        memberId: 10,
+        role: AreaRole.DIRECTIVA_DE_AREA,
+      };
+      areaMembershipsRepository.findOne?.mockResolvedValue(mockMembership);
       membersRepository.preload?.mockResolvedValue(updatedMember);
       membersRepository.save?.mockResolvedValue(updatedMember);
 
@@ -341,6 +487,15 @@ describe('MembersService', () => {
         area: null,
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          member: { id: 10 },
+          role: AreaRole.DIRECTIVA_DE_AREA,
+        },
+      });
+      expect(areaMembershipsRepository.remove).toHaveBeenCalledWith(
+        mockMembership,
+      );
     });
 
     it('successfully updates area when areaId is a valid existing area', async () => {
@@ -350,6 +505,13 @@ describe('MembersService', () => {
         area: { id: 5 } as Area,
       };
 
+      const mockMembership = {
+        id: 50,
+        memberId: 10,
+        role: AreaRole.DIRECTIVA_DE_AREA,
+        area: { id: 3 },
+      };
+      areaMembershipsRepository.findOne?.mockResolvedValue(mockMembership);
       areasRepository.exists?.mockResolvedValue(true);
       membersRepository.preload?.mockResolvedValue(updatedMember);
       membersRepository.save?.mockResolvedValue(updatedMember);
@@ -365,6 +527,18 @@ describe('MembersService', () => {
         area: { id: 5 },
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          member: { id: 10 },
+          role: AreaRole.DIRECTIVA_DE_AREA,
+        },
+      });
+      expect(areaMembershipsRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 50,
+          area: { id: 5 },
+        }),
+      );
     });
   });
 
@@ -382,12 +556,12 @@ describe('MembersService', () => {
           role: AreaRole.DIRECTIVA_DE_AREA,
           areaId: '3',
         },
-        { areaId: 99, status: MemberStatus.Available },
+        { areaId: 99, status: MemberAvailabilityStatus.AVAILABLE },
       ),
     ).resolves.toEqual(scopedMembers);
     expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
-      'member.status = :status',
-      { status: MemberStatus.Available },
+      'member.availabilityStatus = :availabilityStatus',
+      { availabilityStatus: MemberAvailabilityStatus.AVAILABLE },
     );
     expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
       'area.id = :areaId',
