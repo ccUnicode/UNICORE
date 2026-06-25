@@ -77,6 +77,7 @@ export class AreaMembershipsService {
       meta: {
         total,
         page,
+        limit,
         lastPage: Math.ceil(total / limit),
       },
     };

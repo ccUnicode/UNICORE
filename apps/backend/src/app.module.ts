@@ -6,6 +6,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { MembersModule } from './members/members.module';
 import { AreaMembershipsModule } from './area-memberships/area-memberships.module';
+import { ProjectsModule } from './projects/projects.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { AreaMembershipsModule } from './area-memberships/area-memberships.modul
     AreaModule,
     MembersModule,
     AreaMembershipsModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
