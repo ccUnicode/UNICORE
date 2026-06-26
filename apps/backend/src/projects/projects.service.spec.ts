@@ -258,6 +258,7 @@ describe('ProjectsService', () => {
       meta: {
         total: 12,
         page: 2,
+        limit: 5,
         lastPage: 3,
       },
     });
@@ -277,6 +278,7 @@ describe('ProjectsService', () => {
       meta: {
         total: 0,
         page: 1,
+        limit: 10,
         lastPage: 0,
       },
     });

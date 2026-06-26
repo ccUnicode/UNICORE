@@ -69,6 +69,7 @@ export class ProjectsService {
       meta: {
         total,
         page,
+        limit,
         lastPage: Math.ceil(total / limit),
       },
     };
