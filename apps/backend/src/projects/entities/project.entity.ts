@@ -6,8 +6,10 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
+  OneToMany,
 } from 'typeorm';
 import { Area } from '../../area/entities/area.entity';
+import { ProjectMembership } from './project-membership.entity';
 
 @Entity('projects')
 export class Project {
@@ -38,4 +40,7 @@ export class Project {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  @OneToMany(() => ProjectMembership, (membership) => membership.project)
+  memberships: ProjectMembership[];
 }
