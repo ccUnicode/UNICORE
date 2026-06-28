@@ -6,17 +6,19 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DeepPartial, In, Repository } from 'typeorm';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { isUniqueViolation } from '../common/utils/database-errors.util';
 import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
+import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { Member } from './member.entity';
-import { isUniqueViolation } from '../common/utils/database-errors.util';
-import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
+import { toMemberResponse } from './utils/member-response.util';
 
 @Injectable()
 export class MembersService {
@@ -194,23 +196,34 @@ export class MembersService {
   async findAccessible(
     accessActor: RequestAccessActor,
     filterDto?: GetMembersFilterDto,
-  ): Promise<Member[]> {
+  ): Promise<MemberResponse[]> {
     if (accessActor.role === AreaRole.PRESIDENCIA) {
-      return this.findAll(filterDto);
+      const members = await this.findAll(filterDto);
+
+      return this.toAccessibleMemberResponses(members, accessActor);
     }
 
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
       const areaId = parseAreaId(accessActor.areaId);
 
-      return this.findAll({
+      const members = await this.findAll({
         ...filterDto,
         areaId,
       });
+
+      return this.toAccessibleMemberResponses(members, accessActor);
     }
 
     throw new ForbiddenException(
       'Project-scoped member access is not available on this endpoint yet',
     );
+  }
+
+  private toAccessibleMemberResponses(
+    members: Member[],
+    accessActor: RequestAccessActor,
+  ): MemberResponse[] {
+    return members.map((member) => toMemberResponse(member, accessActor.role));
   }
 
   private async resolveSkills(skillNames: string[]): Promise<Skill[]> {
