@@ -60,27 +60,42 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
   };
 };
 
-const createMember = (overrides: Partial<Member> = {}): Member => ({
-  id: 1,
-  institution: 'UNI',
-  studentCode: '20230001',
-  firstNames: 'Ana',
-  lastNames: 'Rojas',
-  major: 'Sistemas',
-  birthDate: '2004-04-18',
-  role: AreaRole.MIEMBRO,
-  areaId: 1,
-  area: null,
-  activityStatus: MemberActivityStatus.ACTIVE,
-  availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-  skills: [],
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  status: MemberStatus.Available,
-  memberships: [],
-  projectMemberships: [],
-  ...overrides,
-});
+const createMember = (overrides: Partial<Member> = {}): Member => {
+  const memberId = overrides.id ?? 1;
+  const areaId = overrides.areaId ?? 1;
+  return {
+    id: memberId,
+    institution: 'UNI',
+    studentCode: '20230001',
+    firstNames: 'Ana',
+    lastNames: 'Rojas',
+    major: 'Sistemas',
+    birthDate: '2004-04-18',
+    role: AreaRole.MIEMBRO,
+    areaId,
+    area: null,
+    activityStatus: MemberActivityStatus.ACTIVE,
+    availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+    skills: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    status: MemberStatus.Available,
+    memberships: [
+      {
+        id: 1,
+        role: AreaRole.MIEMBRO,
+        memberId,
+        areaId,
+        member: {} as Member,
+        area: {} as Area,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ],
+    projectMemberships: [],
+    ...overrides,
+  };
+};
 
 describe('ProjectsService', () => {
   let service: ProjectsService;

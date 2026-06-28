@@ -85,7 +85,6 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
 
-    // Verify access
     if (
       accessActor.role === AreaRole.DIRECTIVA_DE_AREA &&
       project.areaId !== Number(accessActor.areaId)
@@ -104,7 +103,6 @@ export class ProjectsService {
       }
     }
 
-    // Sort memberships: inactive members at the end
     if (project.memberships) {
       project.memberships.sort((a, b) => {
         const aInactive =
@@ -134,16 +132,15 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
-    // Authorization check
     this.checkProjectAreaPermission(
       project,
       accessActor,
       "manage this project's team",
     );
 
-    // Fetch member
     const member = await this.membersRepository.findOne({
       where: { id: addDto.memberId },
+      relations: ['memberships'],
     });
 
     if (!member) {
@@ -152,21 +149,21 @@ export class ProjectsService {
       );
     }
 
-    // Eligibility check 1: availability
     if (member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE) {
       throw new BadRequestException(
         'Members marked as unavailable are not selectable when building a team',
       );
     }
 
-    // Eligibility check 2: member must belong to the same area as the project
-    if (member.areaId !== project.areaId) {
+    const belongsToArea = member.memberships?.some(
+      (m) => m.areaId === project.areaId,
+    );
+    if (!belongsToArea) {
       throw new BadRequestException(
         'A member can only be assigned to a project of their own area',
       );
     }
 
-    // Check if membership already exists
     const existingMembership = await this.projectMembershipsRepository.findOne({
       where: { projectId, memberId: addDto.memberId },
     });
@@ -175,7 +172,6 @@ export class ProjectsService {
       throw new ConflictException('Member is already assigned to this project');
     }
 
-    // Create and save membership
     const membership = this.projectMembershipsRepository.create({
       projectId,
       memberId: addDto.memberId,
@@ -211,7 +207,6 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
-    // Authorization check
     this.checkProjectAreaPermission(
       project,
       accessActor,
@@ -245,7 +240,6 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
-    // Authorization check
     this.checkProjectAreaPermission(
       project,
       accessActor,
