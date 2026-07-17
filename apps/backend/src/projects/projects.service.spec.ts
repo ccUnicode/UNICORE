@@ -380,6 +380,13 @@ describe('ProjectsService', () => {
         description: 'Closeout notes',
       }),
     ).resolves.toEqual(phase);
+    expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(projectsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 1 },
+      lock: { mode: 'pessimistic_write' },
+    });
     expect(projectPhasesRepository.findOne).toHaveBeenCalledWith({
       where: { projectId: 1 },
       order: { orderIndex: 'DESC' },

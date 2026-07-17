@@ -111,16 +111,45 @@ export class ProjectsService {
     projectId: number,
     createProjectPhaseDto: CreateProjectPhaseDto,
   ): Promise<ProjectPhase> {
-    const project = await this.ensureProjectExists(projectId);
-    const nextOrderIndex = await this.getNextPhaseOrderIndex(projectId);
-    const phase = this.projectPhasesRepository.create({
-      name: createProjectPhaseDto.name,
-      description: createProjectPhaseDto.description ?? null,
-      orderIndex: nextOrderIndex,
-      projectId: project.id,
+    return this.projectPhasesRepository.manager.transaction(
+      async (entityManager) => {
+        const projectsRepository = entityManager.getRepository(Project);
+        const projectPhasesRepository =
+          entityManager.getRepository(ProjectPhase);
+        const project = await this.findProjectForUpdate(
+          projectId,
+          projectsRepository,
+        );
+        const nextOrderIndex = await this.getNextPhaseOrderIndex(
+          projectId,
+          projectPhasesRepository,
+        );
+        const phase = projectPhasesRepository.create({
+          name: createProjectPhaseDto.name,
+          description: createProjectPhaseDto.description ?? null,
+          orderIndex: nextOrderIndex,
+          projectId: project.id,
+        });
+
+        return projectPhasesRepository.save(phase);
+      },
+    );
+  }
+
+  private async findProjectForUpdate(
+    projectId: number,
+    projectsRepository: Repository<Project>,
+  ): Promise<Project> {
+    const project = await projectsRepository.findOne({
+      where: { id: projectId },
+      lock: { mode: 'pessimistic_write' },
     });
 
-    return this.projectPhasesRepository.save(phase);
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+
+    return project;
   }
 
   async updatePhase(
@@ -260,8 +289,12 @@ export class ProjectsService {
     return phase;
   }
 
-  private async getNextPhaseOrderIndex(projectId: number): Promise<number> {
-    const lastPhase = await this.projectPhasesRepository.findOne({
+  private async getNextPhaseOrderIndex(
+    projectId: number,
+    projectPhasesRepository: Repository<ProjectPhase> = this
+      .projectPhasesRepository,
+  ): Promise<number> {
+    const lastPhase = await projectPhasesRepository.findOne({
       where: { projectId },
       order: { orderIndex: 'DESC' },
     });
