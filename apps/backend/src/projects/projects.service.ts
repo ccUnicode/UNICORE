@@ -1,10 +1,19 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AreaService } from '../area/area.service';
 import { PaginationDto } from '../common/dto/pagination.dto';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
+import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
+import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
+import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
+import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 
 @Injectable()
@@ -12,6 +21,8 @@ export class ProjectsService {
   constructor(
     @InjectRepository(Project)
     private readonly projectsRepository: Repository<Project>,
+    @InjectRepository(ProjectPhase)
+    private readonly projectPhasesRepository: Repository<ProjectPhase>,
     private readonly areaService: AreaService,
   ) {}
 
@@ -28,7 +39,10 @@ export class ProjectsService {
       area,
     });
 
-    return this.projectsRepository.save(project);
+    const savedProject = await this.projectsRepository.save(project);
+    savedProject.phases = await this.createDefaultPhases(savedProject);
+
+    return savedProject;
   }
 
   async findAll(
@@ -56,6 +70,122 @@ export class ProjectsService {
     };
   }
 
+  async findOne(id: number): Promise<Project> {
+    const project = await this.projectsRepository.findOne({
+      where: { id },
+      relations: ['area', 'phases'],
+      order: {
+        phases: {
+          orderIndex: 'ASC',
+        },
+      },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${id} not found`);
+    }
+
+    return project;
+  }
+
+  async findPhases(projectId: number): Promise<ProjectPhase[]> {
+    await this.ensureProjectExists(projectId);
+
+    return this.projectPhasesRepository.find({
+      where: { projectId },
+      order: { orderIndex: 'ASC' },
+    });
+  }
+
+  async createPhase(
+    projectId: number,
+    createProjectPhaseDto: CreateProjectPhaseDto,
+  ): Promise<ProjectPhase> {
+    const project = await this.ensureProjectExists(projectId);
+    const nextOrderIndex = await this.getNextPhaseOrderIndex(projectId);
+    const phase = this.projectPhasesRepository.create({
+      name: createProjectPhaseDto.name,
+      description: createProjectPhaseDto.description ?? null,
+      orderIndex: nextOrderIndex,
+      projectId: project.id,
+      project,
+    });
+
+    return this.projectPhasesRepository.save(phase);
+  }
+
+  async updatePhase(
+    projectId: number,
+    phaseId: number,
+    updateProjectPhaseDto: UpdateProjectPhaseDto,
+  ): Promise<ProjectPhase> {
+    const phase = await this.findPhaseOrThrow(projectId, phaseId);
+
+    if (updateProjectPhaseDto.name !== undefined) {
+      phase.name = updateProjectPhaseDto.name;
+    }
+
+    if (updateProjectPhaseDto.description !== undefined) {
+      phase.description = updateProjectPhaseDto.description;
+    }
+
+    return this.projectPhasesRepository.save(phase);
+  }
+
+  async reorderPhases(
+    projectId: number,
+    reorderProjectPhasesDto: ReorderProjectPhasesDto,
+  ): Promise<ProjectPhase[]> {
+    const phases = await this.findPhases(projectId);
+    const phaseIds = reorderProjectPhasesDto.phaseIds;
+    const phasesById = new Map(phases.map((phase) => [phase.id, phase]));
+
+    if (
+      phases.length !== phaseIds.length ||
+      phaseIds.some((phaseId) => !phasesById.has(phaseId))
+    ) {
+      throw new BadRequestException(
+        'phaseIds must include every project phase exactly once',
+      );
+    }
+
+    const reorderedPhases = phaseIds.map((phaseId, index) => {
+      const phase = phasesById.get(phaseId) as ProjectPhase;
+      phase.orderIndex = index + 1;
+      return phase;
+    });
+
+    await this.projectPhasesRepository.save(reorderedPhases);
+
+    return reorderedPhases;
+  }
+
+  async deletePhase(projectId: number, phaseId: number): Promise<void> {
+    const phases = await this.findPhases(projectId);
+    const phase = phases.find((currentPhase) => currentPhase.id === phaseId);
+
+    if (!phase) {
+      throw new NotFoundException(
+        `Project phase with ID ${phaseId} not found in project ${projectId}`,
+      );
+    }
+
+    if (phases.length === 1) {
+      throw new BadRequestException('Projects must keep at least one phase');
+    }
+
+    await this.projectPhasesRepository.remove(phase);
+
+    const remainingPhases = phases
+      .filter((currentPhase) => currentPhase.id !== phaseId)
+      .map((currentPhase, index) => {
+        currentPhase.orderIndex = index + 1;
+        return currentPhase;
+      });
+
+    await this.projectPhasesRepository.save(remainingPhases);
+  }
+
   private validateDateRange(createProjectDto: CreateProjectDto): void {
     const { startDate, endDate } = createProjectDto;
 
@@ -68,5 +198,57 @@ export class ProjectsService {
         'startDate must be before or equal to endDate',
       );
     }
+  }
+
+  private createDefaultPhases(project: Project): Promise<ProjectPhase[]> {
+    const phases = DEFAULT_PROJECT_PHASES.map((name, index) =>
+      this.projectPhasesRepository.create({
+        name,
+        description: null,
+        orderIndex: index + 1,
+        projectId: project.id,
+        project,
+      }),
+    );
+
+    return this.projectPhasesRepository.save(phases);
+  }
+
+  private async ensureProjectExists(projectId: number): Promise<Project> {
+    const project = await this.projectsRepository.findOne({
+      where: { id: projectId },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+
+    return project;
+  }
+
+  private async findPhaseOrThrow(
+    projectId: number,
+    phaseId: number,
+  ): Promise<ProjectPhase> {
+    const phase = await this.projectPhasesRepository.findOne({
+      where: { id: phaseId, projectId },
+    });
+
+    if (!phase) {
+      throw new NotFoundException(
+        `Project phase with ID ${phaseId} not found in project ${projectId}`,
+      );
+    }
+
+    return phase;
+  }
+
+  private async getNextPhaseOrderIndex(projectId: number): Promise<number> {
+    const lastPhase = await this.projectPhasesRepository.findOne({
+      where: { projectId },
+      order: { orderIndex: 'DESC' },
+    });
+
+    return (lastPhase?.orderIndex ?? 0) + 1;
   }
 }
