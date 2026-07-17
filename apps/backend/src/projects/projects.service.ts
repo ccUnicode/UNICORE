@@ -192,10 +192,12 @@ export class ProjectsService {
           projectPhasesRepository,
         );
         const phaseIds = reorderProjectPhasesDto.phaseIds;
+        const uniquePhaseIds = new Set(phaseIds);
         const phasesById = new Map(phases.map((phase) => [phase.id, phase]));
 
         if (
           phases.length !== phaseIds.length ||
+          uniquePhaseIds.size !== phaseIds.length ||
           phaseIds.some((phaseId) => !phasesById.has(phaseId))
         ) {
           throw new BadRequestException(

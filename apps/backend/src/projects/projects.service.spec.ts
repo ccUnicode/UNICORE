@@ -502,6 +502,26 @@ describe('ProjectsService', () => {
     expect(projectPhasesRepository.save).not.toHaveBeenCalled();
   });
 
+  it('rejects phase reorder requests with duplicate phase ids', async () => {
+    const project = createProject();
+    const phases = [
+      createProjectPhase({ id: 1, orderIndex: 1 }),
+      createProjectPhase({ id: 2, name: 'Execution', orderIndex: 2 }),
+    ];
+
+    projectsRepository.findOne?.mockResolvedValue(project);
+    projectPhasesRepository.find?.mockResolvedValue(phases);
+
+    await expect(
+      service.reorderPhases(1, { phaseIds: [1, 1] }),
+    ).rejects.toThrow(
+      new BadRequestException(
+        'phaseIds must include every project phase exactly once',
+      ),
+    );
+    expect(projectPhasesRepository.save).not.toHaveBeenCalled();
+  });
+
   it('deletes a phase and compacts remaining phase order', async () => {
     const project = createProject();
     const phases = [
