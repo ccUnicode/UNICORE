@@ -102,6 +102,7 @@ describe('ProjectsService', () => {
         createProjectPhase(phase),
       ),
       save: jest.fn(),
+      update: jest.fn(),
       find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
@@ -406,8 +407,10 @@ describe('ProjectsService', () => {
       description: 'Initial work',
     });
 
-    projectPhasesRepository.findOne?.mockResolvedValue(phase);
-    projectPhasesRepository.save?.mockResolvedValue(updatedPhase);
+    projectPhasesRepository.findOne
+      ?.mockResolvedValueOnce(phase)
+      .mockResolvedValueOnce(updatedPhase);
+    projectPhasesRepository.update?.mockResolvedValue({ affected: 1 });
 
     await expect(
       service.updatePhase(1, 1, {
@@ -418,11 +421,26 @@ describe('ProjectsService', () => {
     expect(projectPhasesRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1, projectId: 1 },
     });
-    expect(projectPhasesRepository.save).toHaveBeenCalledWith({
-      ...phase,
-      name: 'Discovery',
-      description: 'Initial work',
-    });
+    expect(projectPhasesRepository.update).toHaveBeenCalledWith(
+      { id: 1, projectId: 1 },
+      {
+        name: 'Discovery',
+        description: 'Initial work',
+      },
+    );
+    expect(projectPhasesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('returns existing phases without updating when phase updates are empty', async () => {
+    const phase = createProjectPhase();
+
+    projectPhasesRepository.findOne
+      ?.mockResolvedValueOnce(phase)
+      .mockResolvedValueOnce(phase);
+
+    await expect(service.updatePhase(1, 1, {})).resolves.toEqual(phase);
+    expect(projectPhasesRepository.update).not.toHaveBeenCalled();
+    expect(projectPhasesRepository.save).not.toHaveBeenCalled();
   });
 
   it('reorders phases when every phase id is included exactly once', async () => {
@@ -437,10 +455,17 @@ describe('ProjectsService', () => {
       { ...phases[0], orderIndex: 2 },
       { ...phases[1], orderIndex: 3 },
     ];
+    const reorderedPhaseUpdates = [
+      { id: 3, orderIndex: 1 },
+      { id: 1, orderIndex: 2 },
+      { id: 2, orderIndex: 3 },
+    ];
 
     projectsRepository.findOne?.mockResolvedValue(project);
-    projectPhasesRepository.find?.mockResolvedValue(phases);
-    projectPhasesRepository.save?.mockResolvedValue(reorderedPhases);
+    projectPhasesRepository.find
+      ?.mockResolvedValueOnce(phases)
+      .mockResolvedValueOnce(reorderedPhases);
+    projectPhasesRepository.save?.mockResolvedValue(reorderedPhaseUpdates);
 
     await expect(
       service.reorderPhases(1, { phaseIds: [3, 1, 2] }),
@@ -452,7 +477,9 @@ describe('ProjectsService', () => {
       where: { id: 1 },
       lock: { mode: 'pessimistic_write' },
     });
-    expect(projectPhasesRepository.save).toHaveBeenCalledWith(reorderedPhases);
+    expect(projectPhasesRepository.save).toHaveBeenCalledWith(
+      reorderedPhaseUpdates,
+    );
   });
 
   it('rejects phase reorder requests that omit or include unknown phases', async () => {
@@ -482,15 +509,15 @@ describe('ProjectsService', () => {
       createProjectPhase({ id: 2, name: 'Execution', orderIndex: 2 }),
       createProjectPhase({ id: 3, name: 'Review', orderIndex: 3 }),
     ];
-    const remainingPhases = [
-      { ...phases[0], orderIndex: 1 },
-      { ...phases[2], orderIndex: 2 },
+    const remainingPhaseUpdates = [
+      { id: 1, orderIndex: 1 },
+      { id: 3, orderIndex: 2 },
     ];
 
     projectsRepository.findOne?.mockResolvedValue(project);
     projectPhasesRepository.find?.mockResolvedValue(phases);
     projectPhasesRepository.remove?.mockResolvedValue(phases[1]);
-    projectPhasesRepository.save?.mockResolvedValue(remainingPhases);
+    projectPhasesRepository.save?.mockResolvedValue(remainingPhaseUpdates);
 
     await expect(service.deletePhase(1, 2)).resolves.toBeUndefined();
     expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
@@ -501,7 +528,9 @@ describe('ProjectsService', () => {
       lock: { mode: 'pessimistic_write' },
     });
     expect(projectPhasesRepository.remove).toHaveBeenCalledWith(phases[1]);
-    expect(projectPhasesRepository.save).toHaveBeenCalledWith(remainingPhases);
+    expect(projectPhasesRepository.save).toHaveBeenCalledWith(
+      remainingPhaseUpdates,
+    );
   });
 
   it('rejects deleting the last project phase', async () => {

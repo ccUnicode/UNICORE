@@ -154,17 +154,25 @@ export class ProjectsService {
     phaseId: number,
     updateProjectPhaseDto: UpdateProjectPhaseDto,
   ): Promise<ProjectPhase> {
-    const phase = await this.findPhaseOrThrow(projectId, phaseId);
+    await this.findPhaseOrThrow(projectId, phaseId);
+    const phaseUpdate: Partial<Pick<ProjectPhase, 'name' | 'description'>> = {};
 
     if (updateProjectPhaseDto.name !== undefined) {
-      phase.name = updateProjectPhaseDto.name;
+      phaseUpdate.name = updateProjectPhaseDto.name;
     }
 
     if (updateProjectPhaseDto.description !== undefined) {
-      phase.description = updateProjectPhaseDto.description;
+      phaseUpdate.description = updateProjectPhaseDto.description;
     }
 
-    return this.projectPhasesRepository.save(phase);
+    if (Object.keys(phaseUpdate).length > 0) {
+      await this.projectPhasesRepository.update(
+        { id: phaseId, projectId },
+        phaseUpdate,
+      );
+    }
+
+    return this.findPhaseOrThrow(projectId, phaseId);
   }
 
   async reorderPhases(
@@ -197,11 +205,15 @@ export class ProjectsService {
 
         const reorderedPhases = phaseIds.map((phaseId, index) => {
           const phase = phasesById.get(phaseId) as ProjectPhase;
-          phase.orderIndex = index + 1;
-          return phase;
+          return {
+            id: phase.id,
+            orderIndex: index + 1,
+          };
         });
 
-        return projectPhasesRepository.save(reorderedPhases);
+        await projectPhasesRepository.save(reorderedPhases);
+
+        return this.findProjectPhases(projectId, projectPhasesRepository);
       },
     );
   }
@@ -238,8 +250,10 @@ export class ProjectsService {
         const remainingPhases = phases
           .filter((currentPhase) => currentPhase.id !== phaseId)
           .map((currentPhase, index) => {
-            currentPhase.orderIndex = index + 1;
-            return currentPhase;
+            return {
+              id: currentPhase.id,
+              orderIndex: index + 1,
+            };
           });
 
         await projectPhasesRepository.remove(phase);
