@@ -39,10 +39,20 @@ export class ProjectsService {
       area,
     });
 
-    const savedProject = await this.projectsRepository.save(project);
-    savedProject.phases = await this.createDefaultPhases(savedProject);
+    return this.projectsRepository.manager.transaction(
+      async (entityManager) => {
+        const savedProject = await entityManager
+          .getRepository(Project)
+          .save(project);
 
-    return savedProject;
+        savedProject.phases = await this.createDefaultPhases(
+          savedProject,
+          entityManager.getRepository(ProjectPhase),
+        );
+
+        return savedProject;
+      },
+    );
   }
 
   async findAll(
@@ -108,7 +118,6 @@ export class ProjectsService {
       description: createProjectPhaseDto.description ?? null,
       orderIndex: nextOrderIndex,
       projectId: project.id,
-      project,
     });
 
     return this.projectPhasesRepository.save(phase);
@@ -174,8 +183,6 @@ export class ProjectsService {
       throw new BadRequestException('Projects must keep at least one phase');
     }
 
-    await this.projectPhasesRepository.remove(phase);
-
     const remainingPhases = phases
       .filter((currentPhase) => currentPhase.id !== phaseId)
       .map((currentPhase, index) => {
@@ -183,7 +190,15 @@ export class ProjectsService {
         return currentPhase;
       });
 
-    await this.projectPhasesRepository.save(remainingPhases);
+    await this.projectPhasesRepository.manager.transaction(
+      async (entityManager) => {
+        const projectPhasesRepository =
+          entityManager.getRepository(ProjectPhase);
+
+        await projectPhasesRepository.remove(phase);
+        await projectPhasesRepository.save(remainingPhases);
+      },
+    );
   }
 
   private validateDateRange(createProjectDto: CreateProjectDto): void {
@@ -200,18 +215,20 @@ export class ProjectsService {
     }
   }
 
-  private createDefaultPhases(project: Project): Promise<ProjectPhase[]> {
+  private createDefaultPhases(
+    project: Project,
+    projectPhasesRepository: Repository<ProjectPhase>,
+  ): Promise<ProjectPhase[]> {
     const phases = DEFAULT_PROJECT_PHASES.map((name, index) =>
-      this.projectPhasesRepository.create({
+      projectPhasesRepository.create({
         name,
         description: null,
         orderIndex: index + 1,
         projectId: project.id,
-        project,
       }),
     );
 
-    return this.projectPhasesRepository.save(phases);
+    return projectPhasesRepository.save(phases);
   }
 
   private async ensureProjectExists(projectId: number): Promise<Project> {

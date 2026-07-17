@@ -1,7 +1,7 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { ObjectLiteral, Repository } from 'typeorm';
 import { AreaService } from '../area/area.service';
 import { Area } from '../area/entities/area.entity';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
@@ -10,12 +10,20 @@ import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectsService } from './projects.service';
 
-type ProjectRepositoryMock = Partial<
-  Record<keyof Repository<Project>, jest.Mock>
+type RepositoryMethodMocks<T extends ObjectLiteral> = Partial<
+  Record<Exclude<keyof Repository<T>, 'manager'>, jest.Mock>
 >;
-type ProjectPhaseRepositoryMock = Partial<
-  Record<keyof Repository<ProjectPhase>, jest.Mock>
->;
+
+type ProjectRepositoryMock = RepositoryMethodMocks<Project> & {
+  manager: {
+    transaction: jest.Mock;
+  };
+};
+type ProjectPhaseRepositoryMock = RepositoryMethodMocks<ProjectPhase> & {
+  manager: {
+    transaction: jest.Mock;
+  };
+};
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -85,6 +93,9 @@ describe('ProjectsService', () => {
       save: jest.fn(),
       findAndCount: jest.fn(),
       findOne: jest.fn(),
+      manager: {
+        transaction: jest.fn(),
+      },
     };
     projectPhasesRepository = {
       create: jest.fn((phase: Partial<ProjectPhase>) =>
@@ -94,7 +105,23 @@ describe('ProjectsService', () => {
       find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
+      manager: {
+        transaction: jest.fn(),
+      },
     };
+    const getRepository = jest.fn(
+      (entity: typeof Project | typeof ProjectPhase) =>
+        entity === Project ? projectsRepository : projectPhasesRepository,
+    );
+    const transaction = jest.fn(
+      async (
+        callback: (entityManager: {
+          getRepository: typeof getRepository;
+        }) => Promise<unknown>,
+      ) => callback({ getRepository }),
+    );
+    projectsRepository.manager.transaction = transaction;
+    projectPhasesRepository.manager.transaction = transaction;
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -151,38 +178,34 @@ describe('ProjectsService', () => {
         description: null,
         orderIndex: index + 1,
         projectId: project.id,
-        project,
       });
     });
     expect(projectsRepository.save).toHaveBeenCalledWith(project);
+    expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
     expect(projectPhasesRepository.save).toHaveBeenCalledWith([
       expect.objectContaining({
         name: 'Planning',
         description: null,
         orderIndex: 1,
         projectId: project.id,
-        project,
       }),
       expect.objectContaining({
         name: 'Execution',
         description: null,
         orderIndex: 2,
         projectId: project.id,
-        project,
       }),
       expect.objectContaining({
         name: 'Review',
         description: null,
         orderIndex: 3,
         projectId: project.id,
-        project,
       }),
       expect.objectContaining({
         name: 'Launch',
         description: null,
         orderIndex: 4,
         projectId: project.id,
-        project,
       }),
     ]);
   });
@@ -366,7 +389,6 @@ describe('ProjectsService', () => {
       description: 'Closeout notes',
       orderIndex: 5,
       projectId: project.id,
-      project,
     });
   });
 
@@ -457,6 +479,9 @@ describe('ProjectsService', () => {
     projectPhasesRepository.save?.mockResolvedValue(remainingPhases);
 
     await expect(service.deletePhase(1, 2)).resolves.toBeUndefined();
+    expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
+      1,
+    );
     expect(projectPhasesRepository.remove).toHaveBeenCalledWith(phases[1]);
     expect(projectPhasesRepository.save).toHaveBeenCalledWith(remainingPhases);
   });
