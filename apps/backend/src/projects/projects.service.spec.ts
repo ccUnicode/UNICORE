@@ -445,6 +445,13 @@ describe('ProjectsService', () => {
     await expect(
       service.reorderPhases(1, { phaseIds: [3, 1, 2] }),
     ).resolves.toEqual(reorderedPhases);
+    expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(projectsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 1 },
+      lock: { mode: 'pessimistic_write' },
+    });
     expect(projectPhasesRepository.save).toHaveBeenCalledWith(reorderedPhases);
   });
 
@@ -489,6 +496,10 @@ describe('ProjectsService', () => {
     expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
       1,
     );
+    expect(projectsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 1 },
+      lock: { mode: 'pessimistic_write' },
+    });
     expect(projectPhasesRepository.remove).toHaveBeenCalledWith(phases[1]);
     expect(projectPhasesRepository.save).toHaveBeenCalledWith(remainingPhases);
   });

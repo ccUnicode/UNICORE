@@ -101,10 +101,7 @@ export class ProjectsService {
   async findPhases(projectId: number): Promise<ProjectPhase[]> {
     await this.ensureProjectExists(projectId);
 
-    return this.projectPhasesRepository.find({
-      where: { projectId },
-      order: { orderIndex: 'ASC' },
-    });
+    return this.findProjectPhases(projectId);
   }
 
   async createPhase(
@@ -174,55 +171,76 @@ export class ProjectsService {
     projectId: number,
     reorderProjectPhasesDto: ReorderProjectPhasesDto,
   ): Promise<ProjectPhase[]> {
-    const phases = await this.findPhases(projectId);
-    const phaseIds = reorderProjectPhasesDto.phaseIds;
-    const phasesById = new Map(phases.map((phase) => [phase.id, phase]));
+    return this.projectPhasesRepository.manager.transaction(
+      async (entityManager) => {
+        await this.findProjectForUpdate(
+          projectId,
+          entityManager.getRepository(Project),
+        );
+        const projectPhasesRepository =
+          entityManager.getRepository(ProjectPhase);
+        const phases = await this.findProjectPhases(
+          projectId,
+          projectPhasesRepository,
+        );
+        const phaseIds = reorderProjectPhasesDto.phaseIds;
+        const phasesById = new Map(phases.map((phase) => [phase.id, phase]));
 
-    if (
-      phases.length !== phaseIds.length ||
-      phaseIds.some((phaseId) => !phasesById.has(phaseId))
-    ) {
-      throw new BadRequestException(
-        'phaseIds must include every project phase exactly once',
-      );
-    }
+        if (
+          phases.length !== phaseIds.length ||
+          phaseIds.some((phaseId) => !phasesById.has(phaseId))
+        ) {
+          throw new BadRequestException(
+            'phaseIds must include every project phase exactly once',
+          );
+        }
 
-    const reorderedPhases = phaseIds.map((phaseId, index) => {
-      const phase = phasesById.get(phaseId) as ProjectPhase;
-      phase.orderIndex = index + 1;
-      return phase;
-    });
+        const reorderedPhases = phaseIds.map((phaseId, index) => {
+          const phase = phasesById.get(phaseId) as ProjectPhase;
+          phase.orderIndex = index + 1;
+          return phase;
+        });
 
-    await this.projectPhasesRepository.save(reorderedPhases);
-
-    return reorderedPhases;
+        return projectPhasesRepository.save(reorderedPhases);
+      },
+    );
   }
 
   async deletePhase(projectId: number, phaseId: number): Promise<void> {
-    const phases = await this.findPhases(projectId);
-    const phase = phases.find((currentPhase) => currentPhase.id === phaseId);
-
-    if (!phase) {
-      throw new NotFoundException(
-        `Project phase with ID ${phaseId} not found in project ${projectId}`,
-      );
-    }
-
-    if (phases.length === 1) {
-      throw new BadRequestException('Projects must keep at least one phase');
-    }
-
-    const remainingPhases = phases
-      .filter((currentPhase) => currentPhase.id !== phaseId)
-      .map((currentPhase, index) => {
-        currentPhase.orderIndex = index + 1;
-        return currentPhase;
-      });
-
     await this.projectPhasesRepository.manager.transaction(
       async (entityManager) => {
+        await this.findProjectForUpdate(
+          projectId,
+          entityManager.getRepository(Project),
+        );
         const projectPhasesRepository =
           entityManager.getRepository(ProjectPhase);
+        const phases = await this.findProjectPhases(
+          projectId,
+          projectPhasesRepository,
+        );
+        const phase = phases.find(
+          (currentPhase) => currentPhase.id === phaseId,
+        );
+
+        if (!phase) {
+          throw new NotFoundException(
+            `Project phase with ID ${phaseId} not found in project ${projectId}`,
+          );
+        }
+
+        if (phases.length === 1) {
+          throw new BadRequestException(
+            'Projects must keep at least one phase',
+          );
+        }
+
+        const remainingPhases = phases
+          .filter((currentPhase) => currentPhase.id !== phaseId)
+          .map((currentPhase, index) => {
+            currentPhase.orderIndex = index + 1;
+            return currentPhase;
+          });
 
         await projectPhasesRepository.remove(phase);
         await projectPhasesRepository.save(remainingPhases);
@@ -287,6 +305,17 @@ export class ProjectsService {
     }
 
     return phase;
+  }
+
+  private findProjectPhases(
+    projectId: number,
+    projectPhasesRepository: Repository<ProjectPhase> = this
+      .projectPhasesRepository,
+  ): Promise<ProjectPhase[]> {
+    return projectPhasesRepository.find({
+      where: { projectId },
+      order: { orderIndex: 'ASC' },
+    });
   }
 
   private async getNextPhaseOrderIndex(
