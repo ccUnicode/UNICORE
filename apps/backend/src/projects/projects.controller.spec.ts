@@ -1,11 +1,13 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
 import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
 import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
+import { ProjectStatus } from './enums/project-status.enum';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 
@@ -45,7 +47,11 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     endDate: '2026-07-01',
     areaId: area.id,
     area,
+    status: ProjectStatus.PLANNED,
+    isArchived: false,
     phases: [],
+    labels: [],
+    links: [],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -59,6 +65,8 @@ describe('ProjectsController', () => {
     create: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
+    update: jest.fn(),
+    archive: jest.fn(),
     findPhases: jest.fn(),
     createPhase: jest.fn(),
     updatePhase: jest.fn(),
@@ -102,6 +110,7 @@ describe('ProjectsController', () => {
 
   it('lists projects through the service with pagination', async () => {
     const paginationDto = { page: 2, limit: 5 };
+    const accessActor = { role: AreaRole.PRESIDENCIA };
     const response = {
       data: [createProject()],
       meta: {
@@ -114,8 +123,13 @@ describe('ProjectsController', () => {
 
     mockProjectsService.findAll.mockResolvedValue(response);
 
-    await expect(controller.findAll(paginationDto)).resolves.toEqual(response);
-    expect(mockProjectsService.findAll).toHaveBeenCalledWith(paginationDto);
+    await expect(
+      controller.findAll(accessActor, paginationDto),
+    ).resolves.toEqual(response);
+    expect(mockProjectsService.findAll).toHaveBeenCalledWith(
+      paginationDto,
+      accessActor,
+    );
   });
 
   it('gets project detail through the service', async () => {
@@ -125,6 +139,35 @@ describe('ProjectsController', () => {
 
     await expect(controller.findOne(1)).resolves.toEqual(project);
     expect(mockProjectsService.findOne).toHaveBeenCalledWith(1);
+  });
+
+  it('updates projects through the service', async () => {
+    const updateProjectDto = {
+      status: ProjectStatus.ACTIVE,
+      labels: ['Backend'],
+    };
+    const project = createProject({
+      status: ProjectStatus.ACTIVE,
+    });
+
+    mockProjectsService.update.mockResolvedValue(project);
+
+    await expect(controller.update(1, updateProjectDto)).resolves.toEqual(
+      project,
+    );
+    expect(mockProjectsService.update).toHaveBeenCalledWith(
+      1,
+      updateProjectDto,
+    );
+  });
+
+  it('archives projects through the service', async () => {
+    const project = createProject({ isArchived: true });
+
+    mockProjectsService.archive.mockResolvedValue(project);
+
+    await expect(controller.archive(1)).resolves.toEqual(project);
+    expect(mockProjectsService.archive).toHaveBeenCalledWith(1);
   });
 
   it('lists project phases through the service', async () => {

@@ -1,13 +1,24 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ObjectLiteral, Repository } from 'typeorm';
+import {
+  ILike,
+  In,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  ObjectLiteral,
+  Repository,
+} from 'typeorm';
 import { AreaService } from '../area/area.service';
 import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { ProjectLabel } from './entities/project-label.entity';
+import { ProjectLink } from './entities/project-link.entity';
 import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
+import { ProjectStatus } from './enums/project-status.enum';
 import { ProjectsService } from './projects.service';
 
 type RepositoryMethodMocks<T extends ObjectLiteral> = Partial<
@@ -24,6 +35,8 @@ type ProjectPhaseRepositoryMock = RepositoryMethodMocks<ProjectPhase> & {
     transaction: jest.Mock;
   };
 };
+type ProjectLabelRepositoryMock = RepositoryMethodMocks<ProjectLabel>;
+type ProjectLinkRepositoryMock = RepositoryMethodMocks<ProjectLink>;
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -50,6 +63,30 @@ const createProjectPhase = (
   ...overrides,
 });
 
+const createProjectLabel = (
+  overrides: Partial<ProjectLabel> = {},
+): ProjectLabel => ({
+  id: 1,
+  name: 'Backend',
+  normalizedName: 'backend',
+  projects: [],
+  createdAt: new Date(),
+  ...overrides,
+});
+
+const createProjectLink = (
+  overrides: Partial<ProjectLink> = {},
+): ProjectLink => ({
+  id: 1,
+  name: 'Repository',
+  url: 'https://github.com/ccUnicode/UNICORE',
+  projectId: 1,
+  project: {} as Project,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
 const createProject = (overrides: Partial<Project> = {}): Project => {
   const area = overrides.area ?? createArea();
 
@@ -61,7 +98,11 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     endDate: '2026-07-01',
     areaId: area.id,
     area,
+    status: ProjectStatus.PLANNED,
+    isArchived: false,
     phases: [],
+    labels: [],
+    links: [],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -72,6 +113,8 @@ describe('ProjectsService', () => {
   let service: ProjectsService;
   let projectsRepository: ProjectRepositoryMock;
   let projectPhasesRepository: ProjectPhaseRepositoryMock;
+  let projectLabelsRepository: ProjectLabelRepositoryMock;
+  let projectLinksRepository: ProjectLinkRepositoryMock;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -110,9 +153,31 @@ describe('ProjectsService', () => {
         transaction: jest.fn(),
       },
     };
+    projectLabelsRepository = {
+      create: jest.fn((label: Partial<ProjectLabel>) =>
+        createProjectLabel(label),
+      ),
+      find: jest.fn(),
+      save: jest.fn(),
+    };
+    projectLinksRepository = {
+      create: jest.fn((link: Partial<ProjectLink>) => createProjectLink(link)),
+      save: jest.fn(),
+      delete: jest.fn(),
+    };
     const getRepository = jest.fn(
-      (entity: typeof Project | typeof ProjectPhase) =>
-        entity === Project ? projectsRepository : projectPhasesRepository,
+      (
+        entity:
+          | typeof Project
+          | typeof ProjectPhase
+          | typeof ProjectLabel
+          | typeof ProjectLink,
+      ) => {
+        if (entity === Project) return projectsRepository;
+        if (entity === ProjectPhase) return projectPhasesRepository;
+        if (entity === ProjectLabel) return projectLabelsRepository;
+        return projectLinksRepository;
+      },
     );
     const transaction = jest.fn(
       async (
@@ -134,6 +199,14 @@ describe('ProjectsService', () => {
         {
           provide: getRepositoryToken(ProjectPhase),
           useValue: projectPhasesRepository,
+        },
+        {
+          provide: getRepositoryToken(ProjectLabel),
+          useValue: projectLabelsRepository,
+        },
+        {
+          provide: getRepositoryToken(ProjectLink),
+          useValue: projectLinksRepository,
         },
         {
           provide: AreaService,
@@ -169,6 +242,9 @@ describe('ProjectsService', () => {
       endDate: createProjectDto.endDate,
       areaId: area.id,
       area,
+      status: ProjectStatus.PLANNED,
+      isArchived: false,
+      labels: [],
     });
     expect(projectPhasesRepository.create).toHaveBeenCalledTimes(
       DEFAULT_PROJECT_PHASES.length,
@@ -242,6 +318,63 @@ describe('ProjectsService', () => {
       endDate: null,
       areaId: area.id,
       area,
+      status: ProjectStatus.PLANNED,
+      isArchived: false,
+      labels: [],
+    });
+  });
+
+  it('creates projects with reusable labels and external links', async () => {
+    const area = createArea();
+    const backendLabel = createProjectLabel();
+    const priorityLabel = createProjectLabel({
+      id: 2,
+      name: 'Priority',
+      normalizedName: 'priority',
+    });
+    const project = createProject({
+      area,
+      status: ProjectStatus.ACTIVE,
+      labels: [backendLabel, priorityLabel],
+    });
+    const link = createProjectLink({ projectId: project.id });
+
+    mockAreaService.findOne.mockResolvedValue(area);
+    projectLabelsRepository.find?.mockResolvedValue([backendLabel]);
+    projectLabelsRepository.save?.mockResolvedValue([priorityLabel]);
+    projectsRepository.create?.mockReturnValue(project);
+    projectsRepository.save?.mockResolvedValue(project);
+    projectPhasesRepository.save?.mockResolvedValue([]);
+    projectLinksRepository.save?.mockResolvedValue([link]);
+
+    await expect(
+      service.create({
+        ...createProjectDto,
+        status: ProjectStatus.ACTIVE,
+        labels: ['Backend', 'Priority'],
+        links: [
+          {
+            name: 'Repository',
+            url: 'https://github.com/ccUnicode/UNICORE',
+          },
+        ],
+      }),
+    ).resolves.toEqual({
+      ...project,
+      phases: [],
+      links: [link],
+    });
+    expect(projectLabelsRepository.find).toHaveBeenCalledWith({
+      where: { normalizedName: In(['backend', 'priority']) },
+    });
+    expect(projectLabelsRepository.create).toHaveBeenCalledWith({
+      name: 'Priority',
+      normalizedName: 'priority',
+    });
+    expect(projectLinksRepository.create).toHaveBeenCalledWith({
+      name: 'Repository',
+      url: 'https://github.com/ccUnicode/UNICORE',
+      projectId: project.id,
     });
   });
 
@@ -289,7 +422,8 @@ describe('ProjectsService', () => {
       },
     });
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
-      relations: ['area'],
+      where: { isArchived: false },
+      relations: ['area', 'labels', 'links'],
       order: { createdAt: 'DESC' },
       skip: 5,
       take: 5,
@@ -309,11 +443,85 @@ describe('ProjectsService', () => {
       },
     });
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
-      relations: ['area'],
+      where: { isArchived: false },
+      relations: ['area', 'labels', 'links'],
       order: { createdAt: 'DESC' },
       skip: 0,
       take: 10,
     });
+  });
+
+  it('combines project metadata filters and includes archived projects explicitly', async () => {
+    projectsRepository.findAndCount?.mockResolvedValue([[], 0]);
+
+    await service.findAll({
+      status: ProjectStatus.ACTIVE,
+      areaId: 4,
+      dateFrom: '2026-06-01',
+      dateTo: '2026-06-30',
+      labels: ['Backend'],
+      search: 'portal',
+      archived: true,
+    });
+
+    expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
+      where: {
+        isArchived: true,
+        status: ProjectStatus.ACTIVE,
+        areaId: 4,
+        name: ILike('%portal%'),
+        startDate: LessThanOrEqual('2026-06-30'),
+        endDate: MoreThanOrEqual('2026-06-01'),
+        labels: { normalizedName: In(['backend']) },
+      },
+      relations: ['area', 'labels', 'links'],
+      order: { createdAt: 'DESC' },
+      skip: 0,
+      take: 10,
+    });
+  });
+
+  it('limits area leaders to projects in their own area', async () => {
+    projectsRepository.findAndCount?.mockResolvedValue([[], 0]);
+
+    await service.findAll(
+      { areaId: 99 },
+      { role: AreaRole.DIRECTIVA_DE_AREA, areaId: '3' },
+    );
+
+    expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
+      where: { isArchived: false, areaId: 3 },
+      relations: ['area', 'labels', 'links'],
+      order: { createdAt: 'DESC' },
+      skip: 0,
+      take: 10,
+    });
+  });
+
+  it('limits members to their assigned project ids', async () => {
+    projectsRepository.findAndCount?.mockResolvedValue([[], 0]);
+
+    await service.findAll(
+      {},
+      { role: AreaRole.MIEMBRO, projectIds: ['2', '7'] },
+    );
+
+    expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
+      where: { isArchived: false, id: In([2, 7]) },
+      relations: ['area', 'labels', 'links'],
+      order: { createdAt: 'DESC' },
+      skip: 0,
+      take: 10,
+    });
+  });
+
+  it('rejects inverted project date filters', async () => {
+    await expect(
+      service.findAll({ dateFrom: '2026-07-01', dateTo: '2026-06-01' }),
+    ).rejects.toThrow(
+      new BadRequestException('startDate must be before or equal to endDate'),
+    );
+    expect(projectsRepository.findAndCount).not.toHaveBeenCalled();
   });
 
   it('returns project detail with phases ordered by order index', async () => {
@@ -329,7 +537,7 @@ describe('ProjectsService', () => {
     await expect(service.findOne(1)).resolves.toEqual(project);
     expect(projectsRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1 },
-      relations: ['area', 'phases'],
+      relations: ['area', 'phases', 'labels', 'links'],
       order: {
         phases: {
           orderIndex: 'ASC',
@@ -343,6 +551,64 @@ describe('ProjectsService', () => {
 
     await expect(service.findOne(99)).rejects.toThrow(
       new NotFoundException('Project with ID 99 not found'),
+    );
+  });
+
+  it('replaces project metadata during updates', async () => {
+    const project = createProject();
+    const label = createProjectLabel({
+      name: 'Frontend',
+      normalizedName: 'frontend',
+    });
+    const link = createProjectLink({
+      name: 'Design',
+      url: 'https://figma.com/file/123',
+    });
+    const updatedProject = createProject({
+      name: 'Portal actualizado',
+      status: ProjectStatus.ACTIVE,
+      labels: [label],
+      links: [link],
+    });
+
+    projectsRepository.findOne
+      ?.mockResolvedValueOnce(project)
+      .mockResolvedValueOnce(updatedProject);
+    projectLabelsRepository.find?.mockResolvedValue([label]);
+    projectsRepository.save?.mockResolvedValue(project);
+    projectLinksRepository.delete?.mockResolvedValue({ affected: 1 });
+    projectLinksRepository.save?.mockResolvedValue([link]);
+
+    await expect(
+      service.update(1, {
+        name: 'Portal actualizado',
+        status: ProjectStatus.ACTIVE,
+        labels: ['Frontend'],
+        links: [{ name: 'Design', url: 'https://figma.com/file/123' }],
+      }),
+    ).resolves.toEqual(updatedProject);
+    expect(projectLinksRepository.delete).toHaveBeenCalledWith({
+      projectId: 1,
+    });
+    expect(projectsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Portal actualizado',
+        status: ProjectStatus.ACTIVE,
+        labels: [label],
+      }),
+    );
+  });
+
+  it('archives projects', async () => {
+    const project = createProject();
+    const archivedProject = createProject({ isArchived: true });
+
+    projectsRepository.findOne?.mockResolvedValue(project);
+    projectsRepository.save?.mockResolvedValue(archivedProject);
+
+    await expect(service.archive(1)).resolves.toEqual(archivedProject);
+    expect(projectsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, isArchived: true }),
     );
   });
 
