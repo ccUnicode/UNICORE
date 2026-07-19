@@ -74,6 +74,8 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
   };
 };
 
+const presidencyActor = { role: AreaRole.PRESIDENCIA };
+
 describe('ProjectsController', () => {
   let controller: ProjectsController;
 
@@ -118,10 +120,13 @@ describe('ProjectsController', () => {
 
     mockProjectsService.create.mockResolvedValue(createdProject);
 
-    await expect(controller.create(createProjectDto)).resolves.toEqual(
-      createdProject,
+    await expect(
+      controller.create(createProjectDto, presidencyActor),
+    ).resolves.toEqual(createdProject);
+    expect(mockProjectsService.create).toHaveBeenCalledWith(
+      createProjectDto,
+      presidencyActor,
     );
-    expect(mockProjectsService.create).toHaveBeenCalledWith(createProjectDto);
   });
 
   it('lists projects through the service with pagination', async () => {
@@ -153,8 +158,13 @@ describe('ProjectsController', () => {
 
     mockProjectsService.findOne.mockResolvedValue(project);
 
-    await expect(controller.findOne(1)).resolves.toEqual(project);
-    expect(mockProjectsService.findOne).toHaveBeenCalledWith(1);
+    await expect(controller.findOne(1, presidencyActor)).resolves.toEqual(
+      project,
+    );
+    expect(mockProjectsService.findOne).toHaveBeenCalledWith(
+      1,
+      presidencyActor,
+    );
   });
 
   it('updates projects through the service', async () => {
@@ -168,12 +178,13 @@ describe('ProjectsController', () => {
 
     mockProjectsService.update.mockResolvedValue(project);
 
-    await expect(controller.update(1, updateProjectDto)).resolves.toEqual(
-      project,
-    );
+    await expect(
+      controller.update(1, updateProjectDto, presidencyActor),
+    ).resolves.toEqual(project);
     expect(mockProjectsService.update).toHaveBeenCalledWith(
       1,
       updateProjectDto,
+      presidencyActor,
     );
   });
 
@@ -182,8 +193,13 @@ describe('ProjectsController', () => {
 
     mockProjectsService.archive.mockResolvedValue(project);
 
-    await expect(controller.archive(1)).resolves.toEqual(project);
-    expect(mockProjectsService.archive).toHaveBeenCalledWith(1);
+    await expect(controller.archive(1, presidencyActor)).resolves.toEqual(
+      project,
+    );
+    expect(mockProjectsService.archive).toHaveBeenCalledWith(
+      1,
+      presidencyActor,
+    );
   });
 
   describe('access metadata', () => {
@@ -256,8 +272,13 @@ describe('ProjectsController', () => {
 
     mockProjectsService.findPhases.mockResolvedValue(phases);
 
-    await expect(controller.findPhases(1)).resolves.toEqual(phases);
-    expect(mockProjectsService.findPhases).toHaveBeenCalledWith(1);
+    await expect(controller.findPhases(1, presidencyActor)).resolves.toEqual(
+      phases,
+    );
+    expect(mockProjectsService.findPhases).toHaveBeenCalledWith(
+      1,
+      presidencyActor,
+    );
   });
 
   it('creates project phases through the service', async () => {
@@ -273,11 +294,12 @@ describe('ProjectsController', () => {
     mockProjectsService.createPhase.mockResolvedValue(phase);
 
     await expect(
-      controller.createPhase(1, createProjectPhaseDto),
+      controller.createPhase(1, createProjectPhaseDto, presidencyActor),
     ).resolves.toEqual(phase);
     expect(mockProjectsService.createPhase).toHaveBeenCalledWith(
       1,
       createProjectPhaseDto,
+      presidencyActor,
     );
   });
 
@@ -290,12 +312,13 @@ describe('ProjectsController', () => {
     mockProjectsService.updatePhase.mockResolvedValue(phase);
 
     await expect(
-      controller.updatePhase(1, 2, updateProjectPhaseDto),
+      controller.updatePhase(1, 2, updateProjectPhaseDto, presidencyActor),
     ).resolves.toEqual(phase);
     expect(mockProjectsService.updatePhase).toHaveBeenCalledWith(
       1,
       2,
       updateProjectPhaseDto,
+      presidencyActor,
     );
   });
 
@@ -311,18 +334,25 @@ describe('ProjectsController', () => {
     mockProjectsService.reorderPhases.mockResolvedValue(phases);
 
     await expect(
-      controller.reorderPhases(1, reorderProjectPhasesDto),
+      controller.reorderPhases(1, reorderProjectPhasesDto, presidencyActor),
     ).resolves.toEqual(phases);
     expect(mockProjectsService.reorderPhases).toHaveBeenCalledWith(
       1,
       reorderProjectPhasesDto,
+      presidencyActor,
     );
   });
 
   it('deletes project phases through the service', async () => {
     mockProjectsService.deletePhase.mockResolvedValue(undefined);
 
-    await expect(controller.deletePhase(1, 2)).resolves.toBeUndefined();
-    expect(mockProjectsService.deletePhase).toHaveBeenCalledWith(1, 2);
+    await expect(
+      controller.deletePhase(1, 2, presidencyActor),
+    ).resolves.toBeUndefined();
+    expect(mockProjectsService.deletePhase).toHaveBeenCalledWith(
+      1,
+      2,
+      presidencyActor,
+    );
   });
 });

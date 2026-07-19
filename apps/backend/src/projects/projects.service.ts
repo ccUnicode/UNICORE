@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -45,8 +46,12 @@ export class ProjectsService {
     private readonly areaService: AreaService,
   ) {}
 
-  async create(createProjectDto: CreateProjectDto): Promise<Project> {
+  async create(
+    createProjectDto: CreateProjectDto,
+    accessActor: RequestAccessActor,
+  ): Promise<Project> {
     this.validateDateRange(createProjectDto);
+    this.assertAreaManagementAccess(createProjectDto.areaId, accessActor);
 
     const area = await this.areaService.findOne(createProjectDto.areaId);
     return this.projectsRepository.manager.transaction(
@@ -118,7 +123,14 @@ export class ProjectsService {
     };
   }
 
-  async findOne(id: number): Promise<Project> {
+  async findOne(id: number, accessActor: RequestAccessActor): Promise<Project> {
+    const project = await this.findProjectDetails(id);
+    this.assertProjectReadAccess(project, accessActor);
+
+    return project;
+  }
+
+  private async findProjectDetails(id: number): Promise<Project> {
     const project = await this.projectsRepository.findOne({
       where: { id },
       relations: ['area', 'phases', 'labels', 'links'],
@@ -139,12 +151,18 @@ export class ProjectsService {
   async update(
     id: number,
     updateProjectDto: UpdateProjectDto,
+    accessActor: RequestAccessActor,
   ): Promise<Project> {
-    const project = await this.findOne(id);
+    const project = await this.findProjectDetails(id);
+    this.assertProjectManagementAccess(project, accessActor);
     const startDate = updateProjectDto.startDate ?? project.startDate;
     const endDate = updateProjectDto.endDate ?? project.endDate;
 
     this.validateDateRange({ startDate, endDate });
+
+    if (updateProjectDto.areaId !== undefined) {
+      this.assertAreaManagementAccess(updateProjectDto.areaId, accessActor);
+    }
 
     const area =
       updateProjectDto.areaId !== undefined
@@ -192,18 +210,22 @@ export class ProjectsService {
       }
     });
 
-    return this.findOne(id);
+    return this.findOne(id, accessActor);
   }
 
-  async archive(id: number): Promise<Project> {
-    const project = await this.findOne(id);
+  async archive(id: number, accessActor: RequestAccessActor): Promise<Project> {
+    const project = await this.findProjectDetails(id);
+    this.assertProjectManagementAccess(project, accessActor);
     project.isArchived = true;
 
     return this.projectsRepository.save(project);
   }
 
-  async findPhases(projectId: number): Promise<ProjectPhase[]> {
-    await this.ensureProjectExists(projectId);
+  async findPhases(
+    projectId: number,
+    accessActor: RequestAccessActor,
+  ): Promise<ProjectPhase[]> {
+    await this.ensureProjectExists(projectId, accessActor);
 
     return this.findProjectPhases(projectId);
   }
@@ -211,6 +233,7 @@ export class ProjectsService {
   async createPhase(
     projectId: number,
     createProjectPhaseDto: CreateProjectPhaseDto,
+    accessActor: RequestAccessActor,
   ): Promise<ProjectPhase> {
     return this.projectPhasesRepository.manager.transaction(
       async (entityManager) => {
@@ -220,6 +243,7 @@ export class ProjectsService {
         const project = await this.findProjectForUpdate(
           projectId,
           projectsRepository,
+          accessActor,
         );
         const nextOrderIndex = await this.getNextPhaseOrderIndex(
           projectId,
@@ -240,6 +264,7 @@ export class ProjectsService {
   private async findProjectForUpdate(
     projectId: number,
     projectsRepository: Repository<Project>,
+    accessActor: RequestAccessActor,
   ): Promise<Project> {
     const project = await projectsRepository.findOne({
       where: { id: projectId },
@@ -250,6 +275,8 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
+    this.assertProjectManagementAccess(project, accessActor);
+
     return project;
   }
 
@@ -257,7 +284,9 @@ export class ProjectsService {
     projectId: number,
     phaseId: number,
     updateProjectPhaseDto: UpdateProjectPhaseDto,
+    accessActor: RequestAccessActor,
   ): Promise<ProjectPhase> {
+    await this.ensureProjectExists(projectId, accessActor, true);
     await this.findPhaseOrThrow(projectId, phaseId);
     const phaseUpdate: Partial<Pick<ProjectPhase, 'name' | 'description'>> = {};
 
@@ -282,12 +311,14 @@ export class ProjectsService {
   async reorderPhases(
     projectId: number,
     reorderProjectPhasesDto: ReorderProjectPhasesDto,
+    accessActor: RequestAccessActor,
   ): Promise<ProjectPhase[]> {
     return this.projectPhasesRepository.manager.transaction(
       async (entityManager) => {
         await this.findProjectForUpdate(
           projectId,
           entityManager.getRepository(Project),
+          accessActor,
         );
         const projectPhasesRepository =
           entityManager.getRepository(ProjectPhase);
@@ -324,12 +355,17 @@ export class ProjectsService {
     );
   }
 
-  async deletePhase(projectId: number, phaseId: number): Promise<void> {
+  async deletePhase(
+    projectId: number,
+    phaseId: number,
+    accessActor: RequestAccessActor,
+  ): Promise<void> {
     await this.projectPhasesRepository.manager.transaction(
       async (entityManager) => {
         await this.findProjectForUpdate(
           projectId,
           entityManager.getRepository(Project),
+          accessActor,
         );
         const projectPhasesRepository =
           entityManager.getRepository(ProjectPhase);
@@ -519,7 +555,11 @@ export class ProjectsService {
     return projectPhasesRepository.save(phases);
   }
 
-  private async ensureProjectExists(projectId: number): Promise<Project> {
+  private async ensureProjectExists(
+    projectId: number,
+    accessActor: RequestAccessActor,
+    requireManagement = false,
+  ): Promise<Project> {
     const project = await this.projectsRepository.findOne({
       where: { id: projectId },
     });
@@ -528,7 +568,57 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
     }
 
+    if (requireManagement) {
+      this.assertProjectManagementAccess(project, accessActor);
+    } else {
+      this.assertProjectReadAccess(project, accessActor);
+    }
+
     return project;
+  }
+
+  private assertProjectReadAccess(
+    project: Project,
+    accessActor: RequestAccessActor,
+  ): void {
+    if (accessActor.role === AreaRole.MIEMBRO) {
+      if (!accessActor.projectIds?.includes(String(project.id))) {
+        throw new ForbiddenException(
+          'Project access is limited to assigned projects',
+        );
+      }
+
+      return;
+    }
+
+    this.assertProjectManagementAccess(project, accessActor);
+  }
+
+  private assertProjectManagementAccess(
+    project: Project,
+    accessActor: RequestAccessActor,
+  ): void {
+    this.assertAreaManagementAccess(project.areaId, accessActor);
+  }
+
+  private assertAreaManagementAccess(
+    areaId: number,
+    accessActor: RequestAccessActor,
+  ): void {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (
+      accessActor.role === AreaRole.DIRECTIVA_DE_AREA &&
+      parseAreaId(accessActor.areaId) === areaId
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'Project management is limited to your own area',
+    );
   }
 
   private async findPhaseOrThrow(

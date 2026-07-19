@@ -30,8 +30,11 @@ export class ProjectsController {
 
   @Post()
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
-  create(@Body() createProjectDto: CreateProjectDto) {
-    return this.projectsService.create(createProjectDto);
+  create(
+    @Body() createProjectDto: CreateProjectDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.create(createProjectDto, accessActor);
   }
 
   @Get()
@@ -45,8 +48,11 @@ export class ProjectsController {
 
   @Get(':id')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO)
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.projectsService.findOne(id);
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.findOne(id, accessActor);
   }
 
   @Patch(':id')
@@ -54,20 +60,27 @@ export class ProjectsController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProjectDto: UpdateProjectDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ) {
-    return this.projectsService.update(id, updateProjectDto);
+    return this.projectsService.update(id, updateProjectDto, accessActor);
   }
 
   @Patch(':id/archive')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
-  archive(@Param('id', ParseIntPipe) id: number) {
-    return this.projectsService.archive(id);
+  archive(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.archive(id, accessActor);
   }
 
   @Get(':projectId/phases')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO)
-  findPhases(@Param('projectId', ParseIntPipe) projectId: number) {
-    return this.projectsService.findPhases(projectId);
+  findPhases(
+    @Param('projectId', ParseIntPipe) projectId: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.findPhases(projectId, accessActor);
   }
 
   @Post(':projectId/phases')
@@ -75,8 +88,13 @@ export class ProjectsController {
   createPhase(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Body() createProjectPhaseDto: CreateProjectPhaseDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ) {
-    return this.projectsService.createPhase(projectId, createProjectPhaseDto);
+    return this.projectsService.createPhase(
+      projectId,
+      createProjectPhaseDto,
+      accessActor,
+    );
   }
 
   @Patch(':projectId/phases/reorder')
@@ -84,10 +102,12 @@ export class ProjectsController {
   reorderPhases(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Body() reorderProjectPhasesDto: ReorderProjectPhasesDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ) {
     return this.projectsService.reorderPhases(
       projectId,
       reorderProjectPhasesDto,
+      accessActor,
     );
   }
 
@@ -97,11 +117,13 @@ export class ProjectsController {
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('phaseId', ParseIntPipe) phaseId: number,
     @Body() updateProjectPhaseDto: UpdateProjectPhaseDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ) {
     return this.projectsService.updatePhase(
       projectId,
       phaseId,
       updateProjectPhaseDto,
+      accessActor,
     );
   }
 
@@ -110,7 +132,8 @@ export class ProjectsController {
   deletePhase(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('phaseId', ParseIntPipe) phaseId: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ) {
-    return this.projectsService.deletePhase(projectId, phaseId);
+    return this.projectsService.deletePhase(projectId, phaseId, accessActor);
   }
 }

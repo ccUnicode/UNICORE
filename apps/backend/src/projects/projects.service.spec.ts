@@ -1,4 +1,8 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
@@ -12,6 +16,7 @@ import {
 import { AreaService } from '../area/area.service';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectLabel } from './entities/project-label.entity';
@@ -107,6 +112,18 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     updatedAt: new Date(),
     ...overrides,
   };
+};
+
+const presidencyActor: RequestAccessActor = {
+  role: AreaRole.PRESIDENCIA,
+};
+const areaLeaderActor: RequestAccessActor = {
+  role: AreaRole.DIRECTIVA_DE_AREA,
+  areaId: '1',
+};
+const memberActor: RequestAccessActor = {
+  role: AreaRole.MIEMBRO,
+  projectIds: ['1'],
 };
 
 describe('ProjectsService', () => {
@@ -230,7 +247,9 @@ describe('ProjectsService', () => {
     projectsRepository.save?.mockResolvedValue(project);
     projectPhasesRepository.save?.mockResolvedValue(phases);
 
-    await expect(service.create(createProjectDto)).resolves.toEqual({
+    await expect(
+      service.create(createProjectDto, presidencyActor),
+    ).resolves.toEqual({
       ...project,
       phases,
     });
@@ -303,10 +322,13 @@ describe('ProjectsService', () => {
     projectPhasesRepository.save?.mockResolvedValue(phases);
 
     await expect(
-      service.create({
-        name: 'Proyecto sin fechas',
-        areaId: 1,
-      }),
+      service.create(
+        {
+          name: 'Proyecto sin fechas',
+          areaId: 1,
+        },
+        presidencyActor,
+      ),
     ).resolves.toEqual({
       ...project,
       phases,
@@ -348,17 +370,20 @@ describe('ProjectsService', () => {
     projectLinksRepository.save?.mockResolvedValue([link]);
 
     await expect(
-      service.create({
-        ...createProjectDto,
-        status: ProjectStatus.ACTIVE,
-        labels: ['Backend', 'Priority'],
-        links: [
-          {
-            name: 'Repository',
-            url: 'https://github.com/ccUnicode/UNICORE',
-          },
-        ],
-      }),
+      service.create(
+        {
+          ...createProjectDto,
+          status: ProjectStatus.ACTIVE,
+          labels: ['Backend', 'Priority'],
+          links: [
+            {
+              name: 'Repository',
+              url: 'https://github.com/ccUnicode/UNICORE',
+            },
+          ],
+        },
+        presidencyActor,
+      ),
     ).resolves.toEqual({
       ...project,
       phases: [],
@@ -384,10 +409,13 @@ describe('ProjectsService', () => {
     );
 
     await expect(
-      service.create({
-        ...createProjectDto,
-        areaId: 99,
-      }),
+      service.create(
+        {
+          ...createProjectDto,
+          areaId: 99,
+        },
+        presidencyActor,
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(projectsRepository.create).not.toHaveBeenCalled();
     expect(projectsRepository.save).not.toHaveBeenCalled();
@@ -396,13 +424,31 @@ describe('ProjectsService', () => {
 
   it('rejects projects with an end date before the start date', async () => {
     await expect(
-      service.create({
-        ...createProjectDto,
-        startDate: '2026-07-01',
-        endDate: '2026-06-01',
-      }),
+      service.create(
+        {
+          ...createProjectDto,
+          startDate: '2026-07-01',
+          endDate: '2026-06-01',
+        },
+        presidencyActor,
+      ),
     ).rejects.toThrow(
       new BadRequestException('startDate must be before or equal to endDate'),
+    );
+    expect(mockAreaService.findOne).not.toHaveBeenCalled();
+  });
+
+  it('rejects project creation outside an area leader own area', async () => {
+    await expect(
+      service.create(
+        {
+          ...createProjectDto,
+          areaId: 2,
+        },
+        areaLeaderActor,
+      ),
+    ).rejects.toThrow(
+      new ForbiddenException('Project management is limited to your own area'),
     );
     expect(mockAreaService.findOne).not.toHaveBeenCalled();
   });
@@ -534,7 +580,7 @@ describe('ProjectsService', () => {
 
     projectsRepository.findOne?.mockResolvedValue(project);
 
-    await expect(service.findOne(1)).resolves.toEqual(project);
+    await expect(service.findOne(1, presidencyActor)).resolves.toEqual(project);
     expect(projectsRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1 },
       relations: ['area', 'phases', 'labels', 'links'],
@@ -549,8 +595,26 @@ describe('ProjectsService', () => {
   it('rejects project detail when the project does not exist', async () => {
     projectsRepository.findOne?.mockResolvedValue(null);
 
-    await expect(service.findOne(99)).rejects.toThrow(
+    await expect(service.findOne(99, presidencyActor)).rejects.toThrow(
       new NotFoundException('Project with ID 99 not found'),
+    );
+  });
+
+  it('rejects project detail outside an area leader own area', async () => {
+    projectsRepository.findOne?.mockResolvedValue(
+      createProject({ areaId: 2, area: createArea({ id: 2 }) }),
+    );
+
+    await expect(service.findOne(1, areaLeaderActor)).rejects.toThrow(
+      new ForbiddenException('Project management is limited to your own area'),
+    );
+  });
+
+  it('rejects project detail for members without project assignment', async () => {
+    projectsRepository.findOne?.mockResolvedValue(createProject({ id: 2 }));
+
+    await expect(service.findOne(2, memberActor)).rejects.toThrow(
+      new ForbiddenException('Project access is limited to assigned projects'),
     );
   });
 
@@ -580,12 +644,16 @@ describe('ProjectsService', () => {
     projectLinksRepository.save?.mockResolvedValue([link]);
 
     await expect(
-      service.update(1, {
-        name: 'Portal actualizado',
-        status: ProjectStatus.ACTIVE,
-        labels: ['Frontend'],
-        links: [{ name: 'Design', url: 'https://figma.com/file/123' }],
-      }),
+      service.update(
+        1,
+        {
+          name: 'Portal actualizado',
+          status: ProjectStatus.ACTIVE,
+          labels: ['Frontend'],
+          links: [{ name: 'Design', url: 'https://figma.com/file/123' }],
+        },
+        presidencyActor,
+      ),
     ).resolves.toEqual(updatedProject);
     expect(projectLinksRepository.delete).toHaveBeenCalledWith({
       projectId: 1,
@@ -606,10 +674,42 @@ describe('ProjectsService', () => {
     projectsRepository.findOne?.mockResolvedValue(project);
     projectsRepository.save?.mockResolvedValue(archivedProject);
 
-    await expect(service.archive(1)).resolves.toEqual(archivedProject);
+    await expect(service.archive(1, presidencyActor)).resolves.toEqual(
+      archivedProject,
+    );
     expect(projectsRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1, isArchived: true }),
     );
+  });
+
+  it('rejects updates and archiving outside an area leader own area', async () => {
+    const project = createProject({
+      areaId: 2,
+      area: createArea({ id: 2 }),
+    });
+    projectsRepository.findOne?.mockResolvedValue(project);
+
+    await expect(
+      service.update(1, { name: 'Sin permiso' }, areaLeaderActor),
+    ).rejects.toThrow(
+      new ForbiddenException('Project management is limited to your own area'),
+    );
+    await expect(service.archive(1, areaLeaderActor)).rejects.toThrow(
+      new ForbiddenException('Project management is limited to your own area'),
+    );
+    expect(projectsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects moving a project outside an area leader own area', async () => {
+    projectsRepository.findOne?.mockResolvedValue(createProject());
+
+    await expect(
+      service.update(1, { areaId: 2 }, areaLeaderActor),
+    ).rejects.toThrow(
+      new ForbiddenException('Project management is limited to your own area'),
+    );
+    expect(mockAreaService.findOne).not.toHaveBeenCalled();
+    expect(projectsRepository.save).not.toHaveBeenCalled();
   });
 
   it('lists phases for an existing project', async () => {
@@ -619,11 +719,22 @@ describe('ProjectsService', () => {
     projectsRepository.findOne?.mockResolvedValue(project);
     projectPhasesRepository.find?.mockResolvedValue(phases);
 
-    await expect(service.findPhases(1)).resolves.toEqual(phases);
+    await expect(service.findPhases(1, presidencyActor)).resolves.toEqual(
+      phases,
+    );
     expect(projectPhasesRepository.find).toHaveBeenCalledWith({
       where: { projectId: 1 },
       order: { orderIndex: 'ASC' },
     });
+  });
+
+  it('rejects phase reads for members without project assignment', async () => {
+    projectsRepository.findOne?.mockResolvedValue(createProject({ id: 2 }));
+
+    await expect(service.findPhases(2, memberActor)).rejects.toThrow(
+      new ForbiddenException('Project access is limited to assigned projects'),
+    );
+    expect(projectPhasesRepository.find).not.toHaveBeenCalled();
   });
 
   it('creates custom phases after the current last phase', async () => {
@@ -642,10 +753,14 @@ describe('ProjectsService', () => {
     projectPhasesRepository.save?.mockResolvedValue(phase);
 
     await expect(
-      service.createPhase(1, {
-        name: 'Retrospective',
-        description: 'Closeout notes',
-      }),
+      service.createPhase(
+        1,
+        {
+          name: 'Retrospective',
+          description: 'Closeout notes',
+        },
+        presidencyActor,
+      ),
     ).resolves.toEqual(phase);
     expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
       1,
@@ -666,7 +781,21 @@ describe('ProjectsService', () => {
     });
   });
 
+  it('rejects phase creation outside an area leader own area', async () => {
+    projectsRepository.findOne?.mockResolvedValue(
+      createProject({ areaId: 2, area: createArea({ id: 2 }) }),
+    );
+
+    await expect(
+      service.createPhase(1, { name: 'Sin permiso' }, areaLeaderActor),
+    ).rejects.toThrow(
+      new ForbiddenException('Project management is limited to your own area'),
+    );
+    expect(projectPhasesRepository.save).not.toHaveBeenCalled();
+  });
+
   it('updates phase names and descriptions', async () => {
+    projectsRepository.findOne?.mockResolvedValue(createProject());
     const phase = createProjectPhase();
     const updatedPhase = createProjectPhase({
       name: 'Discovery',
@@ -679,10 +808,15 @@ describe('ProjectsService', () => {
     projectPhasesRepository.update?.mockResolvedValue({ affected: 1 });
 
     await expect(
-      service.updatePhase(1, 1, {
-        name: 'Discovery',
-        description: 'Initial work',
-      }),
+      service.updatePhase(
+        1,
+        1,
+        {
+          name: 'Discovery',
+          description: 'Initial work',
+        },
+        presidencyActor,
+      ),
     ).resolves.toEqual(updatedPhase);
     expect(projectPhasesRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1, projectId: 1 },
@@ -698,13 +832,16 @@ describe('ProjectsService', () => {
   });
 
   it('returns existing phases without updating when phase updates are empty', async () => {
+    projectsRepository.findOne?.mockResolvedValue(createProject());
     const phase = createProjectPhase();
 
     projectPhasesRepository.findOne
       ?.mockResolvedValueOnce(phase)
       .mockResolvedValueOnce(phase);
 
-    await expect(service.updatePhase(1, 1, {})).resolves.toEqual(phase);
+    await expect(
+      service.updatePhase(1, 1, {}, presidencyActor),
+    ).resolves.toEqual(phase);
     expect(projectPhasesRepository.update).not.toHaveBeenCalled();
     expect(projectPhasesRepository.save).not.toHaveBeenCalled();
   });
@@ -734,7 +871,7 @@ describe('ProjectsService', () => {
     projectPhasesRepository.save?.mockResolvedValue(reorderedPhaseUpdates);
 
     await expect(
-      service.reorderPhases(1, { phaseIds: [3, 1, 2] }),
+      service.reorderPhases(1, { phaseIds: [3, 1, 2] }, presidencyActor),
     ).resolves.toEqual(reorderedPhases);
     expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
       1,
@@ -759,7 +896,7 @@ describe('ProjectsService', () => {
     projectPhasesRepository.find?.mockResolvedValue(phases);
 
     await expect(
-      service.reorderPhases(1, { phaseIds: [1, 99] }),
+      service.reorderPhases(1, { phaseIds: [1, 99] }, presidencyActor),
     ).rejects.toThrow(
       new BadRequestException(
         'phaseIds must include every project phase exactly once',
@@ -779,7 +916,7 @@ describe('ProjectsService', () => {
     projectPhasesRepository.find?.mockResolvedValue(phases);
 
     await expect(
-      service.reorderPhases(1, { phaseIds: [1, 1] }),
+      service.reorderPhases(1, { phaseIds: [1, 1] }, presidencyActor),
     ).rejects.toThrow(
       new BadRequestException(
         'phaseIds must include every project phase exactly once',
@@ -805,7 +942,9 @@ describe('ProjectsService', () => {
     projectPhasesRepository.remove?.mockResolvedValue(phases[1]);
     projectPhasesRepository.save?.mockResolvedValue(remainingPhaseUpdates);
 
-    await expect(service.deletePhase(1, 2)).resolves.toBeUndefined();
+    await expect(
+      service.deletePhase(1, 2, presidencyActor),
+    ).resolves.toBeUndefined();
     expect(projectPhasesRepository.manager.transaction).toHaveBeenCalledTimes(
       1,
     );
@@ -826,7 +965,7 @@ describe('ProjectsService', () => {
     projectsRepository.findOne?.mockResolvedValue(project);
     projectPhasesRepository.find?.mockResolvedValue(phases);
 
-    await expect(service.deletePhase(1, 1)).rejects.toThrow(
+    await expect(service.deletePhase(1, 1, presidencyActor)).rejects.toThrow(
       new BadRequestException('Projects must keep at least one phase'),
     );
     expect(projectPhasesRepository.remove).not.toHaveBeenCalled();
