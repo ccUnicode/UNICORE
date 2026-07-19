@@ -683,6 +683,36 @@ describe('ProjectsService', () => {
     );
   });
 
+  it('validates date updates using cleared nullable boundaries', async () => {
+    const project = createProject({
+      startDate: '2026-07-01',
+      endDate: '2026-08-01',
+    });
+    const updatedProject = createProject({
+      startDate: null,
+      endDate: '2026-06-01',
+    });
+
+    projectsRepository.findOne
+      ?.mockResolvedValueOnce(project)
+      .mockResolvedValueOnce(updatedProject);
+    projectsRepository.save?.mockResolvedValue(project);
+
+    await expect(
+      service.update(
+        1,
+        { startDate: null, endDate: '2026-06-01' },
+        presidencyActor,
+      ),
+    ).resolves.toEqual(updatedProject);
+    expect(projectsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        startDate: null,
+        endDate: '2026-06-01',
+      }),
+    );
+  });
+
   it('archives projects', async () => {
     const project = createProject();
     const archivedProject = createProject({ isArchived: true });

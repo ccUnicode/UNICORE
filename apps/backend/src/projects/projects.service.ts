@@ -155,8 +155,14 @@ export class ProjectsService {
   ): Promise<Project> {
     const project = await this.findProjectDetails(id);
     this.assertProjectManagementAccess(project, accessActor);
-    const startDate = updateProjectDto.startDate ?? project.startDate;
-    const endDate = updateProjectDto.endDate ?? project.endDate;
+    const startDate =
+      updateProjectDto.startDate !== undefined
+        ? updateProjectDto.startDate
+        : project.startDate;
+    const endDate =
+      updateProjectDto.endDate !== undefined
+        ? updateProjectDto.endDate
+        : project.endDate;
 
     this.validateDateRange({ startDate, endDate });
 
