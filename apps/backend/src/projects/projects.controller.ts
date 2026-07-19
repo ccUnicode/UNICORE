@@ -48,6 +48,7 @@ export class ProjectsController {
   }
 
   @Patch(':id')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateProjectDto: UpdateProjectDto,
@@ -56,6 +57,7 @@ export class ProjectsController {
   }
 
   @Patch(':id/archive')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   archive(@Param('id', ParseIntPipe) id: number) {
     return this.projectsService.archive(id);
   }

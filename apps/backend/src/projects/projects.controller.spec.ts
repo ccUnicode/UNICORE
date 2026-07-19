@@ -1,6 +1,9 @@
+import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Area } from '../area/entities/area.entity';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { RolesGuard } from '../common/guards/roles.guard';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
@@ -10,6 +13,19 @@ import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
+
+const getProjectsControllerMethod = (methodName: keyof ProjectsController) => {
+  const descriptor = Object.getOwnPropertyDescriptor(
+    ProjectsController.prototype,
+    methodName,
+  );
+
+  if (!descriptor) {
+    throw new Error(`Missing ProjectsController method: ${String(methodName)}`);
+  }
+
+  return descriptor.value as object;
+};
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -168,6 +184,28 @@ describe('ProjectsController', () => {
 
     await expect(controller.archive(1)).resolves.toEqual(project);
     expect(mockProjectsService.archive).toHaveBeenCalledWith(1);
+  });
+
+  describe('access metadata', () => {
+    it('uses RolesGuard at controller level', () => {
+      const guards = Reflect.getMetadata(
+        GUARDS_METADATA,
+        ProjectsController,
+      ) as Array<new (...args: unknown[]) => unknown>;
+
+      expect(guards).toContain(RolesGuard);
+    });
+
+    it('restricts project updates and archiving to Presidencia and Directiva', () => {
+      const expectedRoles = [AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA];
+
+      expect(
+        Reflect.getMetadata(ROLES_KEY, getProjectsControllerMethod('update')),
+      ).toEqual(expectedRoles);
+      expect(
+        Reflect.getMetadata(ROLES_KEY, getProjectsControllerMethod('archive')),
+      ).toEqual(expectedRoles);
+    });
   });
 
   it('lists project phases through the service', async () => {
