@@ -1,11 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { Area } from '../area/entities/area.entity';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { ProjectRole } from '../common/enums/project-role.enum';
+import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
+import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
+import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
-import { AreaRole } from '../common/enums/area-role.enum';
-import { ProjectRole } from '../common/enums/project-role.enum';
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -15,6 +19,20 @@ const createArea = (overrides: Partial<Area> = {}): Area => ({
   createdAt: new Date(),
   updatedAt: new Date(),
   memberships: [],
+  ...overrides,
+});
+
+const createProjectPhase = (
+  overrides: Partial<ProjectPhase> = {},
+): ProjectPhase => ({
+  id: 1,
+  name: 'Planning',
+  description: null,
+  orderIndex: 1,
+  projectId: 1,
+  project: {} as Project,
+  createdAt: new Date(),
+  updatedAt: new Date(),
   ...overrides,
 });
 
@@ -29,9 +47,10 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     endDate: '2026-07-01',
     areaId: area.id,
     area,
+    phases: [],
+    memberships: [],
     createdAt: new Date(),
     updatedAt: new Date(),
-    memberships: [],
     ...overrides,
   };
 };
@@ -43,6 +62,11 @@ describe('ProjectsController', () => {
     create: jest.fn(),
     findAll: jest.fn(),
     findOne: jest.fn(),
+    findPhases: jest.fn(),
+    createPhase: jest.fn(),
+    updatePhase: jest.fn(),
+    reorderPhases: jest.fn(),
+    deletePhase: jest.fn(),
     addTeamMember: jest.fn(),
     updateTeamMemberRole: jest.fn(),
     removeTeamMember: jest.fn(),
@@ -105,7 +129,7 @@ describe('ProjectsController', () => {
   });
 
   it('gets a single project detail', async () => {
-    const project = createProject();
+    const project = createProject({ phases: [createProjectPhase()] });
     mockProjectsService.findOne.mockResolvedValue(project);
 
     await expect(controller.findOne(1, mockAccessActor)).resolves.toEqual(
@@ -113,6 +137,95 @@ describe('ProjectsController', () => {
     );
     expect(mockProjectsService.findOne).toHaveBeenCalledWith(
       1,
+      mockAccessActor,
+    );
+  });
+
+  it('lists project phases through the service', async () => {
+    const phases = [createProjectPhase()];
+
+    mockProjectsService.findPhases.mockResolvedValue(phases);
+
+    await expect(controller.findPhases(1, mockAccessActor)).resolves.toEqual(
+      phases,
+    );
+    expect(mockProjectsService.findPhases).toHaveBeenCalledWith(
+      1,
+      mockAccessActor,
+    );
+  });
+
+  it('creates project phases through the service', async () => {
+    const createProjectPhaseDto: CreateProjectPhaseDto = {
+      name: 'Retrospective',
+      description: 'Closeout notes',
+    };
+    const phase = createProjectPhase({
+      name: 'Retrospective',
+      description: 'Closeout notes',
+    });
+
+    mockProjectsService.createPhase.mockResolvedValue(phase);
+
+    await expect(
+      controller.createPhase(1, createProjectPhaseDto, mockAccessActor),
+    ).resolves.toEqual(phase);
+    expect(mockProjectsService.createPhase).toHaveBeenCalledWith(
+      1,
+      createProjectPhaseDto,
+      mockAccessActor,
+    );
+  });
+
+  it('updates project phases through the service', async () => {
+    const updateProjectPhaseDto: UpdateProjectPhaseDto = {
+      name: 'Discovery',
+    };
+    const phase = createProjectPhase({ name: 'Discovery' });
+
+    mockProjectsService.updatePhase.mockResolvedValue(phase);
+
+    await expect(
+      controller.updatePhase(1, 2, updateProjectPhaseDto, mockAccessActor),
+    ).resolves.toEqual(phase);
+    expect(mockProjectsService.updatePhase).toHaveBeenCalledWith(
+      1,
+      2,
+      updateProjectPhaseDto,
+      mockAccessActor,
+    );
+  });
+
+  it('reorders project phases through the service', async () => {
+    const reorderProjectPhasesDto: ReorderProjectPhasesDto = {
+      phaseIds: [2, 1],
+    };
+    const phases = [
+      createProjectPhase({ id: 2, orderIndex: 1 }),
+      createProjectPhase({ id: 1, orderIndex: 2 }),
+    ];
+
+    mockProjectsService.reorderPhases.mockResolvedValue(phases);
+
+    await expect(
+      controller.reorderPhases(1, reorderProjectPhasesDto, mockAccessActor),
+    ).resolves.toEqual(phases);
+    expect(mockProjectsService.reorderPhases).toHaveBeenCalledWith(
+      1,
+      reorderProjectPhasesDto,
+      mockAccessActor,
+    );
+  });
+
+  it('deletes project phases through the service', async () => {
+    mockProjectsService.deletePhase.mockResolvedValue(undefined);
+
+    await expect(
+      controller.deletePhase(1, 2, mockAccessActor),
+    ).resolves.toBeUndefined();
+    expect(mockProjectsService.deletePhase).toHaveBeenCalledWith(
+      1,
+      2,
       mockAccessActor,
     );
   });

@@ -4,12 +4,13 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
-  OneToMany,
 } from 'typeorm';
 import { Area } from '../../area/entities/area.entity';
 import { ProjectMembership } from './project-membership.entity';
+import { ProjectPhase } from './project-phase.entity';
 
 @Entity('projects')
 export class Project {
@@ -35,12 +36,15 @@ export class Project {
   @JoinColumn({ name: 'area_id' })
   area: Area;
 
+  @OneToMany(() => ProjectPhase, (phase) => phase.project)
+  phases: ProjectPhase[];
+
+  @OneToMany(() => ProjectMembership, (membership) => membership.project)
+  memberships: ProjectMembership[];
+
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
-
-  @OneToMany(() => ProjectMembership, (membership) => membership.project)
-  memberships: ProjectMembership[];
 }
