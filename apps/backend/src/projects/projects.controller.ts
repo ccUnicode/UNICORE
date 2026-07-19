@@ -29,6 +29,7 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   create(@Body() createProjectDto: CreateProjectDto) {
     return this.projectsService.create(createProjectDto);
   }
@@ -43,6 +44,7 @@ export class ProjectsController {
   }
 
   @Get(':id')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO)
   findOne(@Param('id', ParseIntPipe) id: number) {
     return this.projectsService.findOne(id);
   }
@@ -63,11 +65,13 @@ export class ProjectsController {
   }
 
   @Get(':projectId/phases')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO)
   findPhases(@Param('projectId', ParseIntPipe) projectId: number) {
     return this.projectsService.findPhases(projectId);
   }
 
   @Post(':projectId/phases')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   createPhase(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Body() createProjectPhaseDto: CreateProjectPhaseDto,
@@ -76,6 +80,7 @@ export class ProjectsController {
   }
 
   @Patch(':projectId/phases/reorder')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   reorderPhases(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Body() reorderProjectPhasesDto: ReorderProjectPhasesDto,
@@ -87,6 +92,7 @@ export class ProjectsController {
   }
 
   @Patch(':projectId/phases/:phaseId')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   updatePhase(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('phaseId', ParseIntPipe) phaseId: number,
@@ -100,6 +106,7 @@ export class ProjectsController {
   }
 
   @Delete(':projectId/phases/:phaseId')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   deletePhase(
     @Param('projectId', ParseIntPipe) projectId: number,
     @Param('phaseId', ParseIntPipe) phaseId: number,

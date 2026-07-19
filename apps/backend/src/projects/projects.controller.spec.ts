@@ -196,15 +196,58 @@ describe('ProjectsController', () => {
       expect(guards).toContain(RolesGuard);
     });
 
-    it('restricts project updates and archiving to Presidencia and Directiva', () => {
-      const expectedRoles = [AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA];
+    it.each([
+      'create',
+      'update',
+      'archive',
+      'createPhase',
+      'reorderPhases',
+      'updatePhase',
+      'deletePhase',
+    ] as const)('restricts %s to Presidencia and Directiva', (methodName) => {
+      expect(
+        Reflect.getMetadata(ROLES_KEY, getProjectsControllerMethod(methodName)),
+      ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
+    });
 
-      expect(
-        Reflect.getMetadata(ROLES_KEY, getProjectsControllerMethod('update')),
-      ).toEqual(expectedRoles);
-      expect(
-        Reflect.getMetadata(ROLES_KEY, getProjectsControllerMethod('archive')),
-      ).toEqual(expectedRoles);
+    it.each(['findAll', 'findOne', 'findPhases'] as const)(
+      'allows scoped read access to %s',
+      (methodName) => {
+        expect(
+          Reflect.getMetadata(
+            ROLES_KEY,
+            getProjectsControllerMethod(methodName),
+          ),
+        ).toEqual([
+          AreaRole.PRESIDENCIA,
+          AreaRole.DIRECTIVA_DE_AREA,
+          AreaRole.MIEMBRO,
+        ]);
+      },
+    );
+
+    it('declares roles for every controller route', () => {
+      const routeMethods = [
+        'create',
+        'findAll',
+        'findOne',
+        'update',
+        'archive',
+        'findPhases',
+        'createPhase',
+        'reorderPhases',
+        'updatePhase',
+        'deletePhase',
+      ] as const;
+
+      routeMethods.forEach((methodName) => {
+        expect(
+          Reflect.getMetadata(
+            ROLES_KEY,
+            getProjectsControllerMethod(methodName),
+          ),
+        ).toBeDefined();
+      });
     });
   });
 
