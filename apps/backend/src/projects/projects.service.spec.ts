@@ -176,6 +176,7 @@ describe('ProjectsService', () => {
       ),
       find: jest.fn(),
       save: jest.fn(),
+      upsert: jest.fn(),
     };
     projectLinksRepository = {
       create: jest.fn((link: Partial<ProjectLink>) => createProjectLink(link)),
@@ -362,8 +363,11 @@ describe('ProjectsService', () => {
     const link = createProjectLink({ projectId: project.id });
 
     mockAreaService.findOne.mockResolvedValue(area);
-    projectLabelsRepository.find?.mockResolvedValue([backendLabel]);
-    projectLabelsRepository.save?.mockResolvedValue([priorityLabel]);
+    projectLabelsRepository.find?.mockResolvedValue([
+      backendLabel,
+      priorityLabel,
+    ]);
+    projectLabelsRepository.upsert?.mockResolvedValue(undefined);
     projectsRepository.create?.mockReturnValue(project);
     projectsRepository.save?.mockResolvedValue(project);
     projectPhasesRepository.save?.mockResolvedValue([]);
@@ -392,10 +396,22 @@ describe('ProjectsService', () => {
     expect(projectLabelsRepository.find).toHaveBeenCalledWith({
       where: { normalizedName: In(['backend', 'priority']) },
     });
-    expect(projectLabelsRepository.create).toHaveBeenCalledWith({
-      name: 'Priority',
-      normalizedName: 'priority',
-    });
+    expect(projectLabelsRepository.upsert).toHaveBeenCalledWith(
+      [
+        expect.objectContaining({
+          name: 'Backend',
+          normalizedName: 'backend',
+        }),
+        expect.objectContaining({
+          name: 'Priority',
+          normalizedName: 'priority',
+        }),
+      ],
+      {
+        conflictPaths: ['normalizedName'],
+        skipUpdateIfNoValuesChanged: true,
+      },
+    );
     expect(projectLinksRepository.create).toHaveBeenCalledWith({
       name: 'Repository',
       url: 'https://github.com/ccUnicode/UNICORE',

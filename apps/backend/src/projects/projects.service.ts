@@ -483,25 +483,23 @@ export class ProjectsService {
       return [];
     }
 
-    const existingLabels = await projectLabelsRepository.find({
+    const labelCandidates = normalizedNames.map((normalizedName) =>
+      projectLabelsRepository.create({
+        name: labelsByNormalizedName.get(normalizedName),
+        normalizedName,
+      }),
+    );
+
+    await projectLabelsRepository.upsert(labelCandidates, {
+      conflictPaths: ['normalizedName'],
+      skipUpdateIfNoValuesChanged: true,
+    });
+
+    const labels = await projectLabelsRepository.find({
       where: { normalizedName: In(normalizedNames) },
     });
-    const existingNames = new Set(
-      existingLabels.map((label) => label.normalizedName),
-    );
-    const newLabels = normalizedNames
-      .filter((normalizedName) => !existingNames.has(normalizedName))
-      .map((normalizedName) =>
-        projectLabelsRepository.create({
-          name: labelsByNormalizedName.get(normalizedName),
-          normalizedName,
-        }),
-      );
-    const savedLabels =
-      newLabels.length > 0 ? await projectLabelsRepository.save(newLabels) : [];
-    const allLabels = [...existingLabels, ...savedLabels];
     const labelsByName = new Map(
-      allLabels.map((label) => [label.normalizedName, label]),
+      labels.map((label) => [label.normalizedName, label]),
     );
 
     return normalizedNames.map(
