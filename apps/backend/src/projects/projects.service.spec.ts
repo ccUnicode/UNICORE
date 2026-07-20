@@ -103,7 +103,7 @@ const createMember = (overrides: Partial<Member> = {}): Member => {
         id: 1,
         role: AreaRole.MIEMBRO,
         memberId,
-        areaId: areaId as number,
+        areaId: areaId,
         member: {} as Member,
         area: {} as Area,
         createdAt: new Date(),
@@ -348,10 +348,9 @@ describe('ProjectsService', () => {
       const result = await service.findOne(1, adminActor);
 
       expect(result).toEqual(project);
-      expect(result.memberships.map((membership) => membership.memberId)).toEqual([
-        10,
-        20,
-      ]);
+      expect(
+        result.memberships.map((membership) => membership.memberId),
+      ).toEqual([10, 20]);
       expect(projectsRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
         relations: ['area', 'phases', 'memberships', 'memberships.member'],
@@ -434,9 +433,9 @@ describe('ProjectsService', () => {
           adminActor,
         ),
       ).resolves.toEqual(phase);
-      expect(projectPhasesRepository.manager!.transaction).toHaveBeenCalledTimes(
-        1,
-      );
+      expect(
+        projectPhasesRepository.manager!.transaction,
+      ).toHaveBeenCalledTimes(1);
       expect(projectsRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
         lock: { mode: 'pessimistic_write' },

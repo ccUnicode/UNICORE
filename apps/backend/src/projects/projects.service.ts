@@ -95,10 +95,7 @@ export class ProjectsService {
     };
   }
 
-  async findOne(
-    id: number,
-    accessActor: RequestAccessActor,
-  ): Promise<Project> {
+  async findOne(id: number, accessActor: RequestAccessActor): Promise<Project> {
     const project = await this.projectsRepository.findOne({
       where: { id },
       relations: ['area', 'phases', 'memberships', 'memberships.member'],
