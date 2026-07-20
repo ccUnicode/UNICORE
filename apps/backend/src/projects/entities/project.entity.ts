@@ -9,6 +9,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { Area } from '../../area/entities/area.entity';
+import { ProjectMembership } from './project-membership.entity';
 import { ProjectPhase } from './project-phase.entity';
 
 @Entity('projects')
@@ -37,6 +38,9 @@ export class Project {
 
   @OneToMany(() => ProjectPhase, (phase) => phase.project)
   phases: ProjectPhase[];
+
+  @OneToMany(() => ProjectMembership, (membership) => membership.project)
+  memberships: ProjectMembership[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;
