@@ -30,12 +30,15 @@ export class AreaMembership {
   @JoinColumn({ name: 'member_id' })
   member: Member;
 
-  @Column({ name: 'area_id', insert: false, update: false })
-  areaId: number;
+  @Column({ name: 'area_id', insert: false, update: false, nullable: true })
+  areaId: number | null;
 
-  @ManyToOne(() => Area, (area) => area.memberships, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Area, (area) => area.memberships, {
+    onDelete: 'CASCADE',
+    nullable: true,
+  })
   @JoinColumn({ name: 'area_id' })
-  area: Area;
+  area: Area | null;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

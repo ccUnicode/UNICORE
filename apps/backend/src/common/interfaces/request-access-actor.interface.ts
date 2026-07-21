@@ -5,4 +5,5 @@ export interface RequestAccessActor {
   areaId?: string;
   memberId?: string;
   projectIds?: string[];
+  status?: string;
 }

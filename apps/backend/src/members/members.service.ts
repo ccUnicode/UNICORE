@@ -34,7 +34,7 @@ export class MembersService {
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const { skills, areaId, status, ...restDto } = createMemberDto;
+    const { skills, areaId, ...restDto } = createMemberDto;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateAreaExists(areaId);
@@ -44,28 +44,20 @@ export class MembersService {
 
     const member = this.membersRepository.create({
       ...restDto,
-      ...(status !== undefined &&
-        restDto.availabilityStatus === undefined && {
-          availabilityStatus: status,
-        }),
-      role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
-      area:
-        areaId !== undefined && areaId !== null ? { id: areaId } : undefined,
     });
 
     try {
       const savedMember = await this.membersRepository.save(member);
 
-      if (areaId !== undefined && areaId !== null) {
-        const membership = this.areaMembershipsRepository.create({
-          member: savedMember,
-          area: { id: areaId },
-          role: AreaRole.DIRECTIVA_DE_AREA,
-        });
-        await this.areaMembershipsRepository.save(membership);
-      }
+      const membership = this.areaMembershipsRepository.create({
+        member: savedMember,
+        area: areaId !== undefined && areaId !== null ? { id: areaId } : null,
+        role: createMemberDto.role ?? AreaRole.MIEMBRO,
+      });
+      await this.areaMembershipsRepository.save(membership);
 
+      savedMember.memberships = [membership];
       return savedMember;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -81,9 +73,8 @@ export class MembersService {
   }
 
   async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
-    const { activityStatus, availabilityStatus, status, areaId } =
+    const { activityStatus, availabilityStatus, areaId, cycle } =
       updateMemberDto;
-    const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateAreaExists(areaId);
@@ -92,12 +83,8 @@ export class MembersService {
     const preloadData: DeepPartial<Member> = {
       id,
       ...(activityStatus !== undefined && { activityStatus }),
-      ...(resolvedAvailabilityStatus !== undefined && {
-        availabilityStatus: resolvedAvailabilityStatus,
-      }),
-      ...(areaId !== undefined && {
-        area: areaId === null ? null : { id: areaId },
-      }),
+      ...(availabilityStatus !== undefined && { availabilityStatus }),
+      ...(cycle !== undefined && { cycle: cycle === null ? null : cycle }),
     };
 
     const member = await this.membersRepository.preload(preloadData);
@@ -109,26 +96,26 @@ export class MembersService {
     const savedMember = await this.membersRepository.save(member);
 
     if (areaId !== undefined) {
-      const existingDirectivaMembership =
-        await this.areaMembershipsRepository.findOne({
-          where: {
-            member: { id },
-            role: AreaRole.DIRECTIVA_DE_AREA,
-          },
-        });
+      const existingMembership = await this.areaMembershipsRepository.findOne({
+        where: {
+          member: { id },
+          role: savedMember.role,
+        },
+      });
 
       if (areaId === null) {
-        if (existingDirectivaMembership) {
-          await this.areaMembershipsRepository.remove(
-            existingDirectivaMembership,
-          );
+        if (existingMembership) {
+          if (existingMembership.role === AreaRole.DIRECTIVA_DE_AREA) {
+            await this.areaMembershipsRepository.remove(existingMembership);
+          } else {
+            existingMembership.area = null;
+            await this.areaMembershipsRepository.save(existingMembership);
+          }
         }
       } else {
-        if (existingDirectivaMembership) {
-          existingDirectivaMembership.area = { id: areaId } as Area;
-          await this.areaMembershipsRepository.save(
-            existingDirectivaMembership,
-          );
+        if (existingMembership) {
+          existingMembership.area = { id: areaId } as Area;
+          await this.areaMembershipsRepository.save(existingMembership);
         } else {
           const newMembership = this.areaMembershipsRepository.create({
             member: savedMember,
@@ -140,14 +127,19 @@ export class MembersService {
       }
     }
 
+    // Load memberships relation to keep getters working
+    savedMember.memberships = await this.areaMembershipsRepository.find({
+      where: { member: { id } },
+    });
+
     return savedMember;
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
     const activityStatus = filterDto?.activityStatus;
-    const availabilityStatus =
-      filterDto?.availabilityStatus ?? filterDto?.status;
+    const availabilityStatus = filterDto?.availabilityStatus;
     const areaId = filterDto?.areaId;
+    const cycle = filterDto?.cycle;
     const skills = filterDto?.skills;
 
     const query = this.membersRepository
@@ -173,6 +165,10 @@ export class MembersService {
 
     if (areaId !== undefined) {
       query.andWhere('area.id = :areaId', { areaId });
+    }
+
+    if (cycle !== undefined) {
+      query.andWhere('member.cycle = :cycle', { cycle });
     }
 
     if (skills && skills.length > 0) {

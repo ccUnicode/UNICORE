@@ -4,9 +4,11 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsInt,
   IsOptional,
   IsString,
   Length,
+  Min,
   Validate,
   ValidateIf,
   ValidationArguments,
@@ -122,7 +124,9 @@ export class CreateMemberDto {
   @IsOptional()
   availabilityStatus?: MemberAvailabilityStatus;
 
-  @IsEnum(MemberAvailabilityStatus)
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
   @IsOptional()
-  status?: MemberAvailabilityStatus;
+  cycle?: number;
 }

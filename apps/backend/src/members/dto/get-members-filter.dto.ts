@@ -60,13 +60,6 @@ const normalizeSkills = (value: unknown): unknown => {
 export class GetMembersFilterDto {
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
-    normalizeEnumValue(value, Object.values(MemberAvailabilityStatus)),
-  )
-  @IsEnum(MemberAvailabilityStatus)
-  status?: MemberAvailabilityStatus;
-
-  @IsOptional()
-  @Transform(({ value }: { value: unknown }) =>
     normalizeEnumValue(value, Object.values(MemberActivityStatus)),
   )
   @IsEnum(MemberActivityStatus)
@@ -83,6 +76,11 @@ export class GetMembersFilterDto {
   @Transform(({ value }: { value: unknown }) => normalizeNumber(value))
   @IsNumber()
   areaId?: number;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => normalizeNumber(value))
+  @IsNumber()
+  cycle?: number;
 
   @IsOptional()
   @Transform(({ value }: { value: unknown }) => normalizeSkills(value))

@@ -5,6 +5,7 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { DataSource } from 'typeorm';
 import { AccessControlledRequest } from '../interfaces/access-controlled-request.interface';
 import { AccessScopeOptions } from '../interfaces/access-scope-options.interface';
 import { RequestAccessActor } from '../interfaces/request-access-actor.interface';
@@ -12,12 +13,17 @@ import { AreaRole } from '../enums/area-role.enum';
 import { ACCESS_SCOPE_KEY } from '../decorators/access-scope.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { extractRequestAccessActor } from '../utils/request-access-actor.util';
+import { Member } from '../../members/member.entity';
+import { MemberAvailabilityStatus } from '../../members/enums/member-availability-status.enum';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
-  constructor(private readonly reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly dataSource: DataSource,
+  ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const requiredRoles = this.reflector.getAllAndOverride<AreaRole[]>(
       ROLES_KEY,
       [context.getHandler(), context.getClass()],
@@ -37,6 +43,14 @@ export class RolesGuard implements CanActivate {
     }
 
     request.accessActor = accessActor;
+
+    if (
+      accessActor.status === MemberAvailabilityStatus.DISABLED ||
+      (accessActor.memberId &&
+        (await this.isMemberDisabled(Number(accessActor.memberId))))
+    ) {
+      throw new ForbiddenException('Your account is disabled');
+    }
 
     if (accessActor.role === AreaRole.PRESIDENCIA) {
       return true;
@@ -143,5 +157,17 @@ export class RolesGuard implements CanActivate {
 
   private isPlainObject(value: unknown): value is Record<string, unknown> {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
+  }
+
+  private async isMemberDisabled(memberId: number): Promise<boolean> {
+    try {
+      const member = await this.dataSource.getRepository(Member).findOne({
+        where: { id: memberId },
+        select: ['availabilityStatus'],
+      });
+      return member?.availabilityStatus === MemberAvailabilityStatus.DISABLED;
+    } catch {
+      return false;
+    }
   }
 }

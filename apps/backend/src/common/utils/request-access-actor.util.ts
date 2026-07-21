@@ -24,6 +24,9 @@ export const extractRequestAccessActor = (
   const role = roleHeader as AreaRole;
   const areaId = normalizeHeaderValue(headers['x-area-id']);
   const memberId = normalizeHeaderValue(headers['x-member-id']);
+  const status =
+    normalizeHeaderValue(headers['x-status']) ||
+    normalizeHeaderValue(headers['x-availability-status']);
   const projectIdsHeader = normalizeHeaderValue(headers['x-project-ids']);
   const projectIds = projectIdsHeader
     ?.split(',')
@@ -43,5 +46,6 @@ export const extractRequestAccessActor = (
     areaId: areaId || undefined,
     memberId: memberId || undefined,
     projectIds: projectIds?.length ? projectIds : undefined,
+    status: status || undefined,
   };
 };
