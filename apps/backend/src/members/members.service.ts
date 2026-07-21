@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -143,6 +144,32 @@ export class MembersService {
     return savedMember;
   }
 
+  async remove(
+    id: number,
+    confirmName: string,
+    accessActor: RequestAccessActor,
+  ): Promise<Member> {
+    const member = await this.membersRepository.findOne({
+      where: { id },
+      relations: ['memberships'],
+    });
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    this.assertMemberDeletionAccess(member, accessActor);
+
+    const exactName = `${member.firstNames} ${member.lastNames}`;
+    if (confirmName !== exactName) {
+      throw new BadRequestException(
+        'confirmName must exactly match the member full name',
+      );
+    }
+
+    return this.membersRepository.remove(member);
+  }
+
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
     const activityStatus = filterDto?.activityStatus;
     const availabilityStatus =
@@ -256,5 +283,31 @@ export class MembersService {
     if (!areaExists) {
       throw new NotFoundException(`Area with ID ${areaId} not found`);
     }
+  }
+
+  private assertMemberDeletionAccess(
+    member: Member,
+    accessActor: RequestAccessActor,
+  ): void {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const actorAreaId = parseAreaId(accessActor.areaId);
+      const belongsToActorArea =
+        member.areaId === actorAreaId ||
+        member.memberships.some(
+          (membership) => membership.areaId === actorAreaId,
+        );
+
+      if (belongsToActorArea) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException(
+      'Member deletion is limited to members in your own area',
+    );
   }
 }

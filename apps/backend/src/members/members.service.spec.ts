@@ -82,6 +82,8 @@ describe('MembersService', () => {
       find: jest.fn(),
       createQueryBuilder: jest.fn(),
       preload: jest.fn(),
+      findOne: jest.fn(),
+      remove: jest.fn(),
     };
     skillsRepository = {
       find: jest.fn(),
@@ -576,5 +578,82 @@ describe('MembersService', () => {
         projectIds: ['project-1'],
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  describe('remove', () => {
+    it('permanently deletes a member for Presidencia with an exact full name', async () => {
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+      membersRepository.remove?.mockResolvedValue(persistedAreaDirectiveMember);
+
+      await expect(
+        service.remove(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).resolves.toEqual(persistedAreaDirectiveMember);
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 10 },
+        relations: ['memberships'],
+      });
+      expect(membersRepository.remove).toHaveBeenCalledWith(
+        persistedAreaDirectiveMember,
+      );
+    });
+
+    it('allows Directiva de Area to delete a member in its own area', async () => {
+      const member = {
+        ...persistedAreaDirectiveMember,
+        areaId: null,
+        memberships: [{ areaId: 3 } as AreaMembership],
+      };
+      membersRepository.findOne?.mockResolvedValue(member);
+      membersRepository.remove?.mockResolvedValue(member);
+
+      await expect(
+        service.remove(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          areaId: '3',
+        }),
+      ).resolves.toEqual(member);
+    });
+
+    it('rejects Directiva de Area deleting a member from another area', async () => {
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+
+      await expect(
+        service.remove(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          areaId: '9',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(membersRepository.remove).not.toHaveBeenCalled();
+    });
+
+    it('rejects member deletion when confirmName does not exactly match', async () => {
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+
+      await expect(
+        service.remove(10, 'ana lucia rojas perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).rejects.toThrow('confirmName must exactly match the member full name');
+      expect(membersRepository.remove).not.toHaveBeenCalled();
+    });
+
+    it('rejects deletion for a missing member', async () => {
+      membersRepository.findOne?.mockResolvedValue(null);
+
+      await expect(
+        service.remove(99, 'Missing Member', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).rejects.toThrow(new NotFoundException('Member with ID 99 not found'));
+      expect(membersRepository.remove).not.toHaveBeenCalled();
+    });
   });
 });

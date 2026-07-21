@@ -30,6 +30,7 @@ describe('MembersController', () => {
     create: jest.fn(),
     findAccessible: jest.fn(),
     update: jest.fn(),
+    remove: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -107,6 +108,25 @@ describe('MembersController', () => {
     );
   });
 
+  it('deletes members through the scoped service method', async () => {
+    const accessActor = { role: AreaRole.DIRECTIVA_DE_AREA, areaId: '2' };
+    const deletedMember = { id: 1 } as Member;
+    mockMembersService.remove.mockResolvedValue(deletedMember);
+
+    await expect(
+      controller.remove(
+        1,
+        { confirmName: 'Ana Lucia Rojas Perez' },
+        accessActor,
+      ),
+    ).resolves.toEqual(deletedMember);
+    expect(mockMembersService.remove).toHaveBeenCalledWith(
+      1,
+      'Ana Lucia Rojas Perez',
+      accessActor,
+    );
+  });
+
   describe('access metadata', () => {
     it('uses RolesGuard at controller level', () => {
       const guards = Reflect.getMetadata(
@@ -133,6 +153,12 @@ describe('MembersController', () => {
       expect(
         Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('update')),
       ).toEqual([AreaRole.PRESIDENCIA]);
+    });
+
+    it('guards member deletion for Presidencia and Directiva de Area', () => {
+      expect(
+        Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('remove')),
+      ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
     });
   });
 });
