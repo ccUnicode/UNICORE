@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -76,6 +77,18 @@ export class AreaService {
     const area = await this.findOne(id);
     area.isArchived = true;
     return this.areaRepository.save(area);
+  }
+
+  async remove(id: number, confirmName: string): Promise<Area> {
+    const area = await this.findOne(id);
+
+    if (confirmName !== area.name) {
+      throw new BadRequestException(
+        'confirmName must exactly match the area name',
+      );
+    }
+
+    return this.areaRepository.remove(area);
   }
 
   async findAccessible(accessActor: RequestAccessActor): Promise<Area[]> {

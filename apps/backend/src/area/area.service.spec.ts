@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { AreaService } from './area.service';
 import { Area } from './entities/area.entity';
@@ -25,6 +29,7 @@ describe('AreaService', () => {
     save: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
+    remove: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -152,5 +157,24 @@ describe('AreaService', () => {
       message: `Area with name "${duplicateArea.name}" already exists`,
     });
     expect(mockAreaRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('permanently deletes an area when confirmName exactly matches', async () => {
+    const area = createArea();
+    repository.findOne.mockResolvedValue(area);
+    repository.remove.mockResolvedValue(area);
+
+    await expect(service.remove(area.id, area.name)).resolves.toEqual(area);
+    expect(repository.remove).toHaveBeenCalledWith(area);
+  });
+
+  it('rejects area deletion when confirmName does not exactly match', async () => {
+    const area = createArea();
+    repository.findOne.mockResolvedValue(area);
+
+    await expect(service.remove(area.id, 'research')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(repository.remove).not.toHaveBeenCalled();
   });
 });

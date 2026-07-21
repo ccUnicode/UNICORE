@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Post,
   Patch,
@@ -14,6 +15,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { ConfirmDeletionDto } from '../common/dto/confirm-deletion.dto';
 import { AreaService } from './area.service';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
@@ -57,5 +59,15 @@ export class AreaController {
   @Roles(AreaRole.PRESIDENCIA)
   archive(@Param('id', ParseIntPipe) id: number) {
     return this.areaService.archive(id);
+  }
+
+  @Delete(':id')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  @AccessScope({ areaIdParam: 'id' })
+  remove(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() confirmDeletionDto: ConfirmDeletionDto,
+  ) {
+    return this.areaService.remove(id, confirmDeletionDto.confirmName);
   }
 }

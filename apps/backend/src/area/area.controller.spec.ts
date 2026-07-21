@@ -29,6 +29,7 @@ describe('AreaController', () => {
     findOne: jest.fn(),
     update: jest.fn(),
     archive: jest.fn(),
+    remove: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -117,6 +118,18 @@ describe('AreaController', () => {
     });
   });
 
+  describe('remove', () => {
+    it('deletes an area through the service', async () => {
+      const deletedArea = { id: 1, name: 'Area 1' };
+      mockAreaService.remove.mockResolvedValue(deletedArea);
+
+      await expect(
+        controller.remove(1, { confirmName: 'Area 1' }),
+      ).resolves.toEqual(deletedArea);
+      expect(mockAreaService.remove).toHaveBeenCalledWith(1, 'Area 1');
+    });
+  });
+
   describe('access metadata', () => {
     it('uses RolesGuard at controller level', () => {
       const guards = Reflect.getMetadata(
@@ -146,6 +159,18 @@ describe('AreaController', () => {
       expect(
         Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('findOne')),
       ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
+    });
+
+    it('allows deletion for Presidencia and Directiva de Area', () => {
+      expect(
+        Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('remove')),
+      ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
+      expect(
+        Reflect.getMetadata(
+          ACCESS_SCOPE_KEY,
+          getAreaControllerMethod('remove'),
+        ),
+      ).toEqual({ areaIdParam: 'id' });
     });
 
     it('declares area-scoped enforcement for findOne', () => {
