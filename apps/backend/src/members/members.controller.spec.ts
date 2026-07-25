@@ -30,7 +30,7 @@ describe('MembersController', () => {
     create: jest.fn(),
     findAccessible: jest.fn(),
     update: jest.fn(),
-    remove: jest.fn(),
+    deactivate: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -108,19 +108,19 @@ describe('MembersController', () => {
     );
   });
 
-  it('deletes members through the scoped service method', async () => {
+  it('deactivates members through the scoped service method', async () => {
     const accessActor = { role: AreaRole.DIRECTIVA_DE_AREA, areaId: '2' };
-    const deletedMember = { id: 1 } as Member;
-    mockMembersService.remove.mockResolvedValue(deletedMember);
+    const deactivatedMember = { id: 1 } as Member;
+    mockMembersService.deactivate.mockResolvedValue(deactivatedMember);
 
     await expect(
-      controller.remove(
+      controller.deactivate(
         1,
         { confirmName: 'Ana Lucia Rojas Perez' },
         accessActor,
       ),
-    ).resolves.toEqual(deletedMember);
-    expect(mockMembersService.remove).toHaveBeenCalledWith(
+    ).resolves.toEqual(deactivatedMember);
+    expect(mockMembersService.deactivate).toHaveBeenCalledWith(
       1,
       'Ana Lucia Rojas Perez',
       accessActor,
@@ -155,9 +155,12 @@ describe('MembersController', () => {
       ).toEqual([AreaRole.PRESIDENCIA]);
     });
 
-    it('guards member deletion for Presidencia and Directiva de Area', () => {
+    it('guards member deactivation for Presidencia and Directiva de Area', () => {
       expect(
-        Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('remove')),
+        Reflect.getMetadata(
+          ROLES_KEY,
+          getMembersControllerMethod('deactivate'),
+        ),
       ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
     });
   });

@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   ParseIntPipe,
@@ -52,14 +51,14 @@ export class MembersController {
     return this.membersService.update(id, updateMemberDto);
   }
 
-  @Delete(':id')
+  @Patch(':id/deactivate')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
-  remove(
+  deactivate(
     @Param('id', ParseIntPipe) id: number,
     @Body() confirmNameDto: ConfirmNameDto,
     @CurrentAccessActor() accessActor: RequestAccessActor,
   ): Promise<Member> {
-    return this.membersService.remove(
+    return this.membersService.deactivate(
       id,
       confirmNameDto.confirmName,
       accessActor,

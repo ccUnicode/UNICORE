@@ -83,7 +83,6 @@ describe('MembersService', () => {
       createQueryBuilder: jest.fn(),
       preload: jest.fn(),
       findOne: jest.fn(),
-      remove: jest.fn(),
     };
     skillsRepository = {
       find: jest.fn(),
@@ -580,80 +579,97 @@ describe('MembersService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  describe('remove', () => {
-    it('permanently deletes a member for Presidencia with an exact full name', async () => {
+  describe('deactivate', () => {
+    it('deactivates a member for Presidencia with an exact full name', async () => {
+      const deactivatedMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
+      };
       membersRepository.findOne?.mockResolvedValue(
         persistedAreaDirectiveMember,
       );
-      membersRepository.remove?.mockResolvedValue(persistedAreaDirectiveMember);
+      membersRepository.save?.mockResolvedValue(deactivatedMember);
 
       await expect(
-        service.remove(10, 'Ana Lucia Rojas Perez', {
+        service.deactivate(10, 'Ana Lucia Rojas Perez', {
           role: AreaRole.PRESIDENCIA,
         }),
-      ).resolves.toEqual(persistedAreaDirectiveMember);
+      ).resolves.toEqual(deactivatedMember);
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
         relations: ['memberships'],
       });
-      expect(membersRepository.remove).toHaveBeenCalledWith(
-        persistedAreaDirectiveMember,
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 10,
+          activityStatus: MemberActivityStatus.INACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.DISABLED,
+          status: MemberStatus.Disabled,
+        }),
       );
     });
 
-    it('allows Directiva de Area to delete a member in its own area', async () => {
+    it('allows Directiva de Area to deactivate a member in its own area', async () => {
       const member = {
         ...persistedAreaDirectiveMember,
         areaId: null,
         memberships: [{ areaId: 3 } as AreaMembership],
       };
+      const deactivatedMember = {
+        ...member,
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
+      };
       membersRepository.findOne?.mockResolvedValue(member);
-      membersRepository.remove?.mockResolvedValue(member);
+      membersRepository.save?.mockResolvedValue(deactivatedMember);
 
       await expect(
-        service.remove(10, 'Ana Lucia Rojas Perez', {
+        service.deactivate(10, 'Ana Lucia Rojas Perez', {
           role: AreaRole.DIRECTIVA_DE_AREA,
           areaId: '3',
         }),
-      ).resolves.toEqual(member);
+      ).resolves.toEqual(deactivatedMember);
     });
 
-    it('rejects Directiva de Area deleting a member from another area', async () => {
+    it('rejects Directiva de Area deactivating a member from another area', async () => {
       membersRepository.findOne?.mockResolvedValue(
         persistedAreaDirectiveMember,
       );
 
       await expect(
-        service.remove(10, 'Ana Lucia Rojas Perez', {
+        service.deactivate(10, 'Ana Lucia Rojas Perez', {
           role: AreaRole.DIRECTIVA_DE_AREA,
           areaId: '9',
         }),
       ).rejects.toBeInstanceOf(ForbiddenException);
-      expect(membersRepository.remove).not.toHaveBeenCalled();
+      expect(membersRepository.save).not.toHaveBeenCalled();
     });
 
-    it('rejects member deletion when confirmName does not exactly match', async () => {
+    it('rejects member deactivation when confirmName does not exactly match', async () => {
       membersRepository.findOne?.mockResolvedValue(
         persistedAreaDirectiveMember,
       );
 
       await expect(
-        service.remove(10, 'ana lucia rojas perez', {
+        service.deactivate(10, 'ana lucia rojas perez', {
           role: AreaRole.PRESIDENCIA,
         }),
       ).rejects.toThrow('confirmName must exactly match the member full name');
-      expect(membersRepository.remove).not.toHaveBeenCalled();
+      expect(membersRepository.save).not.toHaveBeenCalled();
     });
 
-    it('rejects deletion for a missing member', async () => {
+    it('rejects deactivation for a missing member', async () => {
       membersRepository.findOne?.mockResolvedValue(null);
 
       await expect(
-        service.remove(99, 'Missing Member', {
+        service.deactivate(99, 'Missing Member', {
           role: AreaRole.PRESIDENCIA,
         }),
       ).rejects.toThrow(new NotFoundException('Member with ID 99 not found'));
-      expect(membersRepository.remove).not.toHaveBeenCalled();
+      expect(membersRepository.save).not.toHaveBeenCalled();
     });
   });
 });

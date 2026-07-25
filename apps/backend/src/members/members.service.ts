@@ -18,6 +18,9 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
+import { MemberStatus } from './enums/member-status.enum';
 import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
 
@@ -144,7 +147,7 @@ export class MembersService {
     return savedMember;
   }
 
-  async remove(
+  async deactivate(
     id: number,
     confirmName: string,
     accessActor: RequestAccessActor,
@@ -158,7 +161,7 @@ export class MembersService {
       throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    this.assertMemberDeletionAccess(member, accessActor);
+    this.assertMemberDeactivationAccess(member, accessActor);
 
     const exactName = `${member.firstNames} ${member.lastNames}`;
     if (confirmName !== exactName) {
@@ -167,7 +170,11 @@ export class MembersService {
       );
     }
 
-    return this.membersRepository.remove(member);
+    member.activityStatus = MemberActivityStatus.INACTIVE;
+    member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
+    member.status = MemberStatus.Disabled;
+
+    return this.membersRepository.save(member);
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
@@ -285,7 +292,7 @@ export class MembersService {
     }
   }
 
-  private assertMemberDeletionAccess(
+  private assertMemberDeactivationAccess(
     member: Member,
     accessActor: RequestAccessActor,
   ): void {
@@ -307,7 +314,7 @@ export class MembersService {
     }
 
     throw new ForbiddenException(
-      'Member deletion is limited to members in your own area',
+      'Member deactivation is limited to members in your own area',
     );
   }
 }
