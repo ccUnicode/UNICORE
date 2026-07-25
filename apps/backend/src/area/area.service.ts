@@ -73,13 +73,7 @@ export class AreaService {
     return this.areaRepository.save(area);
   }
 
-  async archive(id: number): Promise<Area> {
-    const area = await this.findOne(id);
-    area.isArchived = true;
-    return this.areaRepository.save(area);
-  }
-
-  async remove(id: number, confirmName: string): Promise<Area> {
+  async archive(id: number, confirmName: string): Promise<Area> {
     const area = await this.findOne(id);
 
     if (confirmName !== area.name) {
@@ -88,7 +82,8 @@ export class AreaService {
       );
     }
 
-    return this.areaRepository.remove(area);
+    area.isArchived = true;
+    return this.areaRepository.save(area);
   }
 
   async findAccessible(accessActor: RequestAccessActor): Promise<Area[]> {

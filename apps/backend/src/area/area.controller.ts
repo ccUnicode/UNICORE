@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Post,
   Patch,
@@ -57,17 +56,10 @@ export class AreaController {
 
   @Patch(':id/archive')
   @Roles(AreaRole.PRESIDENCIA)
-  archive(@Param('id', ParseIntPipe) id: number) {
-    return this.areaService.archive(id);
-  }
-
-  @Delete(':id')
-  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
-  @AccessScope({ areaIdParam: 'id' })
-  remove(
+  archive(
     @Param('id', ParseIntPipe) id: number,
     @Body() confirmNameDto: ConfirmNameDto,
   ) {
-    return this.areaService.remove(id, confirmNameDto.confirmName);
+    return this.areaService.archive(id, confirmNameDto.confirmName);
   }
 }

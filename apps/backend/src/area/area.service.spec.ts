@@ -29,7 +29,6 @@ describe('AreaService', () => {
     save: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
-    remove: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -159,22 +158,27 @@ describe('AreaService', () => {
     expect(mockAreaRepository.save).not.toHaveBeenCalled();
   });
 
-  it('permanently deletes an area when confirmName exactly matches', async () => {
+  it('archives an area when confirmName exactly matches', async () => {
     const area = createArea();
+    const archivedArea = createArea({ isArchived: true });
     repository.findOne.mockResolvedValue(area);
-    repository.remove.mockResolvedValue(area);
+    repository.save.mockResolvedValue(archivedArea);
 
-    await expect(service.remove(area.id, area.name)).resolves.toEqual(area);
-    expect(repository.remove).toHaveBeenCalledWith(area);
+    await expect(service.archive(area.id, area.name)).resolves.toEqual(
+      archivedArea,
+    );
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: area.id, isArchived: true }),
+    );
   });
 
-  it('rejects area deletion when confirmName does not exactly match', async () => {
+  it('rejects area archival when confirmName does not exactly match', async () => {
     const area = createArea();
     repository.findOne.mockResolvedValue(area);
 
-    await expect(service.remove(area.id, 'research')).rejects.toThrow(
+    await expect(service.archive(area.id, 'research')).rejects.toThrow(
       BadRequestException,
     );
-    expect(repository.remove).not.toHaveBeenCalled();
+    expect(repository.save).not.toHaveBeenCalled();
   });
 });
