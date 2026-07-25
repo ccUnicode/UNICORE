@@ -15,7 +15,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
-import { ConfirmDeletionDto } from '../common/dto/confirm-deletion.dto';
+import { ConfirmNameDto } from '../common/dto/confirm-name.dto';
 import { AreaService } from './area.service';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
@@ -66,8 +66,8 @@ export class AreaController {
   @AccessScope({ areaIdParam: 'id' })
   remove(
     @Param('id', ParseIntPipe) id: number,
-    @Body() confirmDeletionDto: ConfirmDeletionDto,
+    @Body() confirmNameDto: ConfirmNameDto,
   ) {
-    return this.areaService.remove(id, confirmDeletionDto.confirmName);
+    return this.areaService.remove(id, confirmNameDto.confirmName);
   }
 }

@@ -12,7 +12,7 @@ import {
 } from '@nestjs/common';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { ConfirmDeletionDto } from '../common/dto/confirm-deletion.dto';
+import { ConfirmNameDto } from '../common/dto/confirm-name.dto';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
@@ -56,12 +56,12 @@ export class MembersController {
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   remove(
     @Param('id', ParseIntPipe) id: number,
-    @Body() confirmDeletionDto: ConfirmDeletionDto,
+    @Body() confirmNameDto: ConfirmNameDto,
     @CurrentAccessActor() accessActor: RequestAccessActor,
   ): Promise<Member> {
     return this.membersService.remove(
       id,
-      confirmDeletionDto.confirmName,
+      confirmNameDto.confirmName,
       accessActor,
     );
   }

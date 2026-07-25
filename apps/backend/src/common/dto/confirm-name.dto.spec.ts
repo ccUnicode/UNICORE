@@ -1,11 +1,11 @@
 import { ValidationPipe } from '@nestjs/common';
-import { ConfirmDeletionDto } from './confirm-deletion.dto';
+import { ConfirmNameDto } from './confirm-name.dto';
 
-describe('ConfirmDeletionDto', () => {
+describe('ConfirmNameDto', () => {
   const validationPipe = new ValidationPipe({ transform: true });
   const metadata = {
     type: 'body' as const,
-    metatype: ConfirmDeletionDto,
+    metatype: ConfirmNameDto,
     data: undefined,
   };
 
