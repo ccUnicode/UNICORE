@@ -6,26 +6,39 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import {
+  FindOptionsWhere,
+  ILike,
+  In,
+  LessThanOrEqual,
+  MoreThanOrEqual,
+  Repository,
+} from 'typeorm';
 import { AreaService } from '../area/area.service';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
-import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
+import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
+import { CreateProjectLinkDto } from './dto/create-project-link.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { GetProjectsFilterDto } from './dto/get-projects-filter.dto';
 import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 import { UpdateProjectMemberDto } from './dto/update-project-member.dto';
 import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
+import { ProjectLabel } from './entities/project-label.entity';
+import { ProjectLink } from './entities/project-link.entity';
 import { ProjectMembership } from './entities/project-membership.entity';
 import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
+import { ProjectStatus } from './enums/project-status.enum';
 
 @Injectable()
 export class ProjectsService {
@@ -34,6 +47,10 @@ export class ProjectsService {
     private readonly projectsRepository: Repository<Project>,
     @InjectRepository(ProjectPhase)
     private readonly projectPhasesRepository: Repository<ProjectPhase>,
+    @InjectRepository(ProjectLabel)
+    private readonly projectLabelsRepository: Repository<ProjectLabel>,
+    @InjectRepository(ProjectLink)
+    private readonly projectLinksRepository: Repository<ProjectLink>,
     @InjectRepository(ProjectMembership)
     private readonly projectMembershipsRepository: Repository<ProjectMembership>,
     @InjectRepository(Member)
@@ -41,29 +58,44 @@ export class ProjectsService {
     private readonly areaService: AreaService,
   ) {}
 
-  async create(createProjectDto: CreateProjectDto): Promise<Project> {
+  async create(
+    createProjectDto: CreateProjectDto,
+    accessActor: RequestAccessActor,
+  ): Promise<Project> {
     this.validateDateRange(createProjectDto);
+    this.assertAreaManagementAccess(createProjectDto.areaId, accessActor);
 
     const area = await this.areaService.findOne(createProjectDto.areaId);
-    const project = this.projectsRepository.create({
-      name: createProjectDto.name,
-      description: createProjectDto.description ?? null,
-      startDate: createProjectDto.startDate ?? null,
-      endDate: createProjectDto.endDate ?? null,
-      areaId: area.id,
-      area,
-    });
-
     return this.projectsRepository.manager.transaction(
       async (entityManager) => {
-        const savedProject = await entityManager
-          .getRepository(Project)
-          .save(project);
+        const projectsRepository = entityManager.getRepository(Project);
+        const labels = await this.resolveLabels(
+          createProjectDto.labels ?? [],
+          entityManager.getRepository(ProjectLabel),
+        );
+        const project = projectsRepository.create({
+          name: createProjectDto.name,
+          description: createProjectDto.description ?? null,
+          startDate: createProjectDto.startDate ?? null,
+          endDate: createProjectDto.endDate ?? null,
+          areaId: area.id,
+          area,
+          status: createProjectDto.status ?? ProjectStatus.PLANNED,
+          isArchived: false,
+          labels,
+        });
+        const savedProject = await projectsRepository.save(project);
 
         savedProject.phases = await this.createDefaultPhases(
           savedProject,
           entityManager.getRepository(ProjectPhase),
         );
+        savedProject.links = await this.replaceLinks(
+          savedProject,
+          createProjectDto.links ?? [],
+          entityManager.getRepository(ProjectLink),
+        );
+        savedProject.labels = labels;
 
         return savedProject;
       },
@@ -71,14 +103,22 @@ export class ProjectsService {
   }
 
   async findAll(
-    paginationDto: PaginationDto = {},
+    filterDto: GetProjectsFilterDto = {},
+    accessActor?: RequestAccessActor,
   ): Promise<PaginatedResponse<Project>> {
-    const page = paginationDto.page ?? 1;
-    const limit = paginationDto.limit ?? 10;
+    this.validateDateRange({
+      startDate: filterDto.dateFrom,
+      endDate: filterDto.dateTo,
+    });
+
+    const page = filterDto.page ?? 1;
+    const limit = filterDto.limit ?? 10;
     const skip = (page - 1) * limit;
+    const where = this.buildProjectFilters(filterDto, accessActor);
 
     const [data, total] = await this.projectsRepository.findAndCount({
-      relations: ['area'],
+      where,
+      relations: ['area', 'labels', 'links'],
       order: { createdAt: 'DESC' },
       skip,
       take: limit,
@@ -96,9 +136,23 @@ export class ProjectsService {
   }
 
   async findOne(id: number, accessActor: RequestAccessActor): Promise<Project> {
+    const project = await this.findProjectDetails(id);
+    this.assertProjectReadAccess(project, accessActor);
+
+    return project;
+  }
+
+  private async findProjectDetails(id: number): Promise<Project> {
     const project = await this.projectsRepository.findOne({
       where: { id },
-      relations: ['area', 'phases', 'memberships', 'memberships.member'],
+      relations: [
+        'area',
+        'phases',
+        'labels',
+        'links',
+        'memberships',
+        'memberships.member',
+      ],
       order: {
         phases: {
           orderIndex: 'ASC',
@@ -110,18 +164,95 @@ export class ProjectsService {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
 
-    this.checkProjectReadPermission(project, accessActor);
     this.sortMembershipsByActivity(project);
 
     return project;
+  }
+
+  async update(
+    id: number,
+    updateProjectDto: UpdateProjectDto,
+    accessActor: RequestAccessActor,
+  ): Promise<Project> {
+    const project = await this.findProjectDetails(id);
+    this.assertProjectManagementAccess(project, accessActor);
+    const startDate =
+      updateProjectDto.startDate !== undefined
+        ? updateProjectDto.startDate
+        : project.startDate;
+    const endDate =
+      updateProjectDto.endDate !== undefined
+        ? updateProjectDto.endDate
+        : project.endDate;
+
+    this.validateDateRange({ startDate, endDate });
+
+    if (updateProjectDto.areaId !== undefined) {
+      this.assertAreaManagementAccess(updateProjectDto.areaId, accessActor);
+    }
+
+    const area =
+      updateProjectDto.areaId !== undefined
+        ? await this.areaService.findOne(updateProjectDto.areaId)
+        : project.area;
+
+    await this.projectsRepository.manager.transaction(async (entityManager) => {
+      const projectsRepository = entityManager.getRepository(Project);
+
+      if (updateProjectDto.name !== undefined) {
+        project.name = updateProjectDto.name;
+      }
+      if (updateProjectDto.description !== undefined) {
+        project.description = updateProjectDto.description;
+      }
+      if (updateProjectDto.startDate !== undefined) {
+        project.startDate = updateProjectDto.startDate;
+      }
+      if (updateProjectDto.endDate !== undefined) {
+        project.endDate = updateProjectDto.endDate;
+      }
+      if (updateProjectDto.areaId !== undefined) {
+        project.areaId = area.id;
+        project.area = area;
+      }
+      if (updateProjectDto.status !== undefined) {
+        project.status = updateProjectDto.status;
+      }
+      if (updateProjectDto.labels !== undefined) {
+        project.labels = await this.resolveLabels(
+          updateProjectDto.labels,
+          entityManager.getRepository(ProjectLabel),
+        );
+      }
+
+      await projectsRepository.save(project);
+
+      if (updateProjectDto.links !== undefined) {
+        await this.replaceLinks(
+          project,
+          updateProjectDto.links,
+          entityManager.getRepository(ProjectLink),
+          true,
+        );
+      }
+    });
+
+    return this.findOne(id, accessActor);
+  }
+
+  async archive(id: number, accessActor: RequestAccessActor): Promise<Project> {
+    const project = await this.findProjectDetails(id);
+    this.assertProjectManagementAccess(project, accessActor);
+    project.isArchived = true;
+
+    return this.projectsRepository.save(project);
   }
 
   async findPhases(
     projectId: number,
     accessActor: RequestAccessActor,
   ): Promise<ProjectPhase[]> {
-    const project = await this.ensureProjectExists(projectId);
-    this.checkProjectReadPermission(project, accessActor);
+    await this.ensureProjectExists(projectId, accessActor);
 
     return this.findProjectPhases(projectId);
   }
@@ -139,11 +270,7 @@ export class ProjectsService {
         const project = await this.findProjectForUpdate(
           projectId,
           projectsRepository,
-        );
-        this.checkProjectAreaPermission(
-          project,
           accessActor,
-          "manage this project's phases",
         );
         const nextOrderIndex = await this.getNextPhaseOrderIndex(
           projectId,
@@ -161,18 +288,32 @@ export class ProjectsService {
     );
   }
 
+  private async findProjectForUpdate(
+    projectId: number,
+    projectsRepository: Repository<Project>,
+    accessActor: RequestAccessActor,
+  ): Promise<Project> {
+    const project = await projectsRepository.findOne({
+      where: { id: projectId },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!project) {
+      throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+
+    this.assertProjectManagementAccess(project, accessActor);
+
+    return project;
+  }
+
   async updatePhase(
     projectId: number,
     phaseId: number,
     updateProjectPhaseDto: UpdateProjectPhaseDto,
     accessActor: RequestAccessActor,
   ): Promise<ProjectPhase> {
-    const project = await this.ensureProjectExists(projectId);
-    this.checkProjectAreaPermission(
-      project,
-      accessActor,
-      "manage this project's phases",
-    );
+    await this.ensureProjectExists(projectId, accessActor, true);
     await this.findPhaseOrThrow(projectId, phaseId);
     const phaseUpdate: Partial<Pick<ProjectPhase, 'name' | 'description'>> = {};
 
@@ -201,14 +342,10 @@ export class ProjectsService {
   ): Promise<ProjectPhase[]> {
     return this.projectPhasesRepository.manager.transaction(
       async (entityManager) => {
-        const project = await this.findProjectForUpdate(
+        await this.findProjectForUpdate(
           projectId,
           entityManager.getRepository(Project),
-        );
-        this.checkProjectAreaPermission(
-          project,
           accessActor,
-          "manage this project's phases",
         );
         const projectPhasesRepository =
           entityManager.getRepository(ProjectPhase);
@@ -252,14 +389,10 @@ export class ProjectsService {
   ): Promise<void> {
     await this.projectPhasesRepository.manager.transaction(
       async (entityManager) => {
-        const project = await this.findProjectForUpdate(
+        await this.findProjectForUpdate(
           projectId,
           entityManager.getRepository(Project),
-        );
-        this.checkProjectAreaPermission(
-          project,
           accessActor,
-          "manage this project's phases",
         );
         const projectPhasesRepository =
           entityManager.getRepository(ProjectPhase);
@@ -303,21 +436,11 @@ export class ProjectsService {
     addDto: AddProjectMemberDto,
     accessActor: RequestAccessActor,
   ): Promise<ProjectMembership> {
-    const project = await this.projectsRepository.findOne({
-      where: { id: projectId },
-      relations: ['area'],
-    });
-
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
-    }
-
-    this.checkProjectAreaPermission(
-      project,
+    const project = await this.ensureProjectExists(
+      projectId,
       accessActor,
-      "manage this project's team",
+      true,
     );
-
     const member = await this.membersRepository.findOne({
       where: { id: addDto.memberId },
       relations: ['memberships'],
@@ -380,13 +503,7 @@ export class ProjectsService {
     updateDto: UpdateProjectMemberDto,
     accessActor: RequestAccessActor,
   ): Promise<ProjectMembership> {
-    const project = await this.ensureProjectExists(projectId);
-    this.checkProjectAreaPermission(
-      project,
-      accessActor,
-      "manage this project's team",
-    );
-
+    await this.ensureProjectExists(projectId, accessActor, true);
     const membership = await this.projectMembershipsRepository.findOne({
       where: { projectId, memberId },
     });
@@ -411,13 +528,7 @@ export class ProjectsService {
     memberId: number,
     accessActor: RequestAccessActor,
   ): Promise<void> {
-    const project = await this.ensureProjectExists(projectId);
-    this.checkProjectAreaPermission(
-      project,
-      accessActor,
-      "manage this project's team",
-    );
-
+    await this.ensureProjectExists(projectId, accessActor, true);
     const membership = await this.projectMembershipsRepository.findOne({
       where: { projectId, memberId },
     });
@@ -431,8 +542,11 @@ export class ProjectsService {
     await this.projectMembershipsRepository.remove(membership);
   }
 
-  private validateDateRange(createProjectDto: CreateProjectDto): void {
-    const { startDate, endDate } = createProjectDto;
+  private validateDateRange(dateRange: {
+    startDate?: string | null;
+    endDate?: string | null;
+  }): void {
+    const { startDate, endDate } = dateRange;
 
     if (!startDate || !endDate) {
       return;
@@ -443,6 +557,122 @@ export class ProjectsService {
         'startDate must be before or equal to endDate',
       );
     }
+  }
+
+  private buildProjectFilters(
+    filterDto: GetProjectsFilterDto,
+    accessActor?: RequestAccessActor,
+  ): FindOptionsWhere<Project> {
+    const where: FindOptionsWhere<Project> = {
+      isArchived: filterDto.archived ?? false,
+    };
+
+    if (filterDto.status) {
+      where.status = filterDto.status;
+    }
+    if (filterDto.areaId !== undefined) {
+      where.areaId = filterDto.areaId;
+    }
+    if (filterDto.search) {
+      where.name = ILike(`%${filterDto.search}%`);
+    }
+    if (filterDto.dateFrom) {
+      where.endDate = MoreThanOrEqual(filterDto.dateFrom);
+    }
+    if (filterDto.dateTo) {
+      where.startDate = LessThanOrEqual(filterDto.dateTo);
+    }
+    if (filterDto.labels?.length) {
+      where.labels = {
+        normalizedName: In(
+          filterDto.labels.map((label) => this.normalizeLabel(label)),
+        ),
+      };
+    }
+
+    if (accessActor?.role === AreaRole.DIRECTIVA_DE_AREA) {
+      where.areaId = parseAreaId(accessActor.areaId);
+    }
+    if (accessActor?.role === AreaRole.MIEMBRO) {
+      const projectIds = (accessActor.projectIds ?? [])
+        .map(Number)
+        .filter((id) => Number.isInteger(id) && id > 0);
+      where.id = In(projectIds.length > 0 ? projectIds : [-1]);
+    }
+
+    return where;
+  }
+
+  private async resolveLabels(
+    labelNames: string[],
+    projectLabelsRepository: Repository<ProjectLabel> = this
+      .projectLabelsRepository,
+  ): Promise<ProjectLabel[]> {
+    const labelsByNormalizedName = new Map<string, string>();
+
+    labelNames.forEach((name) => {
+      const trimmedName = name.trim();
+      labelsByNormalizedName.set(this.normalizeLabel(trimmedName), trimmedName);
+    });
+
+    const normalizedNames = [...labelsByNormalizedName.keys()];
+
+    if (normalizedNames.length === 0) {
+      return [];
+    }
+
+    const labelCandidates = normalizedNames.map((normalizedName) =>
+      projectLabelsRepository.create({
+        name: labelsByNormalizedName.get(normalizedName),
+        normalizedName,
+      }),
+    );
+
+    await projectLabelsRepository.upsert(labelCandidates, {
+      conflictPaths: ['normalizedName'],
+      skipUpdateIfNoValuesChanged: true,
+    });
+
+    const labels = await projectLabelsRepository.find({
+      where: { normalizedName: In(normalizedNames) },
+    });
+    const labelsByName = new Map(
+      labels.map((label) => [label.normalizedName, label]),
+    );
+
+    return normalizedNames.map(
+      (normalizedName) => labelsByName.get(normalizedName) as ProjectLabel,
+    );
+  }
+
+  private async replaceLinks(
+    project: Project,
+    links: CreateProjectLinkDto[],
+    projectLinksRepository: Repository<ProjectLink> = this
+      .projectLinksRepository,
+    removeExisting = false,
+  ): Promise<ProjectLink[]> {
+    if (removeExisting) {
+      await projectLinksRepository.delete({ projectId: project.id });
+    }
+
+    if (links.length === 0) {
+      return [];
+    }
+
+    const projectLinks = links.map((link) =>
+      projectLinksRepository.create({
+        name: link.name,
+        url: link.url,
+        projectId: project.id,
+      }),
+    );
+
+    return projectLinksRepository.save(projectLinks);
+  }
+
+  private normalizeLabel(label: string): string {
+    return label.trim().toLocaleLowerCase();
   }
 
   private createDefaultPhases(
@@ -463,33 +693,68 @@ export class ProjectsService {
 
   private async ensureProjectExists(
     projectId: number,
-    projectsRepository: Repository<Project> = this.projectsRepository,
+    accessActor: RequestAccessActor,
+    requireManagement = false,
   ): Promise<Project> {
-    const project = await projectsRepository.findOne({
+    const project = await this.projectsRepository.findOne({
       where: { id: projectId },
     });
 
     if (!project) {
       throw new NotFoundException(`Project with ID ${projectId} not found`);
+    }
+
+    if (requireManagement) {
+      this.assertProjectManagementAccess(project, accessActor);
+    } else {
+      this.assertProjectReadAccess(project, accessActor);
     }
 
     return project;
   }
 
-  private async findProjectForUpdate(
-    projectId: number,
-    projectsRepository: Repository<Project>,
-  ): Promise<Project> {
-    const project = await projectsRepository.findOne({
-      where: { id: projectId },
-      lock: { mode: 'pessimistic_write' },
-    });
+  private assertProjectReadAccess(
+    project: Project,
+    accessActor: RequestAccessActor,
+  ): void {
+    if (accessActor.role === AreaRole.MIEMBRO) {
+      if (!accessActor.projectIds?.includes(String(project.id))) {
+        throw new ForbiddenException(
+          'Project access is limited to assigned projects',
+        );
+      }
 
-    if (!project) {
-      throw new NotFoundException(`Project with ID ${projectId} not found`);
+      return;
     }
 
-    return project;
+    this.assertProjectManagementAccess(project, accessActor);
+  }
+
+  private assertProjectManagementAccess(
+    project: Project,
+    accessActor: RequestAccessActor,
+  ): void {
+    this.assertAreaManagementAccess(project.areaId, accessActor);
+  }
+
+  private assertAreaManagementAccess(
+    areaId: number,
+    accessActor: RequestAccessActor,
+  ): void {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (
+      accessActor.role === AreaRole.DIRECTIVA_DE_AREA &&
+      parseAreaId(accessActor.areaId) === areaId
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      'Project management is limited to your own area',
+    );
   }
 
   private async findPhaseOrThrow(
@@ -531,55 +796,6 @@ export class ProjectsService {
     });
 
     return (lastPhase?.orderIndex ?? 0) + 1;
-  }
-
-  private checkProjectReadPermission(
-    project: Project,
-    accessActor: RequestAccessActor,
-  ): void {
-    if (accessActor.role === AreaRole.PRESIDENCIA) {
-      return;
-    }
-
-    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
-      if (project.areaId !== Number(accessActor.areaId)) {
-        throw new ForbiddenException(
-          'Area-scoped access is limited to your own area',
-        );
-      }
-      return;
-    }
-
-    if (accessActor.role === AreaRole.MIEMBRO) {
-      const projectIds = accessActor.projectIds?.map(Number) || [];
-      if (!projectIds.includes(project.id)) {
-        throw new ForbiddenException(
-          'Project-scoped access is limited to your own projects',
-        );
-      }
-      return;
-    }
-
-    throw new ForbiddenException('You do not have permission to view project');
-  }
-
-  private checkProjectAreaPermission(
-    project: Project,
-    accessActor: RequestAccessActor,
-    action = "manage this project's team",
-  ): void {
-    if (accessActor.role === AreaRole.PRESIDENCIA) {
-      return;
-    }
-
-    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
-      if (project.areaId !== Number(accessActor.areaId)) {
-        throw new ForbiddenException(`You do not have permission to ${action}`);
-      }
-      return;
-    }
-
-    throw new ForbiddenException(`You do not have permission to ${action}`);
   }
 
   private sortMembershipsByActivity(project: Project): void {

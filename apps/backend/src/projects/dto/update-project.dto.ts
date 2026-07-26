@@ -7,14 +7,18 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
-  IsOptional,
   IsString,
   MaxLength,
   Min,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { ProjectStatus } from '../enums/project-status.enum';
 import { CreateProjectLinkDto } from './create-project-link.dto';
+
+const isDefined = (_object: unknown, value: unknown) => value !== undefined;
+const isDefinedAndNotNull = (_object: unknown, value: unknown) =>
+  value !== undefined && value !== null;
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -26,37 +30,39 @@ const trimStringArray = ({ value }: { value: unknown }): unknown =>
       )
     : value;
 
-export class CreateProjectDto {
+export class UpdateProjectDto {
+  @ValidateIf(isDefined)
   @Transform(trimString)
   @IsString()
   @IsNotEmpty()
   @MaxLength(255)
-  name: string;
+  name?: string;
 
+  @ValidateIf(isDefinedAndNotNull)
   @Transform(trimString)
   @IsString()
-  @IsOptional()
   @MaxLength(2000)
-  description?: string;
+  description?: string | null;
 
-  @IsOptional()
+  @ValidateIf(isDefinedAndNotNull)
   @IsDateString()
-  startDate?: string;
+  startDate?: string | null;
 
-  @IsOptional()
+  @ValidateIf(isDefinedAndNotNull)
   @IsDateString()
-  endDate?: string;
+  endDate?: string | null;
 
+  @ValidateIf(isDefined)
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  areaId: number;
+  areaId?: number;
 
-  @IsOptional()
+  @ValidateIf(isDefined)
   @IsEnum(ProjectStatus)
   status?: ProjectStatus;
 
-  @IsOptional()
+  @ValidateIf(isDefined)
   @Transform(trimStringArray)
   @IsArray()
   @ArrayMaxSize(20)
@@ -68,7 +74,7 @@ export class CreateProjectDto {
   @MaxLength(50, { each: true })
   labels?: string[];
 
-  @IsOptional()
+  @ValidateIf(isDefined)
   @IsArray()
   @ArrayMaxSize(20)
   @ValidateNested({ each: true })

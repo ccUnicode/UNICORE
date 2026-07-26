@@ -10,17 +10,17 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { AccessScope } from '../common/decorators/access-scope.decorator';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
-import { PaginationDto } from '../common/dto/pagination.dto';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
+import { GetProjectsFilterDto } from './dto/get-projects-filter.dto';
 import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
+import { UpdateProjectDto } from './dto/update-project.dto';
 import { UpdateProjectMemberDto } from './dto/update-project-member.dto';
 import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
 import { ProjectsService } from './projects.service';
@@ -31,20 +31,25 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Post()
-  @Roles(AreaRole.PRESIDENCIA)
-  create(@Body() createProjectDto: CreateProjectDto) {
-    return this.projectsService.create(createProjectDto);
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  create(
+    @Body() createProjectDto: CreateProjectDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.create(createProjectDto, accessActor);
   }
 
   @Get()
-  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
-  findAll(@Query() paginationDto: PaginationDto) {
-    return this.projectsService.findAll(paginationDto);
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO)
+  findAll(
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+    @Query() filterDto: GetProjectsFilterDto,
+  ) {
+    return this.projectsService.findAll(filterDto, accessActor);
   }
 
   @Get(':id')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO)
-  @AccessScope({ projectIdParam: 'id' })
   findOne(
     @Param('id', ParseIntPipe) id: number,
     @CurrentAccessActor() accessActor: RequestAccessActor,
@@ -52,9 +57,27 @@ export class ProjectsController {
     return this.projectsService.findOne(id, accessActor);
   }
 
+  @Patch(':id')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  update(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() updateProjectDto: UpdateProjectDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.update(id, updateProjectDto, accessActor);
+  }
+
+  @Patch(':id/archive')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  archive(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.archive(id, accessActor);
+  }
+
   @Get(':projectId/phases')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO)
-  @AccessScope({ projectIdParam: 'projectId' })
   findPhases(
     @Param('projectId', ParseIntPipe) projectId: number,
     @CurrentAccessActor() accessActor: RequestAccessActor,

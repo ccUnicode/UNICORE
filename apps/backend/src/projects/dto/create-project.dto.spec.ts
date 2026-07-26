@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { ProjectStatus } from '../enums/project-status.enum';
 import { CreateProjectDto } from './create-project.dto';
 
 const validProjectPayload = {
@@ -74,6 +75,65 @@ describe('CreateProjectDto', () => {
       expect.arrayContaining([
         expect.objectContaining({
           property: 'areaId',
+        }),
+      ]),
+    );
+  });
+
+  it('accepts and normalizes project metadata', async () => {
+    const dto = plainToInstance(CreateProjectDto, {
+      ...validProjectPayload,
+      status: ProjectStatus.ACTIVE,
+      labels: ['  Backend  ', 'Priority'],
+      links: [
+        {
+          name: '  Repository  ',
+          url: '  https://github.com/ccUnicode/UNICORE  ',
+        },
+      ],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toHaveLength(0);
+    expect(dto.labels).toEqual(['Backend', 'Priority']);
+    expect(dto.links).toEqual([
+      {
+        name: 'Repository',
+        url: 'https://github.com/ccUnicode/UNICORE',
+      },
+    ]);
+  });
+
+  it('rejects duplicate labels regardless of casing', async () => {
+    const dto = plainToInstance(CreateProjectDto, {
+      ...validProjectPayload,
+      labels: ['Backend', 'backend'],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          property: 'labels',
+        }),
+      ]),
+    );
+  });
+
+  it('rejects external links without an absolute URL', async () => {
+    const dto = plainToInstance(CreateProjectDto, {
+      ...validProjectPayload,
+      links: [{ name: 'Repository', url: 'github.com/ccUnicode/UNICORE' }],
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          property: 'links',
         }),
       ]),
     );
