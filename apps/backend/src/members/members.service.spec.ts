@@ -244,6 +244,33 @@ describe('MembersService', () => {
     expect(areaMembershipsRepository.create).not.toHaveBeenCalled();
   });
 
+  it('synchronizes legacy status when creating a member', async () => {
+    const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
+    const createDto = {
+      ...externalMemberDto,
+      status: MemberAvailabilityStatus.DISABLED,
+    };
+    const persistedMember = {
+      ...persistedAreaDirectiveMember,
+      institution: createDto.institution,
+      studentCode: null,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      status: MemberStatus.Disabled,
+    };
+
+    skillsRepository.find?.mockResolvedValue(externalSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockResolvedValue(persistedMember);
+
+    await expect(service.create(createDto)).resolves.toEqual(persistedMember);
+    expect(membersRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
+      }),
+    );
+  });
+
   it('raises a conflict when the institution and student code already exist', async () => {
     const driverError: Error & { code: string } = Object.assign(
       new Error('duplicate key value'),
@@ -382,6 +409,7 @@ describe('MembersService', () => {
       const updatedMember = {
         ...persistedAreaDirectiveMember,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
       };
 
       membersRepository.preload?.mockResolvedValue(updatedMember);
@@ -393,6 +421,7 @@ describe('MembersService', () => {
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
       expect(areaMembershipsRepository.findOne).not.toHaveBeenCalled();
@@ -403,6 +432,7 @@ describe('MembersService', () => {
       const updatedMember = {
         ...persistedAreaDirectiveMember,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
       };
 
       membersRepository.preload?.mockResolvedValue(updatedMember);
@@ -414,6 +444,33 @@ describe('MembersService', () => {
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
+      });
+    });
+
+    it('synchronizes all states when reactivating a member', async () => {
+      const updateDto = {
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+      };
+      const reactivatedMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        status: MemberStatus.Available,
+      };
+
+      membersRepository.preload?.mockResolvedValue(reactivatedMember);
+      membersRepository.save?.mockResolvedValue(reactivatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        reactivatedMember,
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        status: MemberStatus.Available,
       });
     });
 
@@ -463,6 +520,7 @@ describe('MembersService', () => {
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 99,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
       });
       expect(membersRepository.save).not.toHaveBeenCalled();
     });

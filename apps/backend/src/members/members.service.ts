@@ -24,6 +24,15 @@ import { MemberStatus } from './enums/member-status.enum';
 import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
 
+const LEGACY_STATUS_BY_AVAILABILITY: Record<
+  MemberAvailabilityStatus,
+  MemberStatus
+> = {
+  [MemberAvailabilityStatus.AVAILABLE]: MemberStatus.Available,
+  [MemberAvailabilityStatus.UNAVAILABLE]: MemberStatus.Unavailable,
+  [MemberAvailabilityStatus.DISABLED]: MemberStatus.Disabled,
+};
+
 @Injectable()
 export class MembersService {
   constructor(
@@ -39,6 +48,7 @@ export class MembersService {
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
     const { skills, areaId, status, ...restDto } = createMemberDto;
+    const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateActiveAreaExists(areaId);
@@ -48,10 +58,10 @@ export class MembersService {
 
     const member = this.membersRepository.create({
       ...restDto,
-      ...(status !== undefined &&
-        restDto.availabilityStatus === undefined && {
-          availabilityStatus: status,
-        }),
+      ...(resolvedAvailabilityStatus !== undefined && {
+        availabilityStatus: resolvedAvailabilityStatus,
+        status: LEGACY_STATUS_BY_AVAILABILITY[resolvedAvailabilityStatus],
+      }),
       role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
       area:
@@ -98,6 +108,7 @@ export class MembersService {
       ...(activityStatus !== undefined && { activityStatus }),
       ...(resolvedAvailabilityStatus !== undefined && {
         availabilityStatus: resolvedAvailabilityStatus,
+        status: LEGACY_STATUS_BY_AVAILABILITY[resolvedAvailabilityStatus],
       }),
       ...(areaId !== undefined && {
         area: areaId === null ? null : { id: areaId },
@@ -172,7 +183,8 @@ export class MembersService {
 
     member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
-    member.status = MemberStatus.Disabled;
+    member.status =
+      LEGACY_STATUS_BY_AVAILABILITY[MemberAvailabilityStatus.DISABLED];
 
     return this.membersRepository.save(member);
   }
