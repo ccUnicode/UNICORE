@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -72,8 +73,15 @@ export class AreaService {
     return this.areaRepository.save(area);
   }
 
-  async archive(id: number): Promise<Area> {
+  async archive(id: number, confirmName: string): Promise<Area> {
     const area = await this.findOne(id);
+
+    if (confirmName !== area.name) {
+      throw new BadRequestException(
+        'confirmName must exactly match the area name',
+      );
+    }
+
     area.isArchived = true;
     return this.areaRepository.save(area);
   }

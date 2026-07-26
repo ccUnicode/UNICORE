@@ -14,6 +14,7 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { ConfirmNameDto } from '../common/dto/confirm-name.dto';
 import { AreaService } from './area.service';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
@@ -55,7 +56,10 @@ export class AreaController {
 
   @Patch(':id/archive')
   @Roles(AreaRole.PRESIDENCIA)
-  archive(@Param('id', ParseIntPipe) id: number) {
-    return this.areaService.archive(id);
+  archive(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() confirmNameDto: ConfirmNameDto,
+  ) {
+    return this.areaService.archive(id, confirmNameDto.confirmName);
   }
 }

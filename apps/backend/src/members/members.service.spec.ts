@@ -82,6 +82,7 @@ describe('MembersService', () => {
       find: jest.fn(),
       createQueryBuilder: jest.fn(),
       preload: jest.fn(),
+      findOne: jest.fn(),
     };
     skillsRepository = {
       find: jest.fn(),
@@ -153,7 +154,7 @@ describe('MembersService', () => {
       persistedAreaDirectiveMember,
     );
     expect(areasRepository.exists).toHaveBeenCalledWith({
-      where: { id: 3 },
+      where: { id: 3, isArchived: false },
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
@@ -182,7 +183,7 @@ describe('MembersService', () => {
     expect(areaMembershipsRepository.save).toHaveBeenCalled();
   });
 
-  it('rejects an unknown area id when creating a member', async () => {
+  it('rejects an unknown or archived area when creating a member', async () => {
     areasRepository.exists?.mockResolvedValue(false);
 
     await expect(
@@ -194,7 +195,7 @@ describe('MembersService', () => {
       message: 'Area with ID 0 not found',
     });
     expect(areasRepository.exists).toHaveBeenCalledWith({
-      where: { id: 0 },
+      where: { id: 0, isArchived: false },
     });
     expect(skillsRepository.find).not.toHaveBeenCalled();
     expect(membersRepository.create).not.toHaveBeenCalled();
@@ -241,6 +242,33 @@ describe('MembersService', () => {
     });
     expect(membersRepository.save).toHaveBeenCalledWith(persistedMember);
     expect(areaMembershipsRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('synchronizes legacy status when creating a member', async () => {
+    const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
+    const createDto = {
+      ...externalMemberDto,
+      status: MemberAvailabilityStatus.DISABLED,
+    };
+    const persistedMember = {
+      ...persistedAreaDirectiveMember,
+      institution: createDto.institution,
+      studentCode: null,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      status: MemberStatus.Disabled,
+    };
+
+    skillsRepository.find?.mockResolvedValue(externalSkills);
+    membersRepository.create?.mockReturnValue(persistedMember);
+    membersRepository.save?.mockResolvedValue(persistedMember);
+
+    await expect(service.create(createDto)).resolves.toEqual(persistedMember);
+    expect(membersRepository.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
+      }),
+    );
   });
 
   it('raises a conflict when the institution and student code already exist', async () => {
@@ -381,6 +409,7 @@ describe('MembersService', () => {
       const updatedMember = {
         ...persistedAreaDirectiveMember,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
       };
 
       membersRepository.preload?.mockResolvedValue(updatedMember);
@@ -392,6 +421,7 @@ describe('MembersService', () => {
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
       });
       expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
       expect(areaMembershipsRepository.findOne).not.toHaveBeenCalled();
@@ -402,6 +432,7 @@ describe('MembersService', () => {
       const updatedMember = {
         ...persistedAreaDirectiveMember,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
       };
 
       membersRepository.preload?.mockResolvedValue(updatedMember);
@@ -413,6 +444,33 @@ describe('MembersService', () => {
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,
         availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        status: MemberStatus.Unavailable,
+      });
+    });
+
+    it('synchronizes all states when reactivating a member', async () => {
+      const updateDto = {
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+      };
+      const reactivatedMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        status: MemberStatus.Available,
+      };
+
+      membersRepository.preload?.mockResolvedValue(reactivatedMember);
+      membersRepository.save?.mockResolvedValue(reactivatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        reactivatedMember,
+      );
+      expect(membersRepository.preload).toHaveBeenCalledWith({
+        id: 10,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        status: MemberStatus.Available,
       });
     });
 
@@ -435,7 +493,7 @@ describe('MembersService', () => {
       });
     });
 
-    it('throws NotFoundException when updating with a non-existent areaId', async () => {
+    it('throws NotFoundException when updating to an unknown or archived area', async () => {
       const updateDto = { areaId: 999 };
 
       areasRepository.exists?.mockResolvedValue(false);
@@ -444,7 +502,7 @@ describe('MembersService', () => {
         new NotFoundException('Area with ID 999 not found'),
       );
       expect(areasRepository.exists).toHaveBeenCalledWith({
-        where: { id: 999 },
+        where: { id: 999, isArchived: false },
       });
       expect(membersRepository.preload).not.toHaveBeenCalled();
     });
@@ -462,6 +520,7 @@ describe('MembersService', () => {
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 99,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
       });
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
@@ -520,7 +579,7 @@ describe('MembersService', () => {
         updatedMember,
       );
       expect(areasRepository.exists).toHaveBeenCalledWith({
-        where: { id: 5 },
+        where: { id: 5, isArchived: false },
       });
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,
@@ -576,5 +635,99 @@ describe('MembersService', () => {
         projectIds: ['project-1'],
       }),
     ).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  describe('deactivate', () => {
+    it('deactivates a member for Presidencia with an exact full name', async () => {
+      const deactivatedMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
+      };
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+      membersRepository.save?.mockResolvedValue(deactivatedMember);
+
+      await expect(
+        service.deactivate(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).resolves.toEqual(deactivatedMember);
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 10 },
+        relations: ['memberships'],
+      });
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 10,
+          activityStatus: MemberActivityStatus.INACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.DISABLED,
+          status: MemberStatus.Disabled,
+        }),
+      );
+    });
+
+    it('allows Directiva de Area to deactivate a member in its own area', async () => {
+      const member = {
+        ...persistedAreaDirectiveMember,
+        areaId: null,
+        memberships: [{ areaId: 3 } as AreaMembership],
+      };
+      const deactivatedMember = {
+        ...member,
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        status: MemberStatus.Disabled,
+      };
+      membersRepository.findOne?.mockResolvedValue(member);
+      membersRepository.save?.mockResolvedValue(deactivatedMember);
+
+      await expect(
+        service.deactivate(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          areaId: '3',
+        }),
+      ).resolves.toEqual(deactivatedMember);
+    });
+
+    it('rejects Directiva de Area deactivating a member from another area', async () => {
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+
+      await expect(
+        service.deactivate(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          areaId: '9',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(membersRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects member deactivation when confirmName does not exactly match', async () => {
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+
+      await expect(
+        service.deactivate(10, 'ana lucia rojas perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).rejects.toThrow('confirmName must exactly match the member full name');
+      expect(membersRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects deactivation for a missing member', async () => {
+      membersRepository.findOne?.mockResolvedValue(null);
+
+      await expect(
+        service.deactivate(99, 'Missing Member', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).rejects.toThrow(new NotFoundException('Member with ID 99 not found'));
+      expect(membersRepository.save).not.toHaveBeenCalled();
+    });
   });
 });
