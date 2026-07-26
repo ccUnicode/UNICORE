@@ -154,7 +154,7 @@ describe('MembersService', () => {
       persistedAreaDirectiveMember,
     );
     expect(areasRepository.exists).toHaveBeenCalledWith({
-      where: { id: 3 },
+      where: { id: 3, isArchived: false },
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
@@ -183,7 +183,7 @@ describe('MembersService', () => {
     expect(areaMembershipsRepository.save).toHaveBeenCalled();
   });
 
-  it('rejects an unknown area id when creating a member', async () => {
+  it('rejects an unknown or archived area when creating a member', async () => {
     areasRepository.exists?.mockResolvedValue(false);
 
     await expect(
@@ -195,7 +195,7 @@ describe('MembersService', () => {
       message: 'Area with ID 0 not found',
     });
     expect(areasRepository.exists).toHaveBeenCalledWith({
-      where: { id: 0 },
+      where: { id: 0, isArchived: false },
     });
     expect(skillsRepository.find).not.toHaveBeenCalled();
     expect(membersRepository.create).not.toHaveBeenCalled();
@@ -436,7 +436,7 @@ describe('MembersService', () => {
       });
     });
 
-    it('throws NotFoundException when updating with a non-existent areaId', async () => {
+    it('throws NotFoundException when updating to an unknown or archived area', async () => {
       const updateDto = { areaId: 999 };
 
       areasRepository.exists?.mockResolvedValue(false);
@@ -445,7 +445,7 @@ describe('MembersService', () => {
         new NotFoundException('Area with ID 999 not found'),
       );
       expect(areasRepository.exists).toHaveBeenCalledWith({
-        where: { id: 999 },
+        where: { id: 999, isArchived: false },
       });
       expect(membersRepository.preload).not.toHaveBeenCalled();
     });
@@ -521,7 +521,7 @@ describe('MembersService', () => {
         updatedMember,
       );
       expect(areasRepository.exists).toHaveBeenCalledWith({
-        where: { id: 5 },
+        where: { id: 5, isArchived: false },
       });
       expect(membersRepository.preload).toHaveBeenCalledWith({
         id: 10,

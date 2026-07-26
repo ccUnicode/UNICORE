@@ -36,7 +36,9 @@ export class AreaMembershipsService {
       throw new NotFoundException(`Member with ID ${memberId} not found`);
     }
 
-    const area = await this.areasRepository.findOne({ where: { id: areaId } });
+    const area = await this.areasRepository.findOne({
+      where: { id: areaId, isArchived: false },
+    });
     if (!area) {
       throw new NotFoundException(`Area with ID ${areaId} not found`);
     }

@@ -41,7 +41,7 @@ export class MembersService {
     const { skills, areaId, status, ...restDto } = createMemberDto;
 
     if (areaId !== undefined && areaId !== null) {
-      await this.validateAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId);
     }
 
     const resolvedSkills = await this.resolveSkills(skills);
@@ -90,7 +90,7 @@ export class MembersService {
     const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
-      await this.validateAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId);
     }
 
     const preloadData: DeepPartial<Member> = {
@@ -283,9 +283,9 @@ export class MembersService {
     return [...existingSkills, ...savedNewSkills];
   }
 
-  private async validateAreaExists(areaId: number): Promise<void> {
+  private async validateActiveAreaExists(areaId: number): Promise<void> {
     const areaExists = await this.areasRepository.exists({
-      where: { id: areaId },
+      where: { id: areaId, isArchived: false },
     });
     if (!areaExists) {
       throw new NotFoundException(`Area with ID ${areaId} not found`);
