@@ -118,7 +118,7 @@ export class ProjectsService {
 
     const [data, total] = await this.projectsRepository.findAndCount({
       where,
-      relations: ['area', 'labels', 'links'],
+      relations: ['area', 'labels', 'links', 'memberships'],
       order: { createdAt: 'DESC' },
       skip,
       take: limit,

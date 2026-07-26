@@ -62,6 +62,13 @@ type ProjectPhase = {
   orderIndex: number;
 };
 
+type ProjectStatus =
+  | "planned"
+  | "active"
+  | "on_hold"
+  | "completed"
+  | "cancelled";
+
 type Project = {
   id: number;
   name: string;
@@ -72,6 +79,8 @@ type Project = {
   area?: Area | null;
   phases?: ProjectPhase[];
   memberships?: ProjectMembership[];
+  status: ProjectStatus;
+  isArchived: boolean;
   createdAt?: string;
 };
 
@@ -128,6 +137,9 @@ const statusStyles: Record<string, string> = {
   archived: "bg-zinc-600 text-white",
   planning: "bg-rose-500 text-white",
   paused: "bg-orange-500 text-orange-950",
+  on_hold: "bg-orange-500 text-orange-950",
+  completed: "bg-sky-500 text-sky-950",
+  cancelled: "bg-red-500 text-white",
 };
 
 async function getJson<T>(path: string): Promise<T> {
@@ -183,6 +195,26 @@ function normalizeProjectList(payload: PaginatedProjects | Project[]): Project[]
   return Array.isArray(payload) ? payload : payload.data;
 }
 
+async function getAllProjects(): Promise<Project[]> {
+  const firstPage = await getJson<PaginatedProjects | Project[]>(
+    "/projects?page=1&limit=100",
+  );
+
+  if (Array.isArray(firstPage)) {
+    return firstPage;
+  }
+
+  const projects = [...firstPage.data];
+  for (let page = 2; page <= firstPage.meta.lastPage; page += 1) {
+    const payload = await getJson<PaginatedProjects | Project[]>(
+      `/projects?page=${page}&limit=100`,
+    );
+    projects.push(...normalizeProjectList(payload));
+  }
+
+  return projects;
+}
+
 function statusClass(status?: string): string {
   return statusStyles[status?.toLowerCase() ?? ""] ?? "bg-indigo-500 text-white";
 }
@@ -210,13 +242,13 @@ export default function Home() {
           await Promise.all([
             getJson<Area[]>("/areas"),
             getJson<Member[]>("/members"),
-            getJson<PaginatedProjects | Project[]>("/projects?limit=100"),
+            getAllProjects(),
           ]);
 
         if (ignore) return;
         setAreas(areasPayload);
         setMembers(membersPayload);
-        setProjects(normalizeProjectList(projectsPayload));
+        setProjects(projectsPayload);
         setSelectedAreaId((current) => current ?? areasPayload[0]?.id ?? null);
         setSelectedMemberId((current) => current ?? membersPayload[0]?.id ?? null);
         setLoadState("ready");
@@ -831,12 +863,8 @@ function ProjectsView({ projects }: { projects: Project[] }) {
         onChange={setProjectQuery}
       />
       <div className="mt-10 grid gap-x-32 gap-y-20 xl:grid-cols-2">
-        {filteredProjects.map((project, index) => (
-          <ProjectCard
-            key={project.id}
-            project={project}
-            status={index % 4 === 0 ? "paused" : index % 4 === 1 ? "archived" : index % 4 === 2 ? "active" : "planning"}
-          />
+        {filteredProjects.map((project) => (
+          <ProjectCard key={project.id} project={project} />
         ))}
       </div>
       {filteredProjects.length === 0 && (
@@ -846,21 +874,16 @@ function ProjectsView({ projects }: { projects: Project[] }) {
   );
 }
 
-function ProjectCard({
-  project,
-  status,
-}: {
-  project: Project;
-  status: string;
-}) {
-  const label =
-    status === "paused"
-      ? "Pausado"
-      : status === "archived"
-        ? "Archivado"
-        : status === "planning"
-          ? "En planificación"
-          : "Activo";
+function ProjectCard({ project }: { project: Project }) {
+  const status = project.isArchived ? "archived" : project.status;
+  const statusLabels: Record<ProjectStatus | "archived", string> = {
+    planned: "En planificación",
+    active: "Activo",
+    on_hold: "Pausado",
+    completed: "Completado",
+    cancelled: "Cancelado",
+    archived: "Archivado",
+  };
 
   return (
     <article className="grid min-h-[190px] grid-cols-[92px_minmax(0,1fr)] gap-8 rounded-md border border-white/10 bg-[#20212c] p-8">
@@ -878,7 +901,7 @@ function ProjectCard({
             Editar Proyecto
           </button>
           <span className={`rounded px-3 py-1 text-xs font-bold ${statusClass(status)}`}>
-            {label}
+            {statusLabels[status]}
           </span>
         </div>
       </div>

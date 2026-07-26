@@ -509,7 +509,7 @@ describe('ProjectsService', () => {
     });
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false },
-      relations: ['area', 'labels', 'links'],
+      relations: ['area', 'labels', 'links', 'memberships'],
       order: { createdAt: 'DESC' },
       skip: 5,
       take: 5,
@@ -530,7 +530,7 @@ describe('ProjectsService', () => {
     });
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false },
-      relations: ['area', 'labels', 'links'],
+      relations: ['area', 'labels', 'links', 'memberships'],
       order: { createdAt: 'DESC' },
       skip: 0,
       take: 10,
@@ -560,7 +560,7 @@ describe('ProjectsService', () => {
         endDate: MoreThanOrEqual('2026-06-01'),
         labels: { normalizedName: In(['backend']) },
       },
-      relations: ['area', 'labels', 'links'],
+      relations: ['area', 'labels', 'links', 'memberships'],
       order: { createdAt: 'DESC' },
       skip: 0,
       take: 10,
@@ -577,7 +577,7 @@ describe('ProjectsService', () => {
 
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false, areaId: 3 },
-      relations: ['area', 'labels', 'links'],
+      relations: ['area', 'labels', 'links', 'memberships'],
       order: { createdAt: 'DESC' },
       skip: 0,
       take: 10,
@@ -594,7 +594,7 @@ describe('ProjectsService', () => {
 
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false, id: In([2, 7]) },
-      relations: ['area', 'labels', 'links'],
+      relations: ['area', 'labels', 'links', 'memberships'],
       order: { createdAt: 'DESC' },
       skip: 0,
       take: 10,
