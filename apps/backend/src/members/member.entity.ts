@@ -50,6 +50,15 @@ export class Member {
   })
   role: AreaRole;
 
+  @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    select: false,
+  })
+  passwordHash?: string | null;
+
   @Column({ name: 'area_id', type: 'int', nullable: true })
   areaId: number | null;
 

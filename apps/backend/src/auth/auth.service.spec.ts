@@ -1,0 +1,148 @@
+/* eslint-disable @typescript-eslint/unbound-method */
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { Repository } from 'typeorm';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
+import { Member } from '../members/member.entity';
+import { MembersService } from '../members/members.service';
+import { AuthTokenService } from './auth-token.service';
+import { AuthService } from './auth.service';
+import { PasswordService } from './password.service';
+
+describe('AuthService', () => {
+  const queryBuilder = {
+    addSelect: jest.fn(),
+    where: jest.fn(),
+    andWhere: jest.fn(),
+    getOne: jest.fn(),
+    getCount: jest.fn(),
+  };
+  const membersRepository = {
+    count: jest.fn(),
+    createQueryBuilder: jest.fn(),
+    exists: jest.fn(),
+    findOne: jest.fn(),
+    update: jest.fn(),
+  } as unknown as Repository<Member>;
+  const membersService = {
+    create: jest.fn(),
+  } as unknown as MembersService;
+  const passwordService = {
+    hash: jest.fn(),
+    verify: jest.fn(),
+  } as unknown as PasswordService;
+  const tokenService = {
+    sign: jest.fn(),
+  } as unknown as AuthTokenService;
+  const bootstrapSecret = 'bootstrap-secret-that-is-at-least-32-characters';
+  const config = {
+    get: jest.fn((key: string) =>
+      key === 'AUTH_BOOTSTRAP_SECRET' ? bootstrapSecret : undefined,
+    ),
+  } as unknown as ConfigService;
+
+  let service: AuthService;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    queryBuilder.addSelect.mockReturnValue(queryBuilder);
+    queryBuilder.where.mockReturnValue(queryBuilder);
+    queryBuilder.andWhere.mockReturnValue(queryBuilder);
+    jest
+      .mocked(membersRepository.createQueryBuilder)
+      .mockReturnValue(queryBuilder as never);
+    service = new AuthService(
+      membersRepository,
+      membersService,
+      passwordService,
+      tokenService,
+      config,
+    );
+  });
+
+  it('bootstraps an existing Presidencia member before any password exists', async () => {
+    const member = {
+      id: 4,
+      role: AreaRole.PRESIDENCIA,
+      activityStatus: MemberActivityStatus.ACTIVE,
+    } as Member;
+
+    queryBuilder.getCount.mockResolvedValue(0);
+    jest.mocked(membersRepository.findOne).mockResolvedValue(member);
+    jest.mocked(membersRepository.exists).mockResolvedValue(true);
+    jest.mocked(passwordService.hash).mockResolvedValue('stored-hash');
+    jest.mocked(tokenService.sign).mockReturnValue('signed-token');
+
+    await expect(
+      service.bootstrap({
+        bootstrapSecret,
+        memberId: 4,
+        password: 'a-secure-password',
+      }),
+    ).resolves.toEqual({
+      accessToken: 'signed-token',
+      tokenType: 'Bearer',
+      member,
+    });
+    expect(membersRepository.update).toHaveBeenCalledWith(4, {
+      passwordHash: 'stored-hash',
+    });
+  });
+
+  it('rejects bootstrap after an account password exists', async () => {
+    queryBuilder.getCount.mockResolvedValue(1);
+
+    await expect(
+      service.bootstrap({
+        bootstrapSecret,
+        memberId: 4,
+        password: 'a-secure-password',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects an invalid bootstrap secret before reading account state', async () => {
+    await expect(
+      service.bootstrap({
+        bootstrapSecret: 'invalid-secret-that-is-at-least-32-characters',
+        memberId: 4,
+        password: 'a-secure-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(membersRepository.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('returns a token for valid active credentials without exposing the hash', async () => {
+    const member = {
+      id: 7,
+      institution: 'UNI',
+      studentCode: '20260007',
+      passwordHash: 'stored-hash',
+      activityStatus: MemberActivityStatus.ACTIVE,
+    } as Member;
+
+    queryBuilder.getOne.mockResolvedValue(member);
+    jest.mocked(passwordService.verify).mockResolvedValue(true);
+    jest.mocked(tokenService.sign).mockReturnValue('signed-token');
+
+    const response = await service.login({
+      studentCode: '20260007',
+      password: 'a-secure-password',
+    });
+
+    expect(response).toMatchObject({
+      accessToken: 'signed-token',
+      tokenType: 'Bearer',
+    });
+    expect(response.member.passwordHash).toBeUndefined();
+    expect(queryBuilder.where).toHaveBeenCalledWith(
+      'member.institution = :institution',
+      { institution: 'UNI' },
+    );
+    expect(queryBuilder.andWhere).toHaveBeenCalledWith(
+      'member.studentCode = :studentCode',
+      { studentCode: '20260007' },
+    );
+  });
+});

@@ -1,0 +1,166 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { InjectRepository } from '@nestjs/typeorm';
+import { createHash, timingSafeEqual } from 'crypto';
+import { Repository } from 'typeorm';
+import { AreaRole } from '../common/enums/area-role.enum';
+import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
+import { Member } from '../members/member.entity';
+import { MembersService } from '../members/members.service';
+import { AuthTokenService } from './auth-token.service';
+import { BootstrapAuthDto } from './dto/bootstrap-auth.dto';
+import { LoginDto } from './dto/login.dto';
+import { PasswordService } from './password.service';
+
+export interface AuthResponse {
+  accessToken: string;
+  tokenType: 'Bearer';
+  member: Member;
+}
+
+@Injectable()
+export class AuthService {
+  private readonly bootstrapSecret: string;
+
+  constructor(
+    @InjectRepository(Member)
+    private readonly membersRepository: Repository<Member>,
+    private readonly membersService: MembersService,
+    private readonly passwordService: PasswordService,
+    private readonly tokenService: AuthTokenService,
+    config: ConfigService,
+  ) {
+    this.bootstrapSecret = config.get<string>('AUTH_BOOTSTRAP_SECRET') ?? '';
+
+    if (this.bootstrapSecret.length < 32) {
+      throw new Error(
+        'AUTH_BOOTSTRAP_SECRET must contain at least 32 characters',
+      );
+    }
+  }
+
+  async bootstrap(bootstrapDto: BootstrapAuthDto): Promise<AuthResponse> {
+    if (!this.isValidBootstrapSecret(bootstrapDto.bootstrapSecret)) {
+      throw new UnauthorizedException('Invalid bootstrap secret');
+    }
+
+    const accountsWithPasswords = await this.membersRepository
+      .createQueryBuilder('member')
+      .where('member.passwordHash IS NOT NULL')
+      .getCount();
+
+    if (accountsWithPasswords > 0) {
+      throw new ConflictException(
+        'Authentication bootstrap is disabled after the first password is configured',
+      );
+    }
+
+    if (bootstrapDto.memberId !== undefined) {
+      if (bootstrapDto.member) {
+        throw new BadRequestException(
+          'Provide either memberId or member, not both',
+        );
+      }
+
+      const member = await this.membersRepository.findOne({
+        where: { id: bootstrapDto.memberId },
+      });
+
+      if (!member || member.role !== AreaRole.PRESIDENCIA) {
+        throw new ForbiddenException(
+          'The bootstrap member must exist and have the Presidencia role',
+        );
+      }
+
+      await this.setPassword(member.id, bootstrapDto.password);
+      return this.createAuthResponse(member);
+    }
+
+    if (!bootstrapDto.member) {
+      throw new BadRequestException('member or memberId is required');
+    }
+
+    if ((await this.membersRepository.count()) > 0) {
+      throw new ConflictException(
+        'Use memberId to bootstrap an existing Presidencia member',
+      );
+    }
+
+    if (bootstrapDto.member.role !== AreaRole.PRESIDENCIA) {
+      throw new ForbiddenException(
+        'The bootstrap member must have the Presidencia role',
+      );
+    }
+
+    const member = await this.membersService.create(bootstrapDto.member);
+    await this.setPassword(member.id, bootstrapDto.password);
+
+    return this.createAuthResponse(member);
+  }
+
+  async login(loginDto: LoginDto): Promise<AuthResponse> {
+    const member = await this.membersRepository
+      .createQueryBuilder('member')
+      .addSelect('member.passwordHash')
+      .where('member.institution = :institution', {
+        institution: 'UNI',
+      })
+      .andWhere('member.studentCode = :studentCode', {
+        studentCode: loginDto.studentCode,
+      })
+      .getOne();
+
+    const credentialsAreValid =
+      member?.passwordHash &&
+      (await this.passwordService.verify(
+        loginDto.password,
+        member.passwordHash,
+      ));
+
+    if (
+      !member ||
+      !credentialsAreValid ||
+      member.activityStatus !== MemberActivityStatus.ACTIVE
+    ) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    delete member.passwordHash;
+
+    return this.createAuthResponse(member);
+  }
+
+  async setPassword(memberId: number, password: string): Promise<void> {
+    if (!(await this.membersRepository.exists({ where: { id: memberId } }))) {
+      throw new NotFoundException(`Member with ID ${memberId} not found`);
+    }
+
+    await this.membersRepository.update(memberId, {
+      passwordHash: await this.passwordService.hash(password),
+    });
+  }
+
+  private createAuthResponse(member: Member): AuthResponse {
+    return {
+      accessToken: this.tokenService.sign(member.id),
+      tokenType: 'Bearer',
+      member,
+    };
+  }
+
+  private isValidBootstrapSecret(secret: string): boolean {
+    const expected = createHash('sha256').update(this.bootstrapSecret).digest();
+    const received = createHash('sha256').update(secret).digest();
+
+    return (
+      expected.length === received.length && timingSafeEqual(expected, received)
+    );
+  }
+}
