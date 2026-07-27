@@ -7,6 +7,7 @@ import { AppService } from './app.service';
 import { MembersModule } from './members/members.module';
 import { AreaMembershipsModule } from './area-memberships/area-memberships.module';
 import { ProjectsModule } from './projects/projects.module';
+import { MigrateMemberRolesAndAreas20260827 } from './migrations/20260827-MigrateMemberRolesAndAreas';
 
 @Module({
   imports: [
@@ -30,6 +31,8 @@ import { ProjectsModule } from './projects/projects.module';
                 rejectUnauthorized: false,
               }
             : false,
+          migrations: [MigrateMemberRolesAndAreas20260827],
+          migrationsRun: true,
         };
       },
     }),
