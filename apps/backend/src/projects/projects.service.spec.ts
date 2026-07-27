@@ -681,6 +681,14 @@ describe('ProjectsService', () => {
     );
   });
 
+  it('rejects project updates without any fields', async () => {
+    await expect(service.update(1, {}, presidencyActor)).rejects.toThrow(
+      new BadRequestException('At least one project field must be provided'),
+    );
+    expect(projectsRepository.findOne).not.toHaveBeenCalled();
+    expect(projectsRepository.save).not.toHaveBeenCalled();
+  });
+
   it('validates date updates using cleared nullable boundaries', async () => {
     const project = createProject({
       startDate: '2026-07-01',
