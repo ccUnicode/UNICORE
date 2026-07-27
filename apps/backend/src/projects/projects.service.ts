@@ -68,7 +68,7 @@ export class ProjectsService {
           endDate: createProjectDto.endDate ?? null,
           areaId: area.id,
           area,
-          status: createProjectDto.status ?? ProjectStatus.PLANNED,
+          status: ProjectStatus.PLANNED,
           isArchived: false,
           labels,
         });

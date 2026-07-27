@@ -4,7 +4,6 @@ import {
   ArrayUnique,
   IsArray,
   IsDateString,
-  IsEnum,
   IsInt,
   IsNotEmpty,
   IsOptional,
@@ -13,7 +12,6 @@ import {
   Min,
   ValidateNested,
 } from 'class-validator';
-import { ProjectStatus } from '../enums/project-status.enum';
 import { CreateProjectLinkDto } from './create-project-link.dto';
 
 const trimString = ({ value }: { value: unknown }) =>
@@ -51,10 +49,6 @@ export class CreateProjectDto {
   @IsInt()
   @Min(1)
   areaId: number;
-
-  @IsOptional()
-  @IsEnum(ProjectStatus)
-  status?: ProjectStatus;
 
   @IsOptional()
   @Transform(trimStringArray)

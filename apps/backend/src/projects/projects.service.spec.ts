@@ -357,7 +357,6 @@ describe('ProjectsService', () => {
     });
     const project = createProject({
       area,
-      status: ProjectStatus.ACTIVE,
       labels: [backendLabel, priorityLabel],
     });
     const link = createProjectLink({ projectId: project.id });
@@ -377,7 +376,6 @@ describe('ProjectsService', () => {
       service.create(
         {
           ...createProjectDto,
-          status: ProjectStatus.ACTIVE,
           labels: ['Backend', 'Priority'],
           links: [
             {
