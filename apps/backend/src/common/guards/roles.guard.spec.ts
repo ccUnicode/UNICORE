@@ -7,6 +7,7 @@ import { AreaRole } from '../enums/area-role.enum';
 import { ACCESS_SCOPE_KEY } from '../decorators/access-scope.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { RolesGuard } from './roles.guard';
+import { MemberAvailabilityStatus } from '../../members/enums/member-availability-status.enum';
 
 type ReflectorMetadata = AreaRole[] | AccessScopeOptions | undefined;
 
@@ -29,7 +30,7 @@ describe('RolesGuard', () => {
     } as ExecutionContext;
   };
 
-  let mockDataSource: any;
+  let mockDataSource: { getRepository: jest.Mock };
 
   const setupReflector = (
     requiredRoles: AreaRole[] | undefined,
@@ -52,11 +53,15 @@ describe('RolesGuard', () => {
 
     mockDataSource = {
       getRepository: jest.fn().mockReturnValue({
-        findOne: jest
-          .fn()
-          .mockResolvedValue(
-            mockMemberStatus ? { availabilityStatus: mockMemberStatus } : null,
-          ),
+        findOne: jest.fn().mockImplementation(() => {
+          if (mockMemberStatus === 'not_found') {
+            return Promise.resolve(null);
+          }
+          return Promise.resolve({
+            availabilityStatus:
+              mockMemberStatus || MemberAvailabilityStatus.AVAILABLE,
+          });
+        }),
       }),
     };
 
@@ -78,6 +83,7 @@ describe('RolesGuard', () => {
           headers: {
             'x-role': AreaRole.MIEMBRO,
             'x-project-ids': 'project-1',
+            'x-member-id': '10',
             'x-status': 'disabled',
           },
         }),
@@ -131,6 +137,7 @@ describe('RolesGuard', () => {
         createContext({
           headers: {
             'x-role': AreaRole.PRESIDENCIA,
+            'x-member-id': '10',
           },
           params: {
             id: '999',
@@ -149,6 +156,7 @@ describe('RolesGuard', () => {
           headers: {
             'x-role': AreaRole.DIRECTIVA_DE_AREA,
             'x-area-id': '12',
+            'x-member-id': '10',
           },
           params: {
             id: '12',
@@ -167,6 +175,7 @@ describe('RolesGuard', () => {
           headers: {
             'x-role': AreaRole.DIRECTIVA_DE_AREA,
             'x-area-id': '12',
+            'x-member-id': '10',
           },
           params: {
             id: '19',
@@ -185,6 +194,7 @@ describe('RolesGuard', () => {
           headers: {
             'x-role': AreaRole.MIEMBRO,
             'x-project-ids': 'project-1',
+            'x-member-id': '10',
           },
         }),
       ),
@@ -199,6 +209,7 @@ describe('RolesGuard', () => {
         createContext({
           headers: {
             'x-role': AreaRole.MIEMBRO,
+            'x-member-id': '10',
           },
         }),
       ),
@@ -217,6 +228,7 @@ describe('RolesGuard', () => {
           headers: {
             'x-role': AreaRole.MIEMBRO,
             'x-project-ids': 'project-1, project-2',
+            'x-member-id': '10',
           },
           params: {
             projectId: 'project-2',
@@ -238,9 +250,61 @@ describe('RolesGuard', () => {
           headers: {
             'x-role': AreaRole.MIEMBRO,
             'x-project-ids': 'project-1, project-2',
+            'x-member-id': '10',
           },
           params: {
             projectId: 'project-3',
+          },
+        }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('rejects requests with missing x-member-id header', async () => {
+    setupReflector([AreaRole.PRESIDENCIA]);
+
+    await expect(
+      guard.canActivate(
+        createContext({
+          headers: {
+            'x-role': AreaRole.PRESIDENCIA,
+          },
+        }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('fails closed (rejects) if database query throws an error', async () => {
+    setupReflector([AreaRole.MIEMBRO]);
+    mockDataSource.getRepository = jest.fn().mockReturnValue({
+      findOne: jest
+        .fn()
+        .mockRejectedValue(new Error('Database connection timeout')),
+    });
+
+    await expect(
+      guard.canActivate(
+        createContext({
+          headers: {
+            'x-role': AreaRole.MIEMBRO,
+            'x-project-ids': 'project-1',
+            'x-member-id': '10',
+          },
+        }),
+      ),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('fails closed (rejects) if member is not found in database', async () => {
+    setupReflector([AreaRole.MIEMBRO], undefined, 'not_found');
+
+    await expect(
+      guard.canActivate(
+        createContext({
+          headers: {
+            'x-role': AreaRole.MIEMBRO,
+            'x-project-ids': 'project-1',
+            'x-member-id': '999', // Non-existent member ID
           },
         }),
       ),

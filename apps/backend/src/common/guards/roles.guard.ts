@@ -38,7 +38,7 @@ export class RolesGuard implements CanActivate {
       .getRequest<AccessControlledRequest>();
     const accessActor = extractRequestAccessActor(request.headers);
 
-    if (!accessActor) {
+    if (!accessActor || !accessActor.memberId) {
       throw new ForbiddenException('Missing or invalid access actor headers');
     }
 
@@ -46,8 +46,7 @@ export class RolesGuard implements CanActivate {
 
     if (
       accessActor.status === MemberAvailabilityStatus.DISABLED ||
-      (accessActor.memberId &&
-        (await this.isMemberDisabled(Number(accessActor.memberId))))
+      (await this.isMemberDisabled(Number(accessActor.memberId)))
     ) {
       throw new ForbiddenException('Your account is disabled');
     }
@@ -160,14 +159,20 @@ export class RolesGuard implements CanActivate {
   }
 
   private async isMemberDisabled(memberId: number): Promise<boolean> {
+    if (Number.isNaN(memberId)) {
+      return true;
+    }
     try {
       const member = await this.dataSource.getRepository(Member).findOne({
         where: { id: memberId },
         select: ['availabilityStatus'],
       });
-      return member?.availabilityStatus === MemberAvailabilityStatus.DISABLED;
+      if (!member) {
+        return true;
+      }
+      return member.availabilityStatus === MemberAvailabilityStatus.DISABLED;
     } catch {
-      return false;
+      return true;
     }
   }
 }
