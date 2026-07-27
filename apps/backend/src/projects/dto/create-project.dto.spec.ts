@@ -1,7 +1,6 @@
 import 'reflect-metadata';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { ProjectStatus } from '../enums/project-status.enum';
 import { CreateProjectDto } from './create-project.dto';
 
 const validProjectPayload = {
@@ -83,7 +82,6 @@ describe('CreateProjectDto', () => {
   it('accepts and normalizes project metadata', async () => {
     const dto = plainToInstance(CreateProjectDto, {
       ...validProjectPayload,
-      status: ProjectStatus.ACTIVE,
       labels: ['  Backend  ', 'Priority'],
       links: [
         {
