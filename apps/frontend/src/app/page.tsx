@@ -238,19 +238,26 @@ export default function Home() {
       setLoadState("loading");
       setError("");
       try {
-        const [areasPayload, membersPayload, projectsPayload] =
-          await Promise.all([
-            getJson<Area[]>("/areas"),
-            getJson<Member[]>("/members"),
-            getAllProjects(),
-          ]);
+        const [areasResult, membersResult, projectsResult] = await Promise.allSettled([
+          getJson<Area[]>("/areas"),
+          getJson<Member[]>("/members"),
+          getAllProjects(),
+        ]);
 
         if (ignore) return;
-        setAreas(areasPayload);
-        setMembers(membersPayload);
-        setProjects(projectsPayload);
-        setSelectedAreaId((current) => current ?? areasPayload[0]?.id ?? null);
-        setSelectedMemberId((current) => current ?? membersPayload[0]?.id ?? null);
+
+        if (areasResult.status === "fulfilled") {
+          setAreas(areasResult.value);
+          setSelectedAreaId((current) => current ?? areasResult.value[0]?.id ?? null);
+        }
+        if (membersResult.status === "fulfilled") {
+          setMembers(membersResult.value);
+          setSelectedMemberId((current) => current ?? membersResult.value[0]?.id ?? null);
+        }
+        if (projectsResult.status === "rejected") {
+          throw projectsResult.reason;
+        }
+        setProjects(projectsResult.value);
         setLoadState("ready");
       } catch (currentError) {
         if (ignore) return;
@@ -698,7 +705,7 @@ function AreaDetailView({
         />
       </div>
       <Panel title="Miembros del área">
-        <MemberTable members={metric.members} onOpenMember={onOpenMember} />
+        <MemberTable members={metric.members} areaId={metric.area.id} onOpenMember={onOpenMember} />
       </Panel>
     </div>
   );
@@ -923,9 +930,11 @@ function ProjectMark() {
 
 function MemberTable({
   members,
+  areaId,
   onOpenMember,
 }: {
   members: Member[];
+  areaId?: number;
   onOpenMember: (memberId: number) => void;
 }) {
   if (members.length === 0) {
@@ -945,40 +954,47 @@ function MemberTable({
           </tr>
         </thead>
         <tbody>
-          {members.map((member) => (
-            <tr
-              key={member.id}
-              className="rounded-md bg-[#171822] text-sm text-white/80"
-            >
-              <td className="rounded-l-md px-4 py-4">
-                <button
-                  type="button"
-                  onClick={() => onOpenMember(member.id)}
-                  className="font-bold text-white hover:underline"
-                >
-                  {fullName(member)}
-                </button>
-                <p className="mt-1 text-xs text-white/45">
-                  {member.studentCode ?? "Sin código"}
-                </p>
-              </td>
-              <td className="px-4 py-4">{member.major}</td>
-              <td className="px-4 py-4">{member.role}</td>
-              <td className="px-4 py-4">
-                <span
-                  className={`rounded px-2 py-1 text-xs font-bold ${statusClass(
-                    member.availabilityStatus ?? member.activityStatus,
-                  )}`}
-                >
-                  {member.availabilityStatus ?? member.activityStatus ?? "N/D"}
-                </span>
-              </td>
-              <td className="rounded-r-md px-4 py-4">
-                {member.skills?.slice(0, 3).map((skill) => skill.name).join(", ") ||
-                  "Sin skills"}
-              </td>
-            </tr>
-          ))}
+          {members.map((member) => {
+            const membershipRole =
+              areaId !== undefined
+                ? (member.memberships?.find((m) => m.areaId === areaId)?.role ?? member.role)
+                : member.role;
+
+            return (
+              <tr
+                key={member.id}
+                className="rounded-md bg-[#171822] text-sm text-white/80"
+              >
+                <td className="rounded-l-md px-4 py-4">
+                  <button
+                    type="button"
+                    onClick={() => onOpenMember(member.id)}
+                    className="font-bold text-white hover:underline"
+                  >
+                    {fullName(member)}
+                  </button>
+                  <p className="mt-1 text-xs text-white/45">
+                    {member.studentCode ?? "Sin código"}
+                  </p>
+                </td>
+                <td className="px-4 py-4">{member.major}</td>
+                <td className="px-4 py-4">{membershipRole}</td>
+                <td className="px-4 py-4">
+                  <span
+                    className={`rounded px-2 py-1 text-xs font-bold ${statusClass(
+                      member.availabilityStatus ?? member.activityStatus,
+                    )}`}
+                  >
+                    {member.availabilityStatus ?? member.activityStatus ?? "N/D"}
+                  </span>
+                </td>
+                <td className="rounded-r-md px-4 py-4">
+                  {member.skills?.slice(0, 3).map((skill) => skill.name).join(", ") ||
+                    "Sin skills"}
+                </td>
+              </tr>
+            );
+          })}
         </tbody>
       </table>
     </div>

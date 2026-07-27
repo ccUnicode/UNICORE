@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
@@ -17,7 +18,10 @@ import { AreaService } from '../area/area.service';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Member } from '../members/member.entity';
+import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectLabel } from './entities/project-label.entity';
@@ -118,6 +122,56 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     ...overrides,
   };
 };
+
+const createAreaMembership = (
+  overrides: Partial<AreaMembership> = {},
+): AreaMembership => ({
+  id: 1,
+  role: AreaRole.MIEMBRO,
+  memberId: 1,
+  member: {} as Member,
+  areaId: 1,
+  area: {} as Area,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
+const createMember = (overrides: Partial<Member> = {}): Member => ({
+  id: 1,
+  institution: 'UNI',
+  studentCode: null,
+  firstNames: 'Juan',
+  lastNames: 'Pérez',
+  major: 'Ingeniería de Sistemas',
+  birthDate: '2000-01-01',
+  role: AreaRole.MIEMBRO,
+  areaId: 1,
+  area: null,
+  activityStatus: MemberActivityStatus.ACTIVE,
+  availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+  skills: [],
+  status: 'available' as any,
+  memberships: [createAreaMembership()],
+  projectMemberships: [],
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
+
+const createProjectMembership = (
+  overrides: Partial<ProjectMembership> = {},
+): ProjectMembership => ({
+  id: 1,
+  role: 'member' as any,
+  memberId: 1,
+  member: createMember(),
+  projectId: 1,
+  project: {} as Project,
+  createdAt: new Date(),
+  updatedAt: new Date(),
+  ...overrides,
+});
 
 const presidencyActor: RequestAccessActor = {
   role: AreaRole.PRESIDENCIA,
@@ -509,8 +563,8 @@ describe('ProjectsService', () => {
     });
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false },
-      relations: ['area', 'labels', 'links', 'memberships'],
-      order: { createdAt: 'DESC' },
+      relations: ['area', 'labels', 'links', 'memberships', 'phases'],
+      order: { createdAt: 'DESC', phases: { orderIndex: 'ASC' } },
       skip: 5,
       take: 5,
     });
@@ -530,8 +584,8 @@ describe('ProjectsService', () => {
     });
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false },
-      relations: ['area', 'labels', 'links', 'memberships'],
-      order: { createdAt: 'DESC' },
+      relations: ['area', 'labels', 'links', 'memberships', 'phases'],
+      order: { createdAt: 'DESC', phases: { orderIndex: 'ASC' } },
       skip: 0,
       take: 10,
     });
@@ -560,8 +614,8 @@ describe('ProjectsService', () => {
         endDate: MoreThanOrEqual('2026-06-01'),
         labels: { normalizedName: In(['backend']) },
       },
-      relations: ['area', 'labels', 'links', 'memberships'],
-      order: { createdAt: 'DESC' },
+      relations: ['area', 'labels', 'links', 'memberships', 'phases'],
+      order: { createdAt: 'DESC', phases: { orderIndex: 'ASC' } },
       skip: 0,
       take: 10,
     });
@@ -577,8 +631,8 @@ describe('ProjectsService', () => {
 
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false, areaId: 3 },
-      relations: ['area', 'labels', 'links', 'memberships'],
-      order: { createdAt: 'DESC' },
+      relations: ['area', 'labels', 'links', 'memberships', 'phases'],
+      order: { createdAt: 'DESC', phases: { orderIndex: 'ASC' } },
       skip: 0,
       take: 10,
     });
@@ -594,8 +648,8 @@ describe('ProjectsService', () => {
 
     expect(projectsRepository.findAndCount).toHaveBeenCalledWith({
       where: { isArchived: false, id: In([2, 7]) },
-      relations: ['area', 'labels', 'links', 'memberships'],
-      order: { createdAt: 'DESC' },
+      relations: ['area', 'labels', 'links', 'memberships', 'phases'],
+      order: { createdAt: 'DESC', phases: { orderIndex: 'ASC' } },
       skip: 0,
       take: 10,
     });
@@ -631,6 +685,23 @@ describe('ProjectsService', () => {
         'memberships',
         'memberships.member',
       ],
+      select: {
+        memberships: {
+          id: true,
+          role: true,
+          memberId: true,
+          projectId: true,
+          createdAt: true,
+          updatedAt: true,
+          member: {
+            id: true,
+            firstNames: true,
+            lastNames: true,
+            activityStatus: true,
+            availabilityStatus: true,
+          },
+        },
+      },
       order: {
         phases: {
           orderIndex: 'ASC',
@@ -1046,5 +1117,158 @@ describe('ProjectsService', () => {
       new BadRequestException('Projects must keep at least one phase'),
     );
     expect(projectPhasesRepository.remove).not.toHaveBeenCalled();
+  });
+
+  describe('addTeamMember', () => {
+    it('adds an available area member to a project', async () => {
+      const project = createProject();
+      const member = createMember();
+      const membership = createProjectMembership();
+
+      projectsRepository.findOne?.mockResolvedValue(project);
+      membersRepository.findOne?.mockResolvedValue(member);
+      projectMembershipsRepository.findOne
+        ?.mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(membership);
+      projectMembershipsRepository.create?.mockReturnValue(membership);
+      projectMembershipsRepository.save?.mockResolvedValue(membership);
+
+      await expect(
+        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+      ).resolves.toEqual(membership);
+      expect(projectMembershipsRepository.create).toHaveBeenCalledWith({
+        projectId: 1,
+        memberId: 1,
+        role: 'member',
+      });
+      expect(projectMembershipsRepository.save).toHaveBeenCalledWith(membership);
+    });
+
+    it('rejects when the member does not exist', async () => {
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      membersRepository.findOne?.mockResolvedValue(null);
+
+      await expect(
+        service.addTeamMember(1, { memberId: 99, role: 'member' as any }, presidencyActor),
+      ).rejects.toThrow(new NotFoundException('Member with ID 99 not found'));
+      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects unavailable members', async () => {
+      const member = createMember({
+        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+      });
+
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      membersRepository.findOne?.mockResolvedValue(member);
+
+      await expect(
+        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Members marked as unavailable are not selectable when building a team',
+        ),
+      );
+      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a member that does not belong to the project area', async () => {
+      const project = createProject({ areaId: 2, area: createArea({ id: 2 }) });
+      const member = createMember({
+        memberships: [createAreaMembership({ areaId: 1 })],
+      });
+
+      projectsRepository.findOne?.mockResolvedValue(project);
+      membersRepository.findOne?.mockResolvedValue(member);
+
+      await expect(
+        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'A member can only be assigned to a project of their own area',
+        ),
+      );
+      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects a member already assigned to the project', async () => {
+      const project = createProject();
+      const member = createMember();
+      const existingMembership = createProjectMembership();
+
+      projectsRepository.findOne?.mockResolvedValue(project);
+      membersRepository.findOne?.mockResolvedValue(member);
+      projectMembershipsRepository.findOne?.mockResolvedValue(existingMembership);
+
+      await expect(
+        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+      ).rejects.toThrow(
+        new ConflictException('Member is already assigned to this project'),
+      );
+      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('updateTeamMemberRole', () => {
+    it('updates the role of an existing project membership', async () => {
+      const membership = createProjectMembership();
+      const updatedMembership = createProjectMembership({ role: 'lead' as any });
+
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      projectMembershipsRepository.findOne
+        ?.mockResolvedValueOnce(membership)
+        .mockResolvedValueOnce(updatedMembership);
+      projectMembershipsRepository.save?.mockResolvedValue(updatedMembership);
+
+      await expect(
+        service.updateTeamMemberRole(1, 1, { role: 'lead' as any }, presidencyActor),
+      ).resolves.toEqual(updatedMembership);
+      expect(projectMembershipsRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ role: 'lead' }),
+      );
+    });
+
+    it('rejects when the membership does not exist', async () => {
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      projectMembershipsRepository.findOne?.mockResolvedValue(null);
+
+      await expect(
+        service.updateTeamMemberRole(1, 99, { role: 'lead' as any }, presidencyActor),
+      ).rejects.toThrow(
+        new NotFoundException(
+          'Membership for member 99 in project 1 not found',
+        ),
+      );
+      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('removeTeamMember', () => {
+    it('removes an existing project membership', async () => {
+      const membership = createProjectMembership();
+
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      projectMembershipsRepository.findOne?.mockResolvedValue(membership);
+      projectMembershipsRepository.remove?.mockResolvedValue(membership);
+
+      await expect(
+        service.removeTeamMember(1, 1, presidencyActor),
+      ).resolves.toBeUndefined();
+      expect(projectMembershipsRepository.remove).toHaveBeenCalledWith(membership);
+    });
+
+    it('rejects when the membership does not exist', async () => {
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      projectMembershipsRepository.findOne?.mockResolvedValue(null);
+
+      await expect(
+        service.removeTeamMember(1, 99, presidencyActor),
+      ).rejects.toThrow(
+        new NotFoundException(
+          'Membership for member 99 in project 1 not found',
+        ),
+      );
+      expect(projectMembershipsRepository.remove).not.toHaveBeenCalled();
+    });
   });
 });

@@ -118,8 +118,8 @@ export class ProjectsService {
 
     const [data, total] = await this.projectsRepository.findAndCount({
       where,
-      relations: ['area', 'labels', 'links', 'memberships'],
-      order: { createdAt: 'DESC' },
+      relations: ['area', 'labels', 'links', 'memberships', 'phases'],
+      order: { createdAt: 'DESC', phases: { orderIndex: 'ASC' } },
       skip,
       take: limit,
     });
@@ -153,6 +153,23 @@ export class ProjectsService {
         'memberships',
         'memberships.member',
       ],
+      select: {
+        memberships: {
+          id: true,
+          role: true,
+          memberId: true,
+          projectId: true,
+          createdAt: true,
+          updatedAt: true,
+          member: {
+            id: true,
+            firstNames: true,
+            lastNames: true,
+            activityStatus: true,
+            availabilityStatus: true,
+          },
+        },
+      },
       order: {
         phases: {
           orderIndex: 'ASC',
@@ -195,6 +212,10 @@ export class ProjectsService {
       updateProjectDto.areaId !== undefined
         ? await this.areaService.findOne(updateProjectDto.areaId)
         : project.area;
+
+    if (updateProjectDto.areaId !== undefined && updateProjectDto.areaId !== project.areaId) {
+      await this.assertTeamBelongsToArea(project.id, updateProjectDto.areaId);
+    }
 
     await this.projectsRepository.manager.transaction(async (entityManager) => {
       const projectsRepository = entityManager.getRepository(Project);
@@ -755,6 +776,29 @@ export class ProjectsService {
     throw new ForbiddenException(
       'Project management is limited to your own area',
     );
+  }
+
+  private async assertTeamBelongsToArea(
+    projectId: number,
+    newAreaId: number,
+  ): Promise<void> {
+    const memberships = await this.projectMembershipsRepository.find({
+      where: { projectId },
+      relations: ['member', 'member.memberships'],
+    });
+
+    const invalidMember = memberships.find(
+      (membership) =>
+        !membership.member.memberships?.some(
+          (areaMembership) => areaMembership.areaId === newAreaId,
+        ),
+    );
+
+    if (invalidMember) {
+      throw new BadRequestException(
+        `Cannot move project to area ${newAreaId}: member ${invalidMember.memberId} does not belong to that area. Remove conflicting team members before changing the area.`,
+      );
+    }
   }
 
   private async findPhaseOrThrow(
