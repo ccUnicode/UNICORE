@@ -17,11 +17,13 @@ import {
 import { AreaService } from '../area/area.service';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { ProjectRole } from '../common/enums/project-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Member } from '../members/member.entity';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberStatus } from '../members/enums/member-status.enum';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectLabel } from './entities/project-label.entity';
@@ -151,7 +153,7 @@ const createMember = (overrides: Partial<Member> = {}): Member => ({
   activityStatus: MemberActivityStatus.ACTIVE,
   availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
   skills: [],
-  status: 'available' as any,
+  status: MemberStatus.Available,
   memberships: [createAreaMembership()],
   projectMemberships: [],
   createdAt: new Date(),
@@ -163,7 +165,7 @@ const createProjectMembership = (
   overrides: Partial<ProjectMembership> = {},
 ): ProjectMembership => ({
   id: 1,
-  role: 'member' as any,
+  role: ProjectRole.MEMBER,
   memberId: 1,
   member: createMember(),
   projectId: 1,
@@ -1134,14 +1136,20 @@ describe('ProjectsService', () => {
       projectMembershipsRepository.save?.mockResolvedValue(membership);
 
       await expect(
-        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
       ).resolves.toEqual(membership);
       expect(projectMembershipsRepository.create).toHaveBeenCalledWith({
         projectId: 1,
         memberId: 1,
         role: 'member',
       });
-      expect(projectMembershipsRepository.save).toHaveBeenCalledWith(membership);
+      expect(projectMembershipsRepository.save).toHaveBeenCalledWith(
+        membership,
+      );
     });
 
     it('rejects when the member does not exist', async () => {
@@ -1149,7 +1157,11 @@ describe('ProjectsService', () => {
       membersRepository.findOne?.mockResolvedValue(null);
 
       await expect(
-        service.addTeamMember(1, { memberId: 99, role: 'member' as any }, presidencyActor),
+        service.addTeamMember(
+          1,
+          { memberId: 99, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
       ).rejects.toThrow(new NotFoundException('Member with ID 99 not found'));
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
     });
@@ -1163,7 +1175,11 @@ describe('ProjectsService', () => {
       membersRepository.findOne?.mockResolvedValue(member);
 
       await expect(
-        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
       ).rejects.toThrow(
         new BadRequestException(
           'Members marked as unavailable are not selectable when building a team',
@@ -1182,7 +1198,11 @@ describe('ProjectsService', () => {
       membersRepository.findOne?.mockResolvedValue(member);
 
       await expect(
-        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
       ).rejects.toThrow(
         new BadRequestException(
           'A member can only be assigned to a project of their own area',
@@ -1198,10 +1218,16 @@ describe('ProjectsService', () => {
 
       projectsRepository.findOne?.mockResolvedValue(project);
       membersRepository.findOne?.mockResolvedValue(member);
-      projectMembershipsRepository.findOne?.mockResolvedValue(existingMembership);
+      projectMembershipsRepository.findOne?.mockResolvedValue(
+        existingMembership,
+      );
 
       await expect(
-        service.addTeamMember(1, { memberId: 1, role: 'member' as any }, presidencyActor),
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
       ).rejects.toThrow(
         new ConflictException('Member is already assigned to this project'),
       );
@@ -1212,7 +1238,9 @@ describe('ProjectsService', () => {
   describe('updateTeamMemberRole', () => {
     it('updates the role of an existing project membership', async () => {
       const membership = createProjectMembership();
-      const updatedMembership = createProjectMembership({ role: 'lead' as any });
+      const updatedMembership = createProjectMembership({
+        role: ProjectRole.REPRESENTATIVE,
+      });
 
       projectsRepository.findOne?.mockResolvedValue(createProject());
       projectMembershipsRepository.findOne
@@ -1221,10 +1249,15 @@ describe('ProjectsService', () => {
       projectMembershipsRepository.save?.mockResolvedValue(updatedMembership);
 
       await expect(
-        service.updateTeamMemberRole(1, 1, { role: 'lead' as any }, presidencyActor),
+        service.updateTeamMemberRole(
+          1,
+          1,
+          { role: ProjectRole.REPRESENTATIVE },
+          presidencyActor,
+        ),
       ).resolves.toEqual(updatedMembership);
       expect(projectMembershipsRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({ role: 'lead' }),
+        expect.objectContaining({ role: ProjectRole.REPRESENTATIVE }),
       );
     });
 
@@ -1233,7 +1266,12 @@ describe('ProjectsService', () => {
       projectMembershipsRepository.findOne?.mockResolvedValue(null);
 
       await expect(
-        service.updateTeamMemberRole(1, 99, { role: 'lead' as any }, presidencyActor),
+        service.updateTeamMemberRole(
+          1,
+          99,
+          { role: ProjectRole.REPRESENTATIVE },
+          presidencyActor,
+        ),
       ).rejects.toThrow(
         new NotFoundException(
           'Membership for member 99 in project 1 not found',
@@ -1254,7 +1292,9 @@ describe('ProjectsService', () => {
       await expect(
         service.removeTeamMember(1, 1, presidencyActor),
       ).resolves.toBeUndefined();
-      expect(projectMembershipsRepository.remove).toHaveBeenCalledWith(membership);
+      expect(projectMembershipsRepository.remove).toHaveBeenCalledWith(
+        membership,
+      );
     });
 
     it('rejects when the membership does not exist', async () => {

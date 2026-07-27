@@ -213,7 +213,10 @@ export class ProjectsService {
         ? await this.areaService.findOne(updateProjectDto.areaId)
         : project.area;
 
-    if (updateProjectDto.areaId !== undefined && updateProjectDto.areaId !== project.areaId) {
+    if (
+      updateProjectDto.areaId !== undefined &&
+      updateProjectDto.areaId !== project.areaId
+    ) {
       await this.assertTeamBelongsToArea(project.id, updateProjectDto.areaId);
     }
 
