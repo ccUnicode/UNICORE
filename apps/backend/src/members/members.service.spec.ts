@@ -79,6 +79,7 @@ describe('MembersService', () => {
       create: jest.fn(),
       save: jest.fn(),
       find: jest.fn(),
+      findOne: jest.fn(),
       createQueryBuilder: jest.fn(),
       preload: jest.fn(),
     };
@@ -396,17 +397,23 @@ describe('MembersService', () => {
         availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
       };
 
-      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
       membersRepository.save?.mockResolvedValue(updatedMember);
 
       await expect(service.update(10, updateDto)).resolves.toEqual(
         updatedMember,
       );
-      expect(membersRepository.preload).toHaveBeenCalledWith({
-        id: 10,
-        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 10 },
+        relations: ['memberships'],
       });
-      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+        }),
+      );
       expect(areaMembershipsRepository.findOne).not.toHaveBeenCalled();
     });
 
@@ -417,17 +424,23 @@ describe('MembersService', () => {
         cycle: 5,
       };
 
-      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
       membersRepository.save?.mockResolvedValue(updatedMember);
 
       await expect(service.update(10, updateDto)).resolves.toEqual(
         updatedMember,
       );
-      expect(membersRepository.preload).toHaveBeenCalledWith({
-        id: 10,
-        cycle: 5,
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 10 },
+        relations: ['memberships'],
       });
-      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          cycle: 5,
+        }),
+      );
     });
 
     it('successfully updates a member activity status', async () => {
@@ -437,16 +450,23 @@ describe('MembersService', () => {
         activityStatus: MemberActivityStatus.INACTIVE,
       };
 
-      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
       membersRepository.save?.mockResolvedValue(updatedMember);
 
       await expect(service.update(10, updateDto)).resolves.toEqual(
         updatedMember,
       );
-      expect(membersRepository.preload).toHaveBeenCalledWith({
-        id: 10,
-        activityStatus: MemberActivityStatus.INACTIVE,
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 10 },
+        relations: ['memberships'],
       });
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activityStatus: MemberActivityStatus.INACTIVE,
+        }),
+      );
     });
 
     it('throws NotFoundException when updating with a non-existent areaId', async () => {
@@ -460,7 +480,7 @@ describe('MembersService', () => {
       expect(areasRepository.exists).toHaveBeenCalledWith({
         where: { id: 999 },
       });
-      expect(membersRepository.preload).not.toHaveBeenCalled();
+      expect(membersRepository.findOne).not.toHaveBeenCalled();
     });
 
     it('throws NotFoundException when member to update does not exist', async () => {
@@ -468,14 +488,14 @@ describe('MembersService', () => {
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
 
-      membersRepository.preload?.mockResolvedValue(null);
+      membersRepository.findOne?.mockResolvedValue(null);
 
       await expect(service.update(99, updateDto)).rejects.toThrow(
         new NotFoundException('Member with ID 99 not found'),
       );
-      expect(membersRepository.preload).toHaveBeenCalledWith({
-        id: 99,
-        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 99 },
+        relations: ['memberships'],
       });
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
@@ -490,16 +510,21 @@ describe('MembersService', () => {
         role: AreaRole.DIRECTIVA_DE_AREA,
       };
       areaMembershipsRepository.findOne?.mockResolvedValue(mockMembership);
-      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
       membersRepository.save?.mockResolvedValue(updatedMember);
 
       await expect(service.update(10, updateDto)).resolves.toEqual(
         updatedMember,
       );
-      expect(membersRepository.preload).toHaveBeenCalledWith({
-        id: 10,
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 10 },
+        relations: ['memberships'],
       });
-      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        persistedAreaDirectiveMember,
+      );
       expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
         where: {
           member: { id: 10 },
@@ -525,7 +550,9 @@ describe('MembersService', () => {
       };
       areaMembershipsRepository.findOne?.mockResolvedValue(mockMembership);
       areasRepository.exists?.mockResolvedValue(true);
-      membersRepository.preload?.mockResolvedValue(updatedMember);
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
       membersRepository.save?.mockResolvedValue(updatedMember);
 
       await expect(service.update(10, updateDto)).resolves.toEqual(
@@ -534,10 +561,13 @@ describe('MembersService', () => {
       expect(areasRepository.exists).toHaveBeenCalledWith({
         where: { id: 5 },
       });
-      expect(membersRepository.preload).toHaveBeenCalledWith({
-        id: 10,
+      expect(membersRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 10 },
+        relations: ['memberships'],
       });
-      expect(membersRepository.save).toHaveBeenCalledWith(updatedMember);
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        persistedAreaDirectiveMember,
+      );
       expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
         where: {
           member: { id: 10 },

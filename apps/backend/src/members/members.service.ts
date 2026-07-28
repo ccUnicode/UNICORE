@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, In, Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -80,17 +80,23 @@ export class MembersService {
       await this.validateAreaExists(areaId);
     }
 
-    const preloadData: DeepPartial<Member> = {
-      id,
-      ...(activityStatus !== undefined && { activityStatus }),
-      ...(availabilityStatus !== undefined && { availabilityStatus }),
-      ...(cycle !== undefined && { cycle: cycle === null ? null : cycle }),
-    };
-
-    const member = await this.membersRepository.preload(preloadData);
+    const member = await this.membersRepository.findOne({
+      where: { id },
+      relations: ['memberships'],
+    });
 
     if (!member) {
       throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    if (activityStatus !== undefined) {
+      member.activityStatus = activityStatus;
+    }
+    if (availabilityStatus !== undefined) {
+      member.availabilityStatus = availabilityStatus;
+    }
+    if (cycle !== undefined) {
+      member.cycle = cycle === null ? null : cycle;
     }
 
     const savedMember = await this.membersRepository.save(member);
