@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { ConfirmNameDto } from '../common/dto/confirm-name.dto';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
@@ -48,5 +49,19 @@ export class MembersController {
     @Body() updateMemberDto: UpdateMemberDto,
   ): Promise<Member> {
     return this.membersService.update(id, updateMemberDto);
+  }
+
+  @Patch(':id/deactivate')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  deactivate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() confirmNameDto: ConfirmNameDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ): Promise<Member> {
+    return this.membersService.deactivate(
+      id,
+      confirmNameDto.confirmName,
+      accessActor,
+    );
   }
 }

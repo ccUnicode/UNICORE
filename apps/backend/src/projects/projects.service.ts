@@ -68,7 +68,7 @@ export class ProjectsService {
           endDate: createProjectDto.endDate ?? null,
           areaId: area.id,
           area,
-          status: createProjectDto.status ?? ProjectStatus.PLANNED,
+          status: ProjectStatus.PLANNED,
           isArchived: false,
           labels,
         });
@@ -153,6 +153,16 @@ export class ProjectsService {
     updateProjectDto: UpdateProjectDto,
     accessActor: RequestAccessActor,
   ): Promise<Project> {
+    const hasUpdates = Object.values(updateProjectDto).some(
+      (value) => value !== undefined,
+    );
+
+    if (!hasUpdates) {
+      throw new BadRequestException(
+        'At least one project field must be provided',
+      );
+    }
+
     const project = await this.findProjectDetails(id);
     this.assertProjectManagementAccess(project, accessActor);
     const startDate =

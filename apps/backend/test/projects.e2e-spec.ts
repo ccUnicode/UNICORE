@@ -63,6 +63,12 @@ describe('ProjectsController access (e2e)', () => {
           };
         }
 
+        if (authorization === 'Bearer presidency') {
+          request.accessActor = {
+            role: AreaRole.PRESIDENCIA,
+          };
+        }
+
         next();
       },
     );
@@ -121,6 +127,35 @@ describe('ProjectsController access (e2e)', () => {
       {
         role: AreaRole.DIRECTIVA_DE_AREA,
         areaId: '1',
+        memberId: undefined,
+        projectIds: undefined,
+      },
+    );
+  });
+
+  it('does not accept a client-supplied initial project status', async () => {
+    mockProjectsService.create.mockResolvedValue({
+      id: 1,
+      name: 'Portal',
+      areaId: 1,
+      status: ProjectStatus.PLANNED,
+    });
+
+    await request(getHttpServer())
+      .post('/projects')
+      .set('authorization', 'Bearer presidency')
+      .send({
+        name: 'Portal',
+        areaId: 1,
+        status: ProjectStatus.ACTIVE,
+      })
+      .expect(201);
+
+    expect(mockProjectsService.create).toHaveBeenCalledWith(
+      { name: 'Portal', areaId: 1 },
+      {
+        role: AreaRole.PRESIDENCIA,
+        areaId: undefined,
         memberId: undefined,
         projectIds: undefined,
       },
