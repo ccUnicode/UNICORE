@@ -238,26 +238,20 @@ export default function Home() {
       setLoadState("loading");
       setError("");
       try {
-        const [areasResult, membersResult, projectsResult] = await Promise.allSettled([
-          getJson<Area[]>("/areas"),
-          getJson<Member[]>("/members"),
+        const isMember = ACCESS_HEADERS["x-role"] === "miembro";
+        const [loadedAreas, loadedMembers, loadedProjects] = await Promise.all([
+          isMember ? Promise.resolve([]) : getJson<Area[]>("/areas"),
+          isMember ? Promise.resolve([]) : getJson<Member[]>("/members"),
           getAllProjects(),
         ]);
 
         if (ignore) return;
 
-        if (areasResult.status === "fulfilled") {
-          setAreas(areasResult.value);
-          setSelectedAreaId((current) => current ?? areasResult.value[0]?.id ?? null);
-        }
-        if (membersResult.status === "fulfilled") {
-          setMembers(membersResult.value);
-          setSelectedMemberId((current) => current ?? membersResult.value[0]?.id ?? null);
-        }
-        if (projectsResult.status === "rejected") {
-          throw projectsResult.reason;
-        }
-        setProjects(projectsResult.value);
+        setAreas(loadedAreas);
+        setSelectedAreaId((current) => current ?? loadedAreas[0]?.id ?? null);
+        setMembers(loadedMembers);
+        setSelectedMemberId((current) => current ?? loadedMembers[0]?.id ?? null);
+        setProjects(loadedProjects);
         setLoadState("ready");
       } catch (currentError) {
         if (ignore) return;

@@ -249,6 +249,7 @@ describe('ProjectsService', () => {
     projectMembershipsRepository = {
       create: jest.fn(),
       save: jest.fn(),
+      find: jest.fn(),
       findOne: jest.fn(),
       remove: jest.fn(),
     };
@@ -261,11 +262,15 @@ describe('ProjectsService', () => {
           | typeof Project
           | typeof ProjectPhase
           | typeof ProjectLabel
-          | typeof ProjectLink,
+          | typeof ProjectLink
+          | typeof ProjectMembership
+          | typeof Member,
       ) => {
         if (entity === Project) return projectsRepository;
         if (entity === ProjectPhase) return projectPhasesRepository;
         if (entity === ProjectLabel) return projectLabelsRepository;
+        if (entity === ProjectMembership) return projectMembershipsRepository;
+        if (entity === Member) return membersRepository;
         return projectLinksRepository;
       },
     );
@@ -667,16 +672,38 @@ describe('ProjectsService', () => {
   });
 
   it('returns project detail with phases ordered by order index', async () => {
+    const membership = createProjectMembership();
     const project = createProject({
       phases: [
         createProjectPhase({ id: 1, orderIndex: 1 }),
         createProjectPhase({ id: 2, name: 'Execution', orderIndex: 2 }),
       ],
+      memberships: [membership],
     });
 
     projectsRepository.findOne?.mockResolvedValue(project);
 
-    await expect(service.findOne(1, presidencyActor)).resolves.toEqual(project);
+    const result = await service.findOne(1, presidencyActor);
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        name: project.name,
+        areaId: project.areaId,
+        startDate: project.startDate,
+        endDate: project.endDate,
+        status: project.status,
+        isArchived: project.isArchived,
+      }),
+    );
+    expect(result.memberships[0].member).toEqual({
+      id: membership.member.id,
+      firstNames: membership.member.firstNames,
+      lastNames: membership.member.lastNames,
+    });
+    expect(result.memberships[0].member).not.toHaveProperty('activityStatus');
+    expect(result.memberships[0].member).not.toHaveProperty(
+      'availabilityStatus',
+    );
     expect(projectsRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1 },
       relations: [
@@ -687,23 +714,6 @@ describe('ProjectsService', () => {
         'memberships',
         'memberships.member',
       ],
-      select: {
-        memberships: {
-          id: true,
-          role: true,
-          memberId: true,
-          projectId: true,
-          createdAt: true,
-          updatedAt: true,
-          member: {
-            id: true,
-            firstNames: true,
-            lastNames: true,
-            activityStatus: true,
-            availabilityStatus: true,
-          },
-        },
-      },
       order: {
         phases: {
           orderIndex: 'ASC',
@@ -785,6 +795,10 @@ describe('ProjectsService', () => {
         labels: [label],
       }),
     );
+    expect(projectsRepository.findOne).toHaveBeenNthCalledWith(1, {
+      where: { id: 1 },
+      lock: { mode: 'pessimistic_write' },
+    });
   });
 
   it('validates date updates using cleared nullable boundaries', async () => {
@@ -859,6 +873,38 @@ describe('ProjectsService', () => {
       new ForbiddenException('Project management is limited to your own area'),
     );
     expect(mockAreaService.findOne).not.toHaveBeenCalled();
+    expect(projectsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('rejects an area change with an incompatible team while holding the project lock', async () => {
+    const newArea = createArea({ id: 2 });
+    const incompatibleMembership = createProjectMembership({
+      member: createMember({
+        memberships: [createAreaMembership({ areaId: 1 })],
+      }),
+    });
+
+    projectsRepository.findOne?.mockResolvedValue(createProject());
+    mockAreaService.findOne.mockResolvedValue(newArea);
+    projectMembershipsRepository.find?.mockResolvedValue([
+      incompatibleMembership,
+    ]);
+
+    await expect(
+      service.update(1, { areaId: 2 }, presidencyActor),
+    ).rejects.toThrow(
+      new BadRequestException(
+        'Cannot move project to area 2: member 1 does not belong to that area. Remove conflicting team members before changing the area.',
+      ),
+    );
+    expect(projectsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 1 },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(projectMembershipsRepository.find).toHaveBeenCalledWith({
+      where: { projectId: 1 },
+      relations: ['member', 'member.memberships'],
+    });
     expect(projectsRepository.save).not.toHaveBeenCalled();
   });
 
@@ -1150,6 +1196,11 @@ describe('ProjectsService', () => {
       expect(projectMembershipsRepository.save).toHaveBeenCalledWith(
         membership,
       );
+      expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+      expect(projectsRepository.findOne).toHaveBeenCalledWith({
+        where: { id: 1 },
+        lock: { mode: 'pessimistic_write' },
+      });
     });
 
     it('rejects when the member does not exist', async () => {
