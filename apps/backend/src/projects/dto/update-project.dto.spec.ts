@@ -67,4 +67,10 @@ describe('UpdateProjectDto', () => {
       ).rejects.toMatchObject({ status: 400 });
     },
   );
+
+  it('rejects unsupported project statuses', async () => {
+    await expect(
+      validationPipe.transform({ status: 'draft' }, bodyMetadata),
+    ).rejects.toMatchObject({ status: 400 });
+  });
 });

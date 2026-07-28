@@ -442,7 +442,6 @@ describe('ProjectsService', () => {
     });
     const project = createProject({
       area,
-      status: ProjectStatus.ACTIVE,
       labels: [backendLabel, priorityLabel],
     });
     const link = createProjectLink({ projectId: project.id });
@@ -462,7 +461,6 @@ describe('ProjectsService', () => {
       service.create(
         {
           ...createProjectDto,
-          status: ProjectStatus.ACTIVE,
           labels: ['Backend', 'Priority'],
           links: [
             {
@@ -799,6 +797,14 @@ describe('ProjectsService', () => {
       where: { id: 1 },
       lock: { mode: 'pessimistic_write' },
     });
+  });
+
+  it('rejects project updates without any fields', async () => {
+    await expect(service.update(1, {}, presidencyActor)).rejects.toThrow(
+      new BadRequestException('At least one project field must be provided'),
+    );
+    expect(projectsRepository.findOne).not.toHaveBeenCalled();
+    expect(projectsRepository.save).not.toHaveBeenCalled();
   });
 
   it('validates date updates using cleared nullable boundaries', async () => {

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
@@ -17,8 +18,20 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
+import { MemberStatus } from './enums/member-status.enum';
 import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
+
+const LEGACY_STATUS_BY_AVAILABILITY: Record<
+  MemberAvailabilityStatus,
+  MemberStatus
+> = {
+  [MemberAvailabilityStatus.AVAILABLE]: MemberStatus.Available,
+  [MemberAvailabilityStatus.UNAVAILABLE]: MemberStatus.Unavailable,
+  [MemberAvailabilityStatus.DISABLED]: MemberStatus.Disabled,
+};
 
 @Injectable()
 export class MembersService {
@@ -35,19 +48,20 @@ export class MembersService {
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
     const { skills, areaId, status, ...restDto } = createMemberDto;
+    const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
-      await this.validateAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId);
     }
 
     const resolvedSkills = await this.resolveSkills(skills);
 
     const member = this.membersRepository.create({
       ...restDto,
-      ...(status !== undefined &&
-        restDto.availabilityStatus === undefined && {
-          availabilityStatus: status,
-        }),
+      ...(resolvedAvailabilityStatus !== undefined && {
+        availabilityStatus: resolvedAvailabilityStatus,
+        status: LEGACY_STATUS_BY_AVAILABILITY[resolvedAvailabilityStatus],
+      }),
       role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
       area:
@@ -86,7 +100,7 @@ export class MembersService {
     const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
-      await this.validateAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId);
     }
 
     const preloadData: DeepPartial<Member> = {
@@ -94,6 +108,7 @@ export class MembersService {
       ...(activityStatus !== undefined && { activityStatus }),
       ...(resolvedAvailabilityStatus !== undefined && {
         availabilityStatus: resolvedAvailabilityStatus,
+        status: LEGACY_STATUS_BY_AVAILABILITY[resolvedAvailabilityStatus],
       }),
       ...(areaId !== undefined && {
         area: areaId === null ? null : { id: areaId },
@@ -141,6 +156,37 @@ export class MembersService {
     }
 
     return savedMember;
+  }
+
+  async deactivate(
+    id: number,
+    confirmName: string,
+    accessActor: RequestAccessActor,
+  ): Promise<Member> {
+    const member = await this.membersRepository.findOne({
+      where: { id },
+      relations: ['memberships'],
+    });
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    this.assertMemberDeactivationAccess(member, accessActor);
+
+    const exactName = `${member.firstNames} ${member.lastNames}`;
+    if (confirmName !== exactName) {
+      throw new BadRequestException(
+        'confirmName must exactly match the member full name',
+      );
+    }
+
+    member.activityStatus = MemberActivityStatus.INACTIVE;
+    member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
+    member.status =
+      LEGACY_STATUS_BY_AVAILABILITY[MemberAvailabilityStatus.DISABLED];
+
+    return this.membersRepository.save(member);
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
@@ -249,12 +295,38 @@ export class MembersService {
     return [...existingSkills, ...savedNewSkills];
   }
 
-  private async validateAreaExists(areaId: number): Promise<void> {
+  private async validateActiveAreaExists(areaId: number): Promise<void> {
     const areaExists = await this.areasRepository.exists({
-      where: { id: areaId },
+      where: { id: areaId, isArchived: false },
     });
     if (!areaExists) {
       throw new NotFoundException(`Area with ID ${areaId} not found`);
     }
+  }
+
+  private assertMemberDeactivationAccess(
+    member: Member,
+    accessActor: RequestAccessActor,
+  ): void {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const actorAreaId = parseAreaId(accessActor.areaId);
+      const belongsToActorArea =
+        member.areaId === actorAreaId ||
+        member.memberships.some(
+          (membership) => membership.areaId === actorAreaId,
+        );
+
+      if (belongsToActorArea) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException(
+      'Member deactivation is limited to members in your own area',
+    );
   }
 }
