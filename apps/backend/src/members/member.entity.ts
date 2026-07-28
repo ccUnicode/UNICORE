@@ -72,26 +72,28 @@ export class Member {
   memberships: AreaMembership[];
 
   get role(): AreaRole {
-    if (!this.memberships || this.memberships.length === 0) {
-      return AreaRole.MIEMBRO;
-    }
-    const roles = this.memberships.map((m) => m.role);
-    if (roles.includes(AreaRole.PRESIDENCIA)) {
-      return AreaRole.PRESIDENCIA;
-    }
-    if (roles.includes(AreaRole.DIRECTIVA_DE_AREA)) {
-      return AreaRole.DIRECTIVA_DE_AREA;
-    }
-    return AreaRole.MIEMBRO;
+    const primary = getPrimaryMembership(this.memberships);
+    return primary ? primary.role : AreaRole.MIEMBRO;
   }
 
   get areaId(): number | null {
-    if (!this.memberships || this.memberships.length === 0) {
-      return null;
-    }
-    const membership = this.memberships.find(
-      (m) => m.areaId !== null && m.areaId !== undefined,
-    );
-    return membership ? membership.areaId : null;
+    const primary = getPrimaryMembership(this.memberships);
+    return primary ? primary.areaId : null;
   }
 }
+
+const getPrimaryMembership = (
+  memberships: AreaMembership[],
+): AreaMembership | null => {
+  if (!memberships || memberships.length === 0) {
+    return null;
+  }
+  const priority: Record<AreaRole, number> = {
+    [AreaRole.PRESIDENCIA]: 1,
+    [AreaRole.DIRECTIVA_DE_AREA]: 2,
+    [AreaRole.MIEMBRO]: 3,
+  };
+  return [...memberships].sort((a, b) => {
+    return (priority[a.role] || 3) - (priority[b.role] || 3);
+  })[0];
+};
