@@ -84,6 +84,41 @@ describe('AuthGuard', () => {
       areaId: '3',
     });
     expect(request.authenticatedMember).toBe(member);
+    expect(membersRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 7 },
+      relations: { projectMemberships: true },
+    });
+  });
+
+  it('loads persisted project scope for authenticated members', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(false),
+    } as unknown as Reflector;
+    const guard = new AuthGuard(reflector, tokenService, membersRepository);
+    const request = {
+      headers: { authorization: 'Bearer valid-token' },
+    } as Partial<AccessControlledRequest>;
+
+    jest.mocked(tokenService.verify).mockReturnValue({
+      sub: 9,
+      iat: 1,
+      exp: 2,
+    });
+    jest.mocked(membersRepository.findOne).mockResolvedValue({
+      id: 9,
+      role: AreaRole.MIEMBRO,
+      areaId: null,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      projectMemberships: [{ projectId: 3 }, { projectId: 8 }],
+    } as Member);
+
+    await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
+    expect(request.accessActor).toEqual({
+      role: AreaRole.MIEMBRO,
+      memberId: '9',
+      areaId: undefined,
+      projectIds: ['3', '8'],
+    });
   });
 
   it('rejects inactive authenticated members', async () => {

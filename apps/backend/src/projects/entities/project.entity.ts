@@ -14,6 +14,7 @@ import { Area } from '../../area/entities/area.entity';
 import { ProjectStatus } from '../enums/project-status.enum';
 import { ProjectLabel } from './project-label.entity';
 import { ProjectLink } from './project-link.entity';
+import { ProjectMembership } from './project-membership.entity';
 import { ProjectPhase } from './project-phase.entity';
 
 @Entity('projects')
@@ -59,6 +60,9 @@ export class Project {
 
   @OneToMany(() => ProjectLink, (link) => link.project)
   links: ProjectLink[];
+
+  @OneToMany(() => ProjectMembership, (membership) => membership.project)
+  memberships?: ProjectMembership[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -18,12 +18,23 @@ describe('AuthService', () => {
     getOne: jest.fn(),
     getCount: jest.fn(),
   };
+  const entityManager = {
+    query: jest.fn(),
+    getRepository: jest.fn(),
+  };
+  const transaction = jest.fn(
+    async (callback: (manager: typeof entityManager) => Promise<unknown>) =>
+      callback(entityManager),
+  );
   const membersRepository = {
     count: jest.fn(),
     createQueryBuilder: jest.fn(),
     exists: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
+    manager: {
+      transaction,
+    },
   } as unknown as Repository<Member>;
   const membersService = {
     create: jest.fn(),
@@ -49,6 +60,7 @@ describe('AuthService', () => {
     queryBuilder.addSelect.mockReturnValue(queryBuilder);
     queryBuilder.where.mockReturnValue(queryBuilder);
     queryBuilder.andWhere.mockReturnValue(queryBuilder);
+    entityManager.getRepository.mockReturnValue(membersRepository);
     jest
       .mocked(membersRepository.createQueryBuilder)
       .mockReturnValue(queryBuilder as never);
@@ -88,6 +100,10 @@ describe('AuthService', () => {
     expect(membersRepository.update).toHaveBeenCalledWith(4, {
       passwordHash: 'stored-hash',
     });
+    expect(entityManager.query).toHaveBeenCalledWith(
+      'SELECT pg_advisory_xact_lock($1::bigint)',
+      [1973111041],
+    );
   });
 
   it('rejects bootstrap after an account password exists', async () => {
@@ -110,7 +126,7 @@ describe('AuthService', () => {
         password: 'a-secure-password',
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(membersRepository.createQueryBuilder).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
   });
 
   it('returns a token for valid active credentials without exposing the hash', async () => {
@@ -143,6 +159,22 @@ describe('AuthService', () => {
     expect(queryBuilder.andWhere).toHaveBeenCalledWith(
       'member.studentCode = :studentCode',
       { studentCode: '20260007' },
+    );
+  });
+
+  it('performs password verification when the student code is unknown', async () => {
+    queryBuilder.getOne.mockResolvedValue(null);
+    jest.mocked(passwordService.verify).mockResolvedValue(false);
+
+    await expect(
+      service.login({
+        studentCode: 'unknown',
+        password: 'a-secure-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(passwordService.verify).toHaveBeenCalledWith(
+      'a-secure-password',
+      expect.stringMatching(/^scrypt\$16384\$8\$1\$/),
     );
   });
 });

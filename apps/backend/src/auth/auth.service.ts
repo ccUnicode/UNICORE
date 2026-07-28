@@ -19,6 +19,16 @@ import { BootstrapAuthDto } from './dto/bootstrap-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { PasswordService } from './password.service';
 
+const AUTH_BOOTSTRAP_LOCK_ID = 1_973_111_041;
+const DUMMY_PASSWORD_HASH = [
+  'scrypt',
+  '16384',
+  '8',
+  '1',
+  Buffer.alloc(16).toString('base64url'),
+  Buffer.alloc(64).toString('base64url'),
+].join('$');
+
 export interface AuthResponse {
   accessToken: string;
   tokenType: 'Bearer';
@@ -51,58 +61,75 @@ export class AuthService {
       throw new UnauthorizedException('Invalid bootstrap secret');
     }
 
-    const accountsWithPasswords = await this.membersRepository
-      .createQueryBuilder('member')
-      .where('member.passwordHash IS NOT NULL')
-      .getCount();
+    return this.membersRepository.manager.transaction(async (entityManager) => {
+      await entityManager.query('SELECT pg_advisory_xact_lock($1::bigint)', [
+        AUTH_BOOTSTRAP_LOCK_ID,
+      ]);
+      const membersRepository = entityManager.getRepository(Member);
+      const accountsWithPasswords = await membersRepository
+        .createQueryBuilder('member')
+        .where('member.passwordHash IS NOT NULL')
+        .getCount();
 
-    if (accountsWithPasswords > 0) {
-      throw new ConflictException(
-        'Authentication bootstrap is disabled after the first password is configured',
-      );
-    }
-
-    if (bootstrapDto.memberId !== undefined) {
-      if (bootstrapDto.member) {
-        throw new BadRequestException(
-          'Provide either memberId or member, not both',
+      if (accountsWithPasswords > 0) {
+        throw new ConflictException(
+          'Authentication bootstrap is disabled after the first password is configured',
         );
       }
 
-      const member = await this.membersRepository.findOne({
-        where: { id: bootstrapDto.memberId },
-      });
+      if (bootstrapDto.memberId !== undefined) {
+        if (bootstrapDto.member) {
+          throw new BadRequestException(
+            'Provide either memberId or member, not both',
+          );
+        }
 
-      if (!member || member.role !== AreaRole.PRESIDENCIA) {
+        const member = await membersRepository.findOne({
+          where: { id: bootstrapDto.memberId },
+        });
+
+        if (!member || member.role !== AreaRole.PRESIDENCIA) {
+          throw new ForbiddenException(
+            'The bootstrap member must exist and have the Presidencia role',
+          );
+        }
+
+        await this.setPassword(
+          member.id,
+          bootstrapDto.password,
+          membersRepository,
+        );
+        return this.createAuthResponse(member);
+      }
+
+      if (!bootstrapDto.member) {
+        throw new BadRequestException('member or memberId is required');
+      }
+
+      if ((await membersRepository.count()) > 0) {
+        throw new ConflictException(
+          'Use memberId to bootstrap an existing Presidencia member',
+        );
+      }
+
+      if (bootstrapDto.member.role !== AreaRole.PRESIDENCIA) {
         throw new ForbiddenException(
-          'The bootstrap member must exist and have the Presidencia role',
+          'The bootstrap member must have the Presidencia role',
         );
       }
 
-      await this.setPassword(member.id, bootstrapDto.password);
+      const member = await this.membersService.create(
+        bootstrapDto.member,
+        entityManager,
+      );
+      await this.setPassword(
+        member.id,
+        bootstrapDto.password,
+        membersRepository,
+      );
+
       return this.createAuthResponse(member);
-    }
-
-    if (!bootstrapDto.member) {
-      throw new BadRequestException('member or memberId is required');
-    }
-
-    if ((await this.membersRepository.count()) > 0) {
-      throw new ConflictException(
-        'Use memberId to bootstrap an existing Presidencia member',
-      );
-    }
-
-    if (bootstrapDto.member.role !== AreaRole.PRESIDENCIA) {
-      throw new ForbiddenException(
-        'The bootstrap member must have the Presidencia role',
-      );
-    }
-
-    const member = await this.membersService.create(bootstrapDto.member);
-    await this.setPassword(member.id, bootstrapDto.password);
-
-    return this.createAuthResponse(member);
+    });
   }
 
   async login(loginDto: LoginDto): Promise<AuthResponse> {
@@ -117,15 +144,14 @@ export class AuthService {
       })
       .getOne();
 
-    const credentialsAreValid =
-      member?.passwordHash &&
-      (await this.passwordService.verify(
-        loginDto.password,
-        member.passwordHash,
-      ));
+    const credentialsAreValid = await this.passwordService.verify(
+      loginDto.password,
+      member?.passwordHash ?? DUMMY_PASSWORD_HASH,
+    );
 
     if (
       !member ||
+      !member.passwordHash ||
       !credentialsAreValid ||
       member.activityStatus !== MemberActivityStatus.ACTIVE
     ) {
@@ -137,12 +163,16 @@ export class AuthService {
     return this.createAuthResponse(member);
   }
 
-  async setPassword(memberId: number, password: string): Promise<void> {
-    if (!(await this.membersRepository.exists({ where: { id: memberId } }))) {
+  async setPassword(
+    memberId: number,
+    password: string,
+    membersRepository: Repository<Member> = this.membersRepository,
+  ): Promise<void> {
+    if (!(await membersRepository.exists({ where: { id: memberId } }))) {
       throw new NotFoundException(`Member with ID ${memberId} not found`);
     }
 
-    await this.membersRepository.update(memberId, {
+    await membersRepository.update(memberId, {
       passwordHash: await this.passwordService.hash(password),
     });
   }

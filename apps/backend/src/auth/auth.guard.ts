@@ -39,6 +39,7 @@ export class AuthGuard implements CanActivate {
     const payload = this.tokenService.verify(this.extractBearerToken(request));
     const member = await this.membersRepository.findOne({
       where: { id: payload.sub },
+      relations: { projectMemberships: true },
     });
 
     if (!member || member.activityStatus !== MemberActivityStatus.ACTIVE) {
@@ -55,6 +56,12 @@ export class AuthGuard implements CanActivate {
       role: member.role,
       memberId: String(member.id),
       areaId: member.areaId ? String(member.areaId) : undefined,
+      projectIds:
+        member.role === AreaRole.MIEMBRO
+          ? (member.projectMemberships ?? []).map(({ projectId }) =>
+              String(projectId),
+            )
+          : undefined,
     };
     request.authenticatedMember = member;
 
