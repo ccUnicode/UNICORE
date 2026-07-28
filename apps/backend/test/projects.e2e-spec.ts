@@ -102,6 +102,35 @@ describe('ProjectsController access (e2e)', () => {
     );
   });
 
+  it('does not accept a client-supplied initial project status', async () => {
+    mockProjectsService.create.mockResolvedValue({
+      id: 1,
+      name: 'Portal',
+      areaId: 1,
+      status: ProjectStatus.PLANNED,
+    });
+
+    await request(getHttpServer())
+      .post('/projects')
+      .set('x-role', AreaRole.PRESIDENCIA)
+      .send({
+        name: 'Portal',
+        areaId: 1,
+        status: ProjectStatus.ACTIVE,
+      })
+      .expect(201);
+
+    expect(mockProjectsService.create).toHaveBeenCalledWith(
+      { name: 'Portal', areaId: 1 },
+      {
+        role: AreaRole.PRESIDENCIA,
+        areaId: undefined,
+        memberId: undefined,
+        projectIds: undefined,
+      },
+    );
+  });
+
   it('rejects project detail without an access actor', async () => {
     await request(getHttpServer()).get('/projects/1').expect(403);
 

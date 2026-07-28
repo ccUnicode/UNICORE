@@ -116,13 +116,13 @@ describe('AreaController', () => {
   });
 
   describe('archive', () => {
-    it('should archive an area', async () => {
+    it('archives an area with reinforced name confirmation', async () => {
       const expectedResult = { id: 1, name: 'Area 1', isArchived: true };
       mockAreaService.archive.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.archive(1);
+      const result = await controller.archive(1, { confirmName: 'Area 1' });
       expect(result).toEqual(expectedResult);
-      expect(mockAreaService.archive).toHaveBeenCalledWith(1);
+      expect(mockAreaService.archive).toHaveBeenCalledWith(1, 'Area 1');
     });
   });
 

@@ -1,6 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { AreaService } from './area.service';
 import { Area } from './entities/area.entity';
@@ -152,5 +156,29 @@ describe('AreaService', () => {
       message: `Area with name "${duplicateArea.name}" already exists`,
     });
     expect(mockAreaRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('archives an area when confirmName exactly matches', async () => {
+    const area = createArea();
+    const archivedArea = createArea({ isArchived: true });
+    repository.findOne.mockResolvedValue(area);
+    repository.save.mockResolvedValue(archivedArea);
+
+    await expect(service.archive(area.id, area.name)).resolves.toEqual(
+      archivedArea,
+    );
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: area.id, isArchived: true }),
+    );
+  });
+
+  it('rejects area archival when confirmName does not exactly match', async () => {
+    const area = createArea();
+    repository.findOne.mockResolvedValue(area);
+
+    await expect(service.archive(area.id, 'research')).rejects.toThrow(
+      BadRequestException,
+    );
+    expect(repository.save).not.toHaveBeenCalled();
   });
 });

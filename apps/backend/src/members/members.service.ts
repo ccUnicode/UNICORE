@@ -1,11 +1,12 @@
 import {
+  BadRequestException,
   ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { DeepPartial, In, Repository } from 'typeorm';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -17,8 +18,18 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
+import { MemberActivityStatus } from './enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
+
+interface LegacyCreateMemberInput extends CreateMemberDto {
+  status?: MemberAvailabilityStatus;
+}
+
+interface LegacyUpdateMemberInput extends UpdateMemberDto {
+  status?: MemberAvailabilityStatus;
+}
 
 @Injectable()
 export class MembersService {
@@ -34,18 +45,23 @@ export class MembersService {
   ) {}
 
   async create(createMemberDto: CreateMemberDto): Promise<Member> {
-    const { skills, areaId, ...restDto } = createMemberDto;
+    const { skills, areaId, status, ...restDto } =
+      createMemberDto as LegacyCreateMemberInput;
+    const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
-      await this.validateAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId);
     }
 
     const resolvedSkills = await this.resolveSkills(skills);
 
     const member = this.membersRepository.create({
       ...restDto,
+      ...(resolvedAvailabilityStatus !== undefined && {
+        availabilityStatus: resolvedAvailabilityStatus,
+      }),
       skills: resolvedSkills,
-    });
+    } as DeepPartial<Member>);
 
     try {
       const savedMember = await this.membersRepository.save(member);
@@ -73,11 +89,12 @@ export class MembersService {
   }
 
   async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
-    const { activityStatus, availabilityStatus, areaId, cycle } =
-      updateMemberDto;
+    const { activityStatus, availabilityStatus, status, areaId, cycle } =
+      updateMemberDto as LegacyUpdateMemberInput;
+    const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
-      await this.validateAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId);
     }
 
     const member = await this.membersRepository.findOne({
@@ -92,8 +109,8 @@ export class MembersService {
     if (activityStatus !== undefined) {
       member.activityStatus = activityStatus;
     }
-    if (availabilityStatus !== undefined) {
-      member.availabilityStatus = availabilityStatus;
+    if (resolvedAvailabilityStatus !== undefined) {
+      member.availabilityStatus = resolvedAvailabilityStatus;
     }
     if (cycle !== undefined) {
       member.cycle = cycle === null ? null : cycle;
@@ -139,6 +156,35 @@ export class MembersService {
     });
 
     return savedMember;
+  }
+
+  async deactivate(
+    id: number,
+    confirmName: string,
+    accessActor: RequestAccessActor,
+  ): Promise<Member> {
+    const member = await this.membersRepository.findOne({
+      where: { id },
+      relations: ['memberships'],
+    });
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    this.assertMemberDeactivationAccess(member, accessActor);
+
+    const exactName = `${member.firstNames} ${member.lastNames}`;
+    if (confirmName !== exactName) {
+      throw new BadRequestException(
+        'confirmName must exactly match the member full name',
+      );
+    }
+
+    member.activityStatus = MemberActivityStatus.INACTIVE;
+    member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
+
+    return this.membersRepository.save(member);
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
@@ -251,12 +297,38 @@ export class MembersService {
     return [...existingSkills, ...savedNewSkills];
   }
 
-  private async validateAreaExists(areaId: number): Promise<void> {
+  private async validateActiveAreaExists(areaId: number): Promise<void> {
     const areaExists = await this.areasRepository.exists({
-      where: { id: areaId },
+      where: { id: areaId, isArchived: false },
     });
     if (!areaExists) {
       throw new NotFoundException(`Area with ID ${areaId} not found`);
     }
+  }
+
+  private assertMemberDeactivationAccess(
+    member: Member,
+    accessActor: RequestAccessActor,
+  ): void {
+    if (accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const actorAreaId = parseAreaId(accessActor.areaId);
+      const belongsToActorArea =
+        member.areaId === actorAreaId ||
+        member.memberships.some(
+          (membership) => membership.areaId === actorAreaId,
+        );
+
+      if (belongsToActorArea) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException(
+      'Member deactivation is limited to members in your own area',
+    );
   }
 }
