@@ -62,7 +62,7 @@ export class Project {
   links: ProjectLink[];
 
   @OneToMany(() => ProjectMembership, (membership) => membership.project)
-  memberships?: ProjectMembership[];
+  memberships: ProjectMembership[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

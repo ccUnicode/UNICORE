@@ -68,6 +68,7 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     phases: [],
     labels: [],
     links: [],
+    memberships: [],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -90,6 +91,9 @@ describe('ProjectsController', () => {
     updatePhase: jest.fn(),
     reorderPhases: jest.fn(),
     deletePhase: jest.fn(),
+    addTeamMember: jest.fn(),
+    updateTeamMemberRole: jest.fn(),
+    removeTeamMember: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -220,6 +224,9 @@ describe('ProjectsController', () => {
       'reorderPhases',
       'updatePhase',
       'deletePhase',
+      'addTeamMember',
+      'updateTeamMemberRole',
+      'removeTeamMember',
     ] as const)('restricts %s to Presidencia and Directiva', (methodName) => {
       expect(
         Reflect.getMetadata(ROLES_KEY, getProjectsControllerMethod(methodName)),
@@ -254,6 +261,9 @@ describe('ProjectsController', () => {
         'reorderPhases',
         'updatePhase',
         'deletePhase',
+        'addTeamMember',
+        'updateTeamMemberRole',
+        'removeTeamMember',
       ] as const;
 
       routeMethods.forEach((methodName) => {

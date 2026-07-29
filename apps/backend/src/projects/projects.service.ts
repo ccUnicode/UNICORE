@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -17,17 +18,24 @@ import { AreaService } from '../area/area.service';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { isUniqueViolation } from '../common/utils/database-errors.util';
 import { parseAreaId } from '../common/utils/parse-area-id.util';
+import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
+import { Member } from '../members/member.entity';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
+import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
 import { CreateProjectLinkDto } from './dto/create-project-link.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { GetProjectsFilterDto } from './dto/get-projects-filter.dto';
 import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { UpdateProjectMemberDto } from './dto/update-project-member.dto';
 import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
 import { ProjectLabel } from './entities/project-label.entity';
 import { ProjectLink } from './entities/project-link.entity';
+import { ProjectMembership } from './entities/project-membership.entity';
 import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
@@ -43,6 +51,10 @@ export class ProjectsService {
     private readonly projectLabelsRepository: Repository<ProjectLabel>,
     @InjectRepository(ProjectLink)
     private readonly projectLinksRepository: Repository<ProjectLink>,
+    @InjectRepository(ProjectMembership)
+    private readonly projectMembershipsRepository: Repository<ProjectMembership>,
+    @InjectRepository(Member)
+    private readonly membersRepository: Repository<Member>,
     private readonly areaService: AreaService,
   ) {}
 
@@ -106,8 +118,8 @@ export class ProjectsService {
 
     const [data, total] = await this.projectsRepository.findAndCount({
       where,
-      relations: ['area', 'labels', 'links'],
-      order: { createdAt: 'DESC' },
+      relations: ['area', 'labels', 'links', 'memberships', 'phases'],
+      order: { createdAt: 'DESC', phases: { orderIndex: 'ASC' } },
       skip,
       take: limit,
     });
@@ -133,7 +145,14 @@ export class ProjectsService {
   private async findProjectDetails(id: number): Promise<Project> {
     const project = await this.projectsRepository.findOne({
       where: { id },
-      relations: ['area', 'phases', 'labels', 'links'],
+      relations: [
+        'area',
+        'phases',
+        'labels',
+        'links',
+        'memberships',
+        'memberships.member',
+      ],
       order: {
         phases: {
           orderIndex: 'ASC',
@@ -144,6 +163,9 @@ export class ProjectsService {
     if (!project) {
       throw new NotFoundException(`Project with ID ${id} not found`);
     }
+
+    this.sortMembershipsByActivity(project);
+    this.limitProjectTeamMemberFields(project);
 
     return project;
   }
@@ -163,30 +185,43 @@ export class ProjectsService {
       );
     }
 
-    const project = await this.findProjectDetails(id);
-    this.assertProjectManagementAccess(project, accessActor);
-    const startDate =
-      updateProjectDto.startDate !== undefined
-        ? updateProjectDto.startDate
-        : project.startDate;
-    const endDate =
-      updateProjectDto.endDate !== undefined
-        ? updateProjectDto.endDate
-        : project.endDate;
-
-    this.validateDateRange({ startDate, endDate });
-
-    if (updateProjectDto.areaId !== undefined) {
-      this.assertAreaManagementAccess(updateProjectDto.areaId, accessActor);
-    }
-
-    const area =
-      updateProjectDto.areaId !== undefined
-        ? await this.areaService.findOne(updateProjectDto.areaId)
-        : project.area;
-
     await this.projectsRepository.manager.transaction(async (entityManager) => {
       const projectsRepository = entityManager.getRepository(Project);
+      const project = await this.findProjectForUpdate(
+        id,
+        projectsRepository,
+        accessActor,
+      );
+      const startDate =
+        updateProjectDto.startDate !== undefined
+          ? updateProjectDto.startDate
+          : project.startDate;
+      const endDate =
+        updateProjectDto.endDate !== undefined
+          ? updateProjectDto.endDate
+          : project.endDate;
+
+      this.validateDateRange({ startDate, endDate });
+
+      if (updateProjectDto.areaId !== undefined) {
+        this.assertAreaManagementAccess(updateProjectDto.areaId, accessActor);
+      }
+
+      const area =
+        updateProjectDto.areaId !== undefined
+          ? await this.areaService.findOne(updateProjectDto.areaId)
+          : project.area;
+
+      if (
+        updateProjectDto.areaId !== undefined &&
+        updateProjectDto.areaId !== project.areaId
+      ) {
+        await this.assertTeamBelongsToArea(
+          project.id,
+          updateProjectDto.areaId,
+          entityManager.getRepository(ProjectMembership),
+        );
+      }
 
       if (updateProjectDto.name !== undefined) {
         project.name = updateProjectDto.name;
@@ -420,6 +455,126 @@ export class ProjectsService {
     );
   }
 
+  async addTeamMember(
+    projectId: number,
+    addDto: AddProjectMemberDto,
+    accessActor: RequestAccessActor,
+  ): Promise<ProjectMembership> {
+    return this.projectsRepository.manager.transaction(
+      async (entityManager) => {
+        const project = await this.findProjectForUpdate(
+          projectId,
+          entityManager.getRepository(Project),
+          accessActor,
+        );
+        const membersRepository = entityManager.getRepository(Member);
+        const projectMembershipsRepository =
+          entityManager.getRepository(ProjectMembership);
+        const member = await membersRepository.findOne({
+          where: { id: addDto.memberId },
+          relations: ['memberships'],
+        });
+
+        if (!member) {
+          throw new NotFoundException(
+            `Member with ID ${addDto.memberId} not found`,
+          );
+        }
+
+        if (member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE) {
+          throw new BadRequestException(
+            'Members marked as unavailable are not selectable when building a team',
+          );
+        }
+
+        const belongsToArea = member.memberships?.some(
+          (membership) => membership.areaId === project.areaId,
+        );
+        if (!belongsToArea) {
+          throw new BadRequestException(
+            'A member can only be assigned to a project of their own area',
+          );
+        }
+
+        const existingMembership = await projectMembershipsRepository.findOne({
+          where: { projectId, memberId: addDto.memberId },
+        });
+
+        if (existingMembership) {
+          throw new ConflictException(
+            'Member is already assigned to this project',
+          );
+        }
+
+        const membership = projectMembershipsRepository.create({
+          projectId,
+          memberId: addDto.memberId,
+          role: addDto.role,
+        });
+
+        try {
+          const saved = await projectMembershipsRepository.save(membership);
+          return projectMembershipsRepository.findOne({
+            where: { id: saved.id },
+            relations: ['member'],
+          }) as Promise<ProjectMembership>;
+        } catch (error) {
+          if (isUniqueViolation(error)) {
+            throw new ConflictException(
+              'Member is already assigned to this project',
+            );
+          }
+          throw error;
+        }
+      },
+    );
+  }
+
+  async updateTeamMemberRole(
+    projectId: number,
+    memberId: number,
+    updateDto: UpdateProjectMemberDto,
+    accessActor: RequestAccessActor,
+  ): Promise<ProjectMembership> {
+    await this.ensureProjectExists(projectId, accessActor, true);
+    const membership = await this.projectMembershipsRepository.findOne({
+      where: { projectId, memberId },
+    });
+
+    if (!membership) {
+      throw new NotFoundException(
+        `Membership for member ${memberId} in project ${projectId} not found`,
+      );
+    }
+
+    membership.role = updateDto.role;
+    const saved = await this.projectMembershipsRepository.save(membership);
+
+    return this.projectMembershipsRepository.findOne({
+      where: { id: saved.id },
+      relations: ['member'],
+    }) as Promise<ProjectMembership>;
+  }
+
+  async removeTeamMember(
+    projectId: number,
+    memberId: number,
+    accessActor: RequestAccessActor,
+  ): Promise<void> {
+    await this.ensureProjectExists(projectId, accessActor, true);
+    const membership = await this.projectMembershipsRepository.findOne({
+      where: { projectId, memberId },
+    });
+
+    if (!membership) {
+      throw new NotFoundException(
+        `Membership for member ${memberId} in project ${projectId} not found`,
+      );
+    }
+
+    await this.projectMembershipsRepository.remove(membership);
+  }
+
   private validateDateRange(dateRange: {
     startDate?: string | null;
     endDate?: string | null;
@@ -635,6 +790,31 @@ export class ProjectsService {
     );
   }
 
+  private async assertTeamBelongsToArea(
+    projectId: number,
+    newAreaId: number,
+    projectMembershipsRepository: Repository<ProjectMembership> = this
+      .projectMembershipsRepository,
+  ): Promise<void> {
+    const memberships = await projectMembershipsRepository.find({
+      where: { projectId },
+      relations: ['member', 'member.memberships'],
+    });
+
+    const invalidMember = memberships.find(
+      (membership) =>
+        !membership.member.memberships?.some(
+          (areaMembership) => areaMembership.areaId === newAreaId,
+        ),
+    );
+
+    if (invalidMember) {
+      throw new BadRequestException(
+        `Cannot move project to area ${newAreaId}: member ${invalidMember.memberId} does not belong to that area. Remove conflicting team members before changing the area.`,
+      );
+    }
+  }
+
   private async findPhaseOrThrow(
     projectId: number,
     phaseId: number,
@@ -674,5 +854,28 @@ export class ProjectsService {
     });
 
     return (lastPhase?.orderIndex ?? 0) + 1;
+  }
+
+  private sortMembershipsByActivity(project: Project): void {
+    project.memberships?.sort((a, b) => {
+      const aInactive =
+        a.member?.activityStatus === MemberActivityStatus.INACTIVE;
+      const bInactive =
+        b.member?.activityStatus === MemberActivityStatus.INACTIVE;
+      if (aInactive && !bInactive) return 1;
+      if (!aInactive && bInactive) return -1;
+      return 0;
+    });
+  }
+
+  private limitProjectTeamMemberFields(project: Project): void {
+    project.memberships?.forEach((membership) => {
+      if (!membership.member) {
+        return;
+      }
+
+      const { id, firstNames, lastNames } = membership.member;
+      membership.member = { id, firstNames, lastNames } as Member;
+    });
   }
 }
