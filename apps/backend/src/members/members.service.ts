@@ -119,12 +119,22 @@ export class MembersService {
     const savedMember = await this.membersRepository.save(member);
 
     if (areaId !== undefined) {
-      const existingMembership = await this.areaMembershipsRepository.findOne({
-        where: {
-          member: { id },
-          role: savedMember.role,
-        },
-      });
+      const roles = savedMember.memberships.map((m) => m.role);
+      let targetRole: AreaRole | null = null;
+      if (roles.includes(AreaRole.DIRECTIVA_DE_AREA)) {
+        targetRole = AreaRole.DIRECTIVA_DE_AREA;
+      } else if (roles.includes(AreaRole.MIEMBRO)) {
+        targetRole = AreaRole.MIEMBRO;
+      }
+
+      const existingMembership = targetRole
+        ? await this.areaMembershipsRepository.findOne({
+            where: {
+              member: { id },
+              role: targetRole,
+            },
+          })
+        : null;
 
       if (areaId === null) {
         if (existingMembership) {

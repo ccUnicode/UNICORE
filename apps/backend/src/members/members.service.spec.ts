@@ -137,7 +137,14 @@ describe('MembersService', () => {
       skills: persistedSkills,
       createdAt: new Date(),
       updatedAt: new Date(),
-      memberships: [],
+      memberships: [
+        {
+          id: 50,
+          memberId: 10,
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          area: { id: 3 } as Area,
+        } as AreaMembership,
+      ],
       get role(): AreaRole {
         return AreaRole.DIRECTIVA_DE_AREA;
       },
@@ -663,6 +670,86 @@ describe('MembersService', () => {
           area: { id: 5 },
         }),
       );
+    });
+
+    it('targets DIRECTIVA_DE_AREA membership when member is PRESIDENCIA and also has a DIRECTIVA_DE_AREA membership', async () => {
+      const updateDto = { areaId: 5 };
+      const updatedMember = {
+        ...persistedAreaDirectiveMember,
+      };
+
+      const mockDirectiveMembership = {
+        id: 50,
+        memberId: 10,
+        role: AreaRole.DIRECTIVA_DE_AREA,
+        area: { id: 3 },
+      };
+
+      const memberWithBothMemberships = {
+        ...persistedAreaDirectiveMember,
+        memberships: [
+          { id: 49, memberId: 10, role: AreaRole.PRESIDENCIA, area: null },
+          mockDirectiveMembership,
+        ],
+      } as unknown as Member;
+
+      areaMembershipsRepository.findOne?.mockResolvedValue(
+        mockDirectiveMembership,
+      );
+      areasRepository.exists?.mockResolvedValue(true);
+      membersRepository.findOne?.mockResolvedValue(memberWithBothMemberships);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        updatedMember,
+      );
+      expect(areasRepository.exists).toHaveBeenCalledWith({
+        where: { id: 5, isArchived: false },
+      });
+      expect(areaMembershipsRepository.findOne).toHaveBeenCalledWith({
+        where: {
+          member: { id: 10 },
+          role: AreaRole.DIRECTIVA_DE_AREA,
+        },
+      });
+      expect(areaMembershipsRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 50,
+          area: { id: 5 },
+        }),
+      );
+    });
+
+    it('creates a new DIRECTIVA_DE_AREA membership when member has only PRESIDENCIA membership and areaId is set', async () => {
+      const updateDto = { areaId: 5 };
+      const updatedMember = {
+        ...persistedAreaDirectiveMember,
+      };
+
+      const presidenciaMember = {
+        ...persistedAreaDirectiveMember,
+        memberships: [
+          { id: 49, memberId: 10, role: AreaRole.PRESIDENCIA, area: null },
+        ],
+      } as unknown as Member;
+
+      areaMembershipsRepository.findOne?.mockResolvedValue(null);
+      areasRepository.exists?.mockResolvedValue(true);
+      membersRepository.findOne?.mockResolvedValue(presidenciaMember);
+      membersRepository.save?.mockResolvedValue(updatedMember);
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        updatedMember,
+      );
+      expect(areasRepository.exists).toHaveBeenCalledWith({
+        where: { id: 5, isArchived: false },
+      });
+      expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
+        member: updatedMember,
+        area: { id: 5 },
+        role: AreaRole.DIRECTIVA_DE_AREA,
+      });
+      expect(areaMembershipsRepository.save).toHaveBeenCalled();
     });
   });
 
