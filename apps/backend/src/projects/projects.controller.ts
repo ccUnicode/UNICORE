@@ -15,11 +15,13 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
+import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { GetProjectsFilterDto } from './dto/get-projects-filter.dto';
 import { ReorderProjectPhasesDto } from './dto/reorder-project-phases.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
+import { UpdateProjectMemberDto } from './dto/update-project-member.dto';
 import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
 import { ProjectsService } from './projects.service';
 
@@ -135,5 +137,41 @@ export class ProjectsController {
     @CurrentAccessActor() accessActor: RequestAccessActor,
   ) {
     return this.projectsService.deletePhase(projectId, phaseId, accessActor);
+  }
+
+  @Post(':id/members')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  addTeamMember(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() addDto: AddProjectMemberDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.addTeamMember(id, addDto, accessActor);
+  }
+
+  @Patch(':id/members/:memberId')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  updateTeamMemberRole(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+    @Body() updateDto: UpdateProjectMemberDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.updateTeamMemberRole(
+      id,
+      memberId,
+      updateDto,
+      accessActor,
+    );
+  }
+
+  @Delete(':id/members/:memberId')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  removeTeamMember(
+    @Param('id', ParseIntPipe) id: number,
+    @Param('memberId', ParseIntPipe) memberId: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.removeTeamMember(id, memberId, accessActor);
   }
 }

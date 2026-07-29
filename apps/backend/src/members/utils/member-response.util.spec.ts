@@ -21,6 +21,7 @@ const member: Member = {
   status: MemberStatus.Available,
   skills: [],
   memberships: [],
+  projectMemberships: [],
   createdAt: new Date(),
   updatedAt: new Date(),
 };

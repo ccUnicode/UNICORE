@@ -68,6 +68,7 @@ describe('MembersController', () => {
       updatedAt: new Date(),
       status: MemberStatus.Available,
       memberships: [],
+      projectMemberships: [],
     } satisfies Member;
 
     const createMemberDto = {
