@@ -60,6 +60,9 @@ export class Member {
   })
   passwordHash?: string | null;
 
+  @Column({ name: 'session_version', type: 'int', default: 0 })
+  sessionVersion?: number;
+
   @Column({ name: 'area_id', type: 'int', nullable: true })
   areaId: number | null;
 

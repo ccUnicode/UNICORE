@@ -88,13 +88,12 @@ export class AuthService {
           where: { id: bootstrapDto.memberId },
         });
 
-        if (!member || member.role !== AreaRole.PRESIDENCIA) {
-          throw new ForbiddenException(
-            'The bootstrap member must exist and have the Presidencia role',
-          );
+        if (!member) {
+          throw new ForbiddenException('The bootstrap member must exist');
         }
 
-        await this.setPassword(
+        this.assertBootstrapMemberCanAuthenticate(member);
+        member.sessionVersion = await this.setPassword(
           member.id,
           bootstrapDto.password,
           membersRepository,
@@ -112,17 +111,13 @@ export class AuthService {
         );
       }
 
-      if (bootstrapDto.member.role !== AreaRole.PRESIDENCIA) {
-        throw new ForbiddenException(
-          'The bootstrap member must have the Presidencia role',
-        );
-      }
+      this.assertBootstrapMemberCanAuthenticate(bootstrapDto.member);
 
       const member = await this.membersService.create(
         bootstrapDto.member,
         entityManager,
       );
-      await this.setPassword(
+      member.sessionVersion = await this.setPassword(
         member.id,
         bootstrapDto.password,
         membersRepository,
@@ -135,7 +130,7 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<AuthResponse> {
     const member = await this.membersRepository
       .createQueryBuilder('member')
-      .addSelect('member.passwordHash')
+      .addSelect(['member.passwordHash', 'member.sessionVersion'])
       .where('member.institution = :institution', {
         institution: 'UNI',
       })
@@ -166,23 +161,65 @@ export class AuthService {
   async setPassword(
     memberId: number,
     password: string,
-    membersRepository: Repository<Member> = this.membersRepository,
-  ): Promise<void> {
-    if (!(await membersRepository.exists({ where: { id: memberId } }))) {
+    membersRepository?: Repository<Member>,
+  ): Promise<number> {
+    if (!membersRepository) {
+      return this.membersRepository.manager.transaction(async (entityManager) =>
+        this.setPassword(
+          memberId,
+          password,
+          entityManager.getRepository(Member),
+        ),
+      );
+    }
+
+    const member = await membersRepository.findOne({
+      where: { id: memberId },
+      lock: { mode: 'pessimistic_write' },
+    });
+
+    if (!member) {
       throw new NotFoundException(`Member with ID ${memberId} not found`);
     }
 
+    const sessionVersion = (member.sessionVersion ?? 0) + 1;
     await membersRepository.update(memberId, {
       passwordHash: await this.passwordService.hash(password),
+      sessionVersion,
     });
+
+    return sessionVersion;
   }
 
   private createAuthResponse(member: Member): AuthResponse {
     return {
-      accessToken: this.tokenService.sign(member.id),
+      accessToken: this.tokenService.sign(
+        member.id,
+        member.sessionVersion ?? 0,
+      ),
       tokenType: 'Bearer',
       member,
     };
+  }
+
+  private assertBootstrapMemberCanAuthenticate(member: {
+    role: AreaRole;
+    institution: string;
+    studentCode?: string | null;
+    activityStatus?: MemberActivityStatus;
+  }): void {
+    const activityStatus = member.activityStatus ?? MemberActivityStatus.ACTIVE;
+
+    if (
+      member.role !== AreaRole.PRESIDENCIA ||
+      member.institution.trim().toUpperCase() !== 'UNI' ||
+      activityStatus !== MemberActivityStatus.ACTIVE ||
+      !member.studentCode?.trim()
+    ) {
+      throw new ForbiddenException(
+        'The bootstrap member must be an active UNI Presidencia member with a student code',
+      );
+    }
   }
 
   private isValidBootstrapSecret(secret: string): boolean {

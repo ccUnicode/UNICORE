@@ -62,6 +62,7 @@ describe('AuthGuard', () => {
       role: AreaRole.DIRECTIVA_DE_AREA,
       areaId: 3,
       activityStatus: MemberActivityStatus.ACTIVE,
+      sessionVersion: 2,
     } as Member;
     const request = {
       headers: {
@@ -72,6 +73,7 @@ describe('AuthGuard', () => {
 
     jest.mocked(tokenService.verify).mockReturnValue({
       sub: 7,
+      ver: 2,
       iat: 1,
       exp: 2,
     });
@@ -101,6 +103,7 @@ describe('AuthGuard', () => {
 
     jest.mocked(tokenService.verify).mockReturnValue({
       sub: 9,
+      ver: 4,
       iat: 1,
       exp: 2,
     });
@@ -109,6 +112,7 @@ describe('AuthGuard', () => {
       role: AreaRole.MIEMBRO,
       areaId: null,
       activityStatus: MemberActivityStatus.ACTIVE,
+      sessionVersion: 4,
       projectMemberships: [{ projectId: 3 }, { projectId: 8 }],
     } as Member);
 
@@ -129,6 +133,7 @@ describe('AuthGuard', () => {
 
     jest.mocked(tokenService.verify).mockReturnValue({
       sub: 7,
+      ver: 0,
       iat: 1,
       exp: 2,
     });
@@ -142,5 +147,31 @@ describe('AuthGuard', () => {
         createContext({ headers: { authorization: 'Bearer valid-token' } }),
       ),
     ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejects tokens issued before the latest password change', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(false),
+    } as unknown as Reflector;
+    const guard = new AuthGuard(reflector, tokenService, membersRepository);
+
+    jest.mocked(tokenService.verify).mockReturnValue({
+      sub: 7,
+      ver: 2,
+      iat: 1,
+      exp: 2,
+    });
+    jest.mocked(membersRepository.findOne).mockResolvedValue({
+      id: 7,
+      role: AreaRole.PRESIDENCIA,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      sessionVersion: 3,
+    } as Member);
+
+    await expect(
+      guard.canActivate(
+        createContext({ headers: { authorization: 'Bearer stale-token' } }),
+      ),
+    ).rejects.toThrow('Authentication token has been revoked');
   });
 });

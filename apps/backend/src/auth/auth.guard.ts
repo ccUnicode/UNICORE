@@ -46,6 +46,10 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Authenticated member is not active');
     }
 
+    if (payload.ver !== (member.sessionVersion ?? 0)) {
+      throw new UnauthorizedException('Authentication token has been revoked');
+    }
+
     if (member.role === AreaRole.DIRECTIVA_DE_AREA && !member.areaId) {
       throw new UnauthorizedException(
         'Authenticated member has no assigned area',

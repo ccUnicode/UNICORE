@@ -32,10 +32,11 @@ export class AuthTokenService {
     }
   }
 
-  sign(memberId: number): string {
+  sign(memberId: number, sessionVersion: number): string {
     const issuedAt = Math.floor(Date.now() / 1000);
     const payload: AuthTokenPayload = {
       sub: memberId,
+      ver: sessionVersion,
       iat: issuedAt,
       exp: issuedAt + this.expiresInSeconds,
     };
@@ -77,6 +78,8 @@ export class AuthTokenService {
       if (
         !Number.isSafeInteger(parsed.sub) ||
         Number(parsed.sub) < 1 ||
+        !Number.isSafeInteger(parsed.ver) ||
+        Number(parsed.ver) < 0 ||
         !Number.isSafeInteger(parsed.iat) ||
         !Number.isSafeInteger(parsed.exp) ||
         Number(parsed.exp) <= now ||

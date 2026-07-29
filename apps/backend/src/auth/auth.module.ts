@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { AuthGuard } from './auth.guard';
 import { AuthService } from './auth.service';
 import { AuthTokenService } from './auth-token.service';
+import { LoginRateLimitService } from './login-rate-limit.service';
 import { PasswordService } from './password.service';
 
 @Module({
@@ -15,6 +16,7 @@ import { PasswordService } from './password.service';
   providers: [
     AuthService,
     AuthTokenService,
+    LoginRateLimitService,
     PasswordService,
     {
       provide: APP_GUARD,

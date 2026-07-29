@@ -1,5 +1,9 @@
 /* eslint-disable @typescript-eslint/unbound-method */
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -29,7 +33,6 @@ describe('AuthService', () => {
   const membersRepository = {
     count: jest.fn(),
     createQueryBuilder: jest.fn(),
-    exists: jest.fn(),
     findOne: jest.fn(),
     update: jest.fn(),
     manager: {
@@ -77,12 +80,14 @@ describe('AuthService', () => {
     const member = {
       id: 4,
       role: AreaRole.PRESIDENCIA,
+      institution: 'UNI',
+      studentCode: '20260004',
       activityStatus: MemberActivityStatus.ACTIVE,
+      sessionVersion: 0,
     } as Member;
 
     queryBuilder.getCount.mockResolvedValue(0);
     jest.mocked(membersRepository.findOne).mockResolvedValue(member);
-    jest.mocked(membersRepository.exists).mockResolvedValue(true);
     jest.mocked(passwordService.hash).mockResolvedValue('stored-hash');
     jest.mocked(tokenService.sign).mockReturnValue('signed-token');
 
@@ -99,7 +104,9 @@ describe('AuthService', () => {
     });
     expect(membersRepository.update).toHaveBeenCalledWith(4, {
       passwordHash: 'stored-hash',
+      sessionVersion: 1,
     });
+    expect(tokenService.sign).toHaveBeenCalledWith(4, 1);
     expect(entityManager.query).toHaveBeenCalledWith(
       'SELECT pg_advisory_xact_lock($1::bigint)',
       [1973111041],
@@ -129,6 +136,53 @@ describe('AuthService', () => {
     expect(transaction).not.toHaveBeenCalled();
   });
 
+  it.each([
+    {
+      label: 'external',
+      member: {
+        institution: 'PUCP',
+        studentCode: '20260004',
+        activityStatus: MemberActivityStatus.ACTIVE,
+      },
+    },
+    {
+      label: 'inactive',
+      member: {
+        institution: 'UNI',
+        studentCode: '20260004',
+        activityStatus: MemberActivityStatus.INACTIVE,
+      },
+    },
+    {
+      label: 'without a student code',
+      member: {
+        institution: 'UNI',
+        studentCode: null,
+        activityStatus: MemberActivityStatus.ACTIVE,
+      },
+    },
+  ])(
+    'rejects bootstrap for a $label Presidencia member',
+    async ({ member }) => {
+      queryBuilder.getCount.mockResolvedValue(0);
+      jest.mocked(membersRepository.findOne).mockResolvedValue({
+        id: 4,
+        role: AreaRole.PRESIDENCIA,
+        sessionVersion: 0,
+        ...member,
+      } as Member);
+
+      await expect(
+        service.bootstrap({
+          bootstrapSecret,
+          memberId: 4,
+          password: 'a-secure-password',
+        }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(membersRepository.update).not.toHaveBeenCalled();
+    },
+  );
+
   it('returns a token for valid active credentials without exposing the hash', async () => {
     const member = {
       id: 7,
@@ -136,6 +190,7 @@ describe('AuthService', () => {
       studentCode: '20260007',
       passwordHash: 'stored-hash',
       activityStatus: MemberActivityStatus.ACTIVE,
+      sessionVersion: 5,
     } as Member;
 
     queryBuilder.getOne.mockResolvedValue(member);
@@ -152,6 +207,7 @@ describe('AuthService', () => {
       tokenType: 'Bearer',
     });
     expect(response.member.passwordHash).toBeUndefined();
+    expect(tokenService.sign).toHaveBeenCalledWith(7, 5);
     expect(queryBuilder.where).toHaveBeenCalledWith(
       'member.institution = :institution',
       { institution: 'UNI' },
@@ -176,5 +232,25 @@ describe('AuthService', () => {
       'a-secure-password',
       expect.stringMatching(/^scrypt\$16384\$8\$1\$/),
     );
+  });
+
+  it('increments the session version when changing a password', async () => {
+    jest.mocked(membersRepository.findOne).mockResolvedValue({
+      id: 7,
+      sessionVersion: 5,
+    } as Member);
+    jest.mocked(passwordService.hash).mockResolvedValue('new-hash');
+
+    await expect(service.setPassword(7, 'a-new-secure-password')).resolves.toBe(
+      6,
+    );
+    expect(membersRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 7 },
+      lock: { mode: 'pessimistic_write' },
+    });
+    expect(membersRepository.update).toHaveBeenCalledWith(7, {
+      passwordHash: 'new-hash',
+      sessionVersion: 6,
+    });
   });
 });

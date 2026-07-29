@@ -20,14 +20,14 @@ describe('AuthTokenService', () => {
   it('signs and verifies a member token', () => {
     const service = new AuthTokenService(config);
 
-    expect(service.verify(service.sign(42))).toEqual(
-      expect.objectContaining({ sub: 42 }),
+    expect(service.verify(service.sign(42, 3))).toEqual(
+      expect.objectContaining({ sub: 42, ver: 3 }),
     );
   });
 
   it('rejects a tampered token', () => {
     const service = new AuthTokenService(config);
-    const token = service.sign(42);
+    const token = service.sign(42, 3);
     const [header, payload] = token.split('.');
 
     expect(() => service.verify(`${header}.${payload}.invalid`)).toThrow(

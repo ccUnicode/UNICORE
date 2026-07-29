@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Ip,
   Param,
   ParseIntPipe,
   Post,
@@ -17,11 +18,15 @@ import { AuthResponse, AuthService } from './auth.service';
 import { CurrentMember } from './current-member.decorator';
 import { BootstrapAuthDto } from './dto/bootstrap-auth.dto';
 import { LoginDto } from './dto/login.dto';
+import { LoginRateLimitService } from './login-rate-limit.service';
 import { SetPasswordDto } from './dto/set-password.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly loginRateLimit: LoginRateLimitService,
+  ) {}
 
   @Public()
   @Post('bootstrap')
@@ -31,8 +36,20 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  login(@Body() loginDto: LoginDto): Promise<AuthResponse> {
-    return this.authService.login(loginDto);
+  async login(
+    @Ip() clientIp: string,
+    @Body() loginDto: LoginDto,
+  ): Promise<AuthResponse> {
+    const attempt = this.loginRateLimit.beginAttempt(
+      clientIp,
+      loginDto.studentCode,
+    );
+
+    try {
+      return await this.authService.login(loginDto);
+    } finally {
+      attempt.release();
+    }
   }
 
   @Get('me')
