@@ -1,7 +1,32 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class MigrateMemberRolesAndAreas20260827 implements MigrationInterface {
+export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
+    // 1. Drop NOT NULL restriction on area_memberships.area_id
+    await queryRunner.query(`
+      ALTER TABLE area_memberships ALTER COLUMN area_id DROP NOT NULL;
+    `);
+
+    // 2. Convert availability_status column to varchar to allow updating enum values safely in a transaction
+    const hasAvailabilityStatusColumn = (await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name='members' AND column_name='availability_status'
+      );
+    `)) as { exists: boolean }[];
+
+    if (hasAvailabilityStatusColumn[0]?.exists) {
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
+      `);
+      await queryRunner.query(`
+        UPDATE members 
+        SET availability_status = 'not_available' 
+        WHERE availability_status = 'unavailable';
+      `);
+    }
+
     const hasRoleColumn = (await queryRunner.query(`
       SELECT EXISTS (
         SELECT 1 
@@ -12,7 +37,7 @@ export class MigrateMemberRolesAndAreas20260827 implements MigrationInterface {
     const exists = hasRoleColumn[0]?.exists;
 
     if (exists) {
-      // 1. Copy data: migrate from members.role & members.area_id to area_memberships
+      // 3. Copy data: migrate from members.role & members.area_id to area_memberships
       await queryRunner.query(`
         INSERT INTO area_memberships (member_id, area_id, role, created_at, updated_at)
         SELECT m.id, m.area_id, m.role, NOW(), NOW()
@@ -26,7 +51,7 @@ export class MigrateMemberRolesAndAreas20260827 implements MigrationInterface {
         );
       `);
 
-      // 2. Validate data: ensure all members have at least one membership
+      // 4. Validate data: ensure all members have at least one membership
       const membersWithNoMembershipAfter = (await queryRunner.query(`
         SELECT COUNT(*) as count 
         FROM members m
@@ -44,7 +69,7 @@ export class MigrateMemberRolesAndAreas20260827 implements MigrationInterface {
         );
       }
 
-      // 3. Drop columns with CASCADE to handle foreign key / index dependencies
+      // 5. Drop columns with CASCADE to handle foreign key / index dependencies
       await queryRunner.query(
         `ALTER TABLE members DROP COLUMN IF EXISTS role CASCADE;`,
       );
@@ -99,6 +124,26 @@ export class MigrateMemberRolesAndAreas20260827 implements MigrationInterface {
             WHEN 'disabled' THEN 'Disabled'
             ELSE 'Available'
           END;
+      `);
+    }
+
+    // Revert enum change and restore NOT NULL if needed (TypeORM sync handles NOT NULL generally, but let's revert data update)
+    const hasAvailabilityStatusColumn = (await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.columns 
+        WHERE table_name='members' AND column_name='availability_status'
+      );
+    `)) as { exists: boolean }[];
+
+    if (hasAvailabilityStatusColumn[0]?.exists) {
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
+      `);
+      await queryRunner.query(`
+        UPDATE members 
+        SET availability_status = 'unavailable' 
+        WHERE availability_status = 'not_available';
       `);
     }
   }

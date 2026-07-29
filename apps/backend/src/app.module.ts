@@ -7,7 +7,7 @@ import { AppService } from './app.service';
 import { MembersModule } from './members/members.module';
 import { AreaMembershipsModule } from './area-memberships/area-memberships.module';
 import { ProjectsModule } from './projects/projects.module';
-import { MigrateMemberRolesAndAreas20260827 } from './migrations/20260827-MigrateMemberRolesAndAreas';
+import { MigrateMemberRolesAndAreas1787788800000 } from './migrations/1787788800000-MigrateMemberRolesAndAreas';
 
 @Module({
   imports: [
@@ -31,7 +31,7 @@ import { MigrateMemberRolesAndAreas20260827 } from './migrations/20260827-Migrat
                 rejectUnauthorized: false,
               }
             : false,
-          migrations: [MigrateMemberRolesAndAreas20260827],
+          migrations: [MigrateMemberRolesAndAreas1787788800000],
           migrationsRun: true,
         };
       },
