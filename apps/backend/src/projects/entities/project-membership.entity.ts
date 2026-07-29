@@ -1,16 +1,16 @@
 import {
-  Entity,
-  PrimaryGeneratedColumn,
   Column,
   CreateDateColumn,
-  UpdateDateColumn,
-  ManyToOne,
+  Entity,
   JoinColumn,
+  ManyToOne,
+  PrimaryGeneratedColumn,
   Unique,
+  UpdateDateColumn,
 } from 'typeorm';
+import { ProjectRole } from '../../common/enums/project-role.enum';
 import { Member } from '../../members/member.entity';
 import { Project } from './project.entity';
-import { ProjectRole } from '../../common/enums/project-role.enum';
 
 @Entity('project_memberships')
 @Unique(['memberId', 'projectId'])

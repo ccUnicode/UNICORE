@@ -1,8 +1,10 @@
 import { INestApplication, ValidationPipe } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { NextFunction, Response } from 'express';
 import request from 'supertest';
 import { AreaRole } from '../src/common/enums/area-role.enum';
 import { RolesGuard } from '../src/common/guards/roles.guard';
+import { AccessControlledRequest } from '../src/common/interfaces/access-controlled-request.interface';
 import { ProjectStatus } from '../src/projects/enums/project-status.enum';
 import { ProjectsController } from '../src/projects/projects.controller';
 import { ProjectsService } from '../src/projects/projects.service';
@@ -39,6 +41,37 @@ describe('ProjectsController access (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.use(
+      (
+        request: AccessControlledRequest,
+        _response: Response,
+        next: NextFunction,
+      ) => {
+        const authorization = request.headers.authorization;
+
+        if (authorization === 'Bearer member') {
+          request.accessActor = {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['1'],
+          };
+        }
+
+        if (authorization === 'Bearer area-leader') {
+          request.accessActor = {
+            role: AreaRole.DIRECTIVA_DE_AREA,
+            areaId: '1',
+          };
+        }
+
+        if (authorization === 'Bearer presidency') {
+          request.accessActor = {
+            role: AreaRole.PRESIDENCIA,
+          };
+        }
+
+        next();
+      },
+    );
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
@@ -68,8 +101,7 @@ describe('ProjectsController access (e2e)', () => {
   it('rejects project creation for members', async () => {
     await request(getHttpServer())
       .post('/projects')
-      .set('x-role', AreaRole.MIEMBRO)
-      .set('x-project-ids', '1')
+      .set('authorization', 'Bearer member')
       .send({ name: 'Portal', areaId: 1 })
       .expect(403);
 
@@ -86,8 +118,7 @@ describe('ProjectsController access (e2e)', () => {
 
     await request(getHttpServer())
       .post('/projects')
-      .set('x-role', AreaRole.DIRECTIVA_DE_AREA)
-      .set('x-area-id', '1')
+      .set('authorization', 'Bearer area-leader')
       .send({ name: 'Portal', areaId: 1 })
       .expect(201);
 
@@ -112,7 +143,7 @@ describe('ProjectsController access (e2e)', () => {
 
     await request(getHttpServer())
       .post('/projects')
-      .set('x-role', AreaRole.PRESIDENCIA)
+      .set('authorization', 'Bearer presidency')
       .send({
         name: 'Portal',
         areaId: 1,

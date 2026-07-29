@@ -51,6 +51,18 @@ export class Member {
   })
   role: AreaRole;
 
+  @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    select: false,
+  })
+  passwordHash?: string | null;
+
+  @Column({ name: 'session_version', type: 'int', default: 0 })
+  sessionVersion?: number;
+
   @Column({ name: 'area_id', type: 'int', nullable: true })
   areaId: number | null;
 
@@ -95,5 +107,5 @@ export class Member {
   memberships: AreaMembership[];
 
   @OneToMany(() => ProjectMembership, (membership) => membership.member)
-  projectMemberships: ProjectMembership[];
+  projectMemberships?: ProjectMembership[];
 }

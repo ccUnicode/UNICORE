@@ -6,6 +6,8 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Area } from './../src/area/entities/area.entity';
 import { CreateAreaDto } from './../src/area/dto/create-area.dto';
 import { UpdateAreaDto } from './../src/area/dto/update-area.dto';
+import { AuthGuard } from '../src/auth/auth.guard';
+import { RolesGuard } from '../src/common/guards/roles.guard';
 import {
   hasNumberProperty,
   hasOptionalBooleanProperty,
@@ -111,6 +113,10 @@ describe('AreaController (e2e)', () => {
     })
       .overrideProvider(getRepositoryToken(Area))
       .useValue(mockAreaRepository)
+      .overrideGuard(AuthGuard)
+      .useValue({ canActivate: () => true })
+      .overrideGuard(RolesGuard)
+      .useValue({ canActivate: () => true })
       .compile();
 
     app = moduleFixture.createNestApplication();

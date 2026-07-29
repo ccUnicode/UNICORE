@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, In, Repository } from 'typeorm';
+import { DeepPartial, EntityManager, In, Repository } from 'typeorm';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -46,17 +46,29 @@ export class MembersService {
     private readonly areaMembershipsRepository: Repository<AreaMembership>,
   ) {}
 
-  async create(createMemberDto: CreateMemberDto): Promise<Member> {
+  async create(
+    createMemberDto: CreateMemberDto,
+    entityManager?: EntityManager,
+  ): Promise<Member> {
     const { skills, areaId, status, ...restDto } = createMemberDto;
+    const membersRepository =
+      entityManager?.getRepository(Member) ?? this.membersRepository;
+    const skillsRepository =
+      entityManager?.getRepository(Skill) ?? this.skillsRepository;
+    const areasRepository =
+      entityManager?.getRepository(Area) ?? this.areasRepository;
+    const areaMembershipsRepository =
+      entityManager?.getRepository(AreaMembership) ??
+      this.areaMembershipsRepository;
     const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
-      await this.validateActiveAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId, areasRepository);
     }
 
-    const resolvedSkills = await this.resolveSkills(skills);
+    const resolvedSkills = await this.resolveSkills(skills, skillsRepository);
 
-    const member = this.membersRepository.create({
+    const member = membersRepository.create({
       ...restDto,
       ...(resolvedAvailabilityStatus !== undefined && {
         availabilityStatus: resolvedAvailabilityStatus,
@@ -69,15 +81,15 @@ export class MembersService {
     });
 
     try {
-      const savedMember = await this.membersRepository.save(member);
+      const savedMember = await membersRepository.save(member);
 
       if (areaId !== undefined && areaId !== null) {
-        const membership = this.areaMembershipsRepository.create({
+        const membership = areaMembershipsRepository.create({
           member: savedMember,
           area: { id: areaId },
           role: AreaRole.DIRECTIVA_DE_AREA,
         });
-        await this.areaMembershipsRepository.save(membership);
+        await areaMembershipsRepository.save(membership);
       }
 
       return savedMember;
@@ -272,10 +284,13 @@ export class MembersService {
     return members.map((member) => toMemberResponse(member, accessActor.role));
   }
 
-  private async resolveSkills(skillNames: string[]): Promise<Skill[]> {
+  private async resolveSkills(
+    skillNames: string[],
+    skillsRepository: Repository<Skill> = this.skillsRepository,
+  ): Promise<Skill[]> {
     const uniqueSkillNames = [...new Set(skillNames)];
 
-    const existingSkills = await this.skillsRepository.find({
+    const existingSkills = await skillsRepository.find({
       where: {
         name: In(uniqueSkillNames),
       },
@@ -287,16 +302,19 @@ export class MembersService {
 
     const newSkills = uniqueSkillNames
       .filter((name) => !existingSkillNames.has(name))
-      .map((name) => this.skillsRepository.create({ name }));
+      .map((name) => skillsRepository.create({ name }));
 
     const savedNewSkills =
-      newSkills.length > 0 ? await this.skillsRepository.save(newSkills) : [];
+      newSkills.length > 0 ? await skillsRepository.save(newSkills) : [];
 
     return [...existingSkills, ...savedNewSkills];
   }
 
-  private async validateActiveAreaExists(areaId: number): Promise<void> {
-    const areaExists = await this.areasRepository.exists({
+  private async validateActiveAreaExists(
+    areaId: number,
+    areasRepository: Repository<Area> = this.areasRepository,
+  ): Promise<void> {
+    const areaExists = await areasRepository.exists({
       where: { id: areaId, isArchived: false },
     });
     if (!areaExists) {

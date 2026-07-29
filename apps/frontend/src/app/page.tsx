@@ -95,18 +95,16 @@ type PaginatedProjects = {
 };
 
 type LoadState = "idle" | "loading" | "ready" | "error";
+type AuthState = "initializing" | "anonymous" | "authenticated";
+
+type AuthResponse = {
+  accessToken: string;
+  tokenType: "Bearer";
+  member: Member;
+};
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
-const ACCESS_HEADERS = {
-  "x-role": process.env.NEXT_PUBLIC_ACCESS_ROLE ?? "presidencia",
-  ...(process.env.NEXT_PUBLIC_ACCESS_AREA_ID
-    ? { "x-area-id": process.env.NEXT_PUBLIC_ACCESS_AREA_ID }
-    : {}),
-  ...(process.env.NEXT_PUBLIC_ACCESS_PROJECT_IDS
-    ? { "x-project-ids": process.env.NEXT_PUBLIC_ACCESS_PROJECT_IDS }
-    : {}),
-};
+const AUTH_TOKEN_STORAGE_KEY = "unicore.auth.v1.accessToken";
 
 const navItems: Array<{ id: View; label: string; icon: string }> = [
   { id: "dashboard", label: "Dashboard", icon: "▦" },
@@ -142,15 +140,29 @@ const statusStyles: Record<string, string> = {
   cancelled: "bg-red-500 text-white",
 };
 
-async function getJson<T>(path: string): Promise<T> {
+async function getJson<T>(path: string, accessToken: string): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
-    headers: ACCESS_HEADERS,
+    headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
   });
 
   if (!response.ok) {
     const message = await readError(response);
     throw new Error(message);
+  }
+
+  return response.json() as Promise<T>;
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const response = await fetch(`${API_URL}${path}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    throw new Error(await readError(response));
   }
 
   return response.json() as Promise<T>;
@@ -195,9 +207,10 @@ function normalizeProjectList(payload: PaginatedProjects | Project[]): Project[]
   return Array.isArray(payload) ? payload : payload.data;
 }
 
-async function getAllProjects(): Promise<Project[]> {
+async function getAllProjects(accessToken: string): Promise<Project[]> {
   const firstPage = await getJson<PaginatedProjects | Project[]>(
     "/projects?page=1&limit=100",
+    accessToken,
   );
 
   if (Array.isArray(firstPage)) {
@@ -208,6 +221,7 @@ async function getAllProjects(): Promise<Project[]> {
   for (let page = 2; page <= firstPage.meta.lastPage; page += 1) {
     const payload = await getJson<PaginatedProjects | Project[]>(
       `/projects?page=${page}&limit=100`,
+      accessToken,
     );
     projects.push(...normalizeProjectList(payload));
   }
@@ -220,6 +234,9 @@ function statusClass(status?: string): string {
 }
 
 export default function Home() {
+  const [authState, setAuthState] = useState<AuthState>("initializing");
+  const [accessToken, setAccessToken] = useState<string | null>(null);
+  const [currentMember, setCurrentMember] = useState<Member | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [areas, setAreas] = useState<Area[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
@@ -230,19 +247,67 @@ export default function Home() {
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState("");
+  const currentMemberRole = currentMember?.role;
 
   useEffect(() => {
+    let ignore = false;
+
+    async function restoreSession() {
+      await Promise.resolve();
+      if (ignore) return;
+
+      const storedToken = window.sessionStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
+      if (!storedToken) {
+        setAuthState("anonymous");
+        return;
+      }
+
+      try {
+        const member = await getJson<Member>("/auth/me", storedToken);
+        if (ignore) return;
+        setAccessToken(storedToken);
+        setCurrentMember(member);
+        setAuthState("authenticated");
+      } catch {
+        if (ignore) return;
+        window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+        setAuthState("anonymous");
+      }
+    }
+
+    void restoreSession();
+
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (
+      authState !== "authenticated" ||
+      !accessToken ||
+      !currentMemberRole
+    ) {
+      return;
+    }
+
+    const authenticatedRole = currentMemberRole;
+    const token = accessToken;
     let ignore = false;
 
     async function loadData() {
       setLoadState("loading");
       setError("");
       try {
-        const isMember = ACCESS_HEADERS["x-role"] === "miembro";
+        const isMember = authenticatedRole === "miembro";
         const [loadedAreas, loadedMembers, loadedProjects] = await Promise.all([
-          isMember ? Promise.resolve([]) : getJson<Area[]>("/areas"),
-          isMember ? Promise.resolve([]) : getJson<Member[]>("/members"),
-          getAllProjects(),
+          isMember
+            ? Promise.resolve([])
+            : getJson<Area[]>("/areas", token),
+          isMember
+            ? Promise.resolve([])
+            : getJson<Member[]>("/members", token),
+          getAllProjects(token),
         ]);
 
         if (ignore) return;
@@ -269,7 +334,37 @@ export default function Home() {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [accessToken, authState, currentMemberRole]);
+
+  const handleLogin = async (
+    studentCode: string,
+    password: string,
+  ): Promise<void> => {
+    const response = await postJson<AuthResponse>("/auth/login", {
+      studentCode,
+      password,
+    });
+
+    window.sessionStorage.setItem(
+      AUTH_TOKEN_STORAGE_KEY,
+      response.accessToken,
+    );
+    setAccessToken(response.accessToken);
+    setCurrentMember(response.member);
+    setAuthState("authenticated");
+  };
+
+  const handleLogout = (): void => {
+    window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+    setAccessToken(null);
+    setCurrentMember(null);
+    setAreas([]);
+    setMembers([]);
+    setProjects([]);
+    setLoadState("idle");
+    setError("");
+    setAuthState("anonymous");
+  };
 
   const areaMetrics = useMemo(
     () =>
@@ -325,6 +420,14 @@ export default function Home() {
     (member) => member.availabilityStatus === "available",
   ).length;
 
+  if (authState === "initializing") {
+    return <SessionLoadingView />;
+  }
+
+  if (authState === "anonymous" || !currentMember) {
+    return <LoginView onLogin={handleLogin} />;
+  }
+
   return (
     <main className="min-h-screen bg-[#03030b] text-white">
       <div className="flex min-h-screen">
@@ -341,6 +444,19 @@ export default function Home() {
               />
             ))}
           </nav>
+          <div className="mt-12 border-t border-white/10 pt-6">
+            <p className="truncate text-sm font-bold">
+              {fullName(currentMember)}
+            </p>
+            <p className="mt-1 text-xs text-white/45">{currentMember.role}</p>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="mt-4 w-full rounded-md bg-white/8 px-3 py-2 text-sm font-semibold hover:bg-white/12"
+            >
+              Cerrar sesión
+            </button>
+          </div>
         </aside>
 
         <section className="flex min-h-screen w-full flex-col lg:pl-[306px]">
@@ -358,6 +474,13 @@ export default function Home() {
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-md bg-white/8 px-3 py-2 text-sm font-semibold"
+            >
+              Salir
+            </button>
           </header>
 
           <div className="mx-auto w-full max-w-[1540px] px-5 py-8 sm:px-10 lg:px-20 lg:py-16">
@@ -375,6 +498,7 @@ export default function Home() {
                 availableMembers={availableMembers}
                 projects={projects}
                 loading={loadState === "loading"}
+                authRole={currentMember.role}
               />
             )}
             {view === "areas" && (
@@ -424,7 +548,9 @@ export default function Home() {
             {view === "tasks" && <PlaceholderView title="Tareas" />}
             {view === "integrations" && <PlaceholderView title="Integraciones" />}
             {view === "audit" && <PlaceholderView title="Auditoría" />}
-            {view === "profile" && <ProfileView />}
+            {view === "profile" && (
+              <ProfileView member={currentMember} onLogout={handleLogout} />
+            )}
           </div>
         </section>
       </div>
@@ -442,6 +568,105 @@ function Logo({ compact = false }: { compact?: boolean }) {
         <span className="text-2xl font-black tracking-[0.08em]">UNICORE</span>
       )}
     </div>
+  );
+}
+
+function SessionLoadingView() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#03030b] text-white">
+      <p className="text-sm text-white/60">Validando sesión…</p>
+    </main>
+  );
+}
+
+function LoginView({
+  onLogin,
+}: {
+  onLogin: (studentCode: string, password: string) => Promise<void>;
+}) {
+  const [studentCode, setStudentCode] = useState("");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [loginError, setLoginError] = useState("");
+
+  const submit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setSubmitting(true);
+    setLoginError("");
+
+    try {
+      await onLogin(studentCode, password);
+    } catch (currentError) {
+      setLoginError(
+        currentError instanceof Error
+          ? currentError.message
+          : "No se pudo iniciar sesión",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <main className="grid min-h-screen place-items-center bg-[#03030b] px-5 text-white">
+      <section className="w-full max-w-md rounded-md border border-white/10 bg-[#191922] p-8 shadow-2xl">
+        <Logo />
+        <h1 className="mt-10 text-4xl font-black">Iniciar sesión</h1>
+        <p className="mt-3 text-sm leading-6 text-white/55">
+          Ingresa con tu código UNI. La sesión se validará con el backend antes
+          de cargar áreas, miembros o proyectos.
+        </p>
+
+        <form className="mt-8 space-y-5" onSubmit={submit}>
+          <label className="block">
+            <span className="text-sm font-semibold text-white/75">
+              Código de estudiante
+            </span>
+            <input
+              autoComplete="username"
+              value={studentCode}
+              onChange={(event) => setStudentCode(event.target.value)}
+              required
+              maxLength={20}
+              className="mt-2 h-11 w-full rounded-md border border-white/10 bg-[#f1f1f5] px-4 text-zinc-900 outline-none focus:border-indigo-300"
+            />
+          </label>
+
+          <label className="block">
+            <span className="text-sm font-semibold text-white/75">
+              Contraseña
+            </span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              required
+              minLength={12}
+              maxLength={128}
+              className="mt-2 h-11 w-full rounded-md border border-white/10 bg-[#f1f1f5] px-4 text-zinc-900 outline-none focus:border-indigo-300"
+            />
+          </label>
+
+          {loginError && (
+            <p
+              role="alert"
+              className="rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100"
+            >
+              {loginError}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            disabled={submitting}
+            className="h-11 w-full rounded-md bg-[#7478ff] font-bold text-white transition hover:bg-[#8589ff] disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {submitting ? "Ingresando…" : "Ingresar"}
+          </button>
+        </form>
+      </section>
+    </main>
   );
 }
 
@@ -496,6 +721,7 @@ function DashboardView({
   availableMembers,
   projects,
   loading,
+  authRole,
 }: {
   areaCount: number;
   memberCount: number;
@@ -503,6 +729,7 @@ function DashboardView({
   availableMembers: number;
   projects: Project[];
   loading: boolean;
+  authRole: string;
 }) {
   return (
     <div>
@@ -571,8 +798,8 @@ function DashboardView({
               { title: "Backend API", subtitle: API_URL, meta: "Conectado" },
               {
                 title: "Modo de acceso",
-                subtitle: ACCESS_HEADERS["x-role"],
-                meta: "Headers",
+                subtitle: authRole,
+                meta: "Bearer",
               },
             ]}
           />
@@ -1126,22 +1353,39 @@ function PlaceholderView({ title }: { title: string }) {
   );
 }
 
-function ProfileView() {
+function ProfileView({
+  member,
+  onLogout,
+}: {
+  member: Member;
+  onLogout: () => void;
+}) {
   return (
     <div>
       <SectionTitle title="Perfil" />
       <Panel title="Sesión actual">
         <div className="grid gap-4 md:grid-cols-3">
-          <InfoRow label="Rol" value={ACCESS_HEADERS["x-role"]} />
+          <InfoRow label="Miembro" value={fullName(member)} />
+          <InfoRow label="Rol" value={member.role} />
           <InfoRow
             label="Área"
-            value={ACCESS_HEADERS["x-area-id"] ?? "Todas"}
+            value={
+              member.area?.name ??
+              (member.areaId ? `Área ${member.areaId}` : "Todas")
+            }
           />
           <InfoRow
             label="API"
             value={API_URL.replace(/^https?:\/\//, "")}
           />
         </div>
+        <button
+          type="button"
+          onClick={onLogout}
+          className="mt-6 rounded-md bg-white/8 px-4 py-2 text-sm font-semibold hover:bg-white/12"
+        >
+          Cerrar sesión
+        </button>
       </Panel>
     </div>
   );

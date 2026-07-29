@@ -11,7 +11,6 @@ import { RequestAccessActor } from '../interfaces/request-access-actor.interface
 import { AreaRole } from '../enums/area-role.enum';
 import { ACCESS_SCOPE_KEY } from '../decorators/access-scope.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
-import { extractRequestAccessActor } from '../utils/request-access-actor.util';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -30,13 +29,11 @@ export class RolesGuard implements CanActivate {
     const request = context
       .switchToHttp()
       .getRequest<AccessControlledRequest>();
-    const accessActor = extractRequestAccessActor(request.headers);
+    const accessActor = request.accessActor;
 
     if (!accessActor) {
-      throw new ForbiddenException('Missing or invalid access actor headers');
+      throw new ForbiddenException('Missing authenticated access actor');
     }
-
-    request.accessActor = accessActor;
 
     if (accessActor.role === AreaRole.PRESIDENCIA) {
       return true;

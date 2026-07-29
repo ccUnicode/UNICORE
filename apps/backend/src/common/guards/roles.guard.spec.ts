@@ -55,7 +55,7 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(createContext({}))).toBe(true);
   });
 
-  it('rejects requests with missing actor headers', () => {
+  it('rejects requests without an authenticated access actor', () => {
     setupReflector([AreaRole.PRESIDENCIA]);
 
     expect(() => guard.canActivate(createContext({}))).toThrow(
@@ -63,7 +63,7 @@ describe('RolesGuard', () => {
     );
   });
 
-  it('rejects requests with invalid role headers', () => {
+  it('does not trust a spoofed role header', () => {
     setupReflector([AreaRole.PRESIDENCIA]);
 
     expect(() =>
@@ -83,9 +83,7 @@ describe('RolesGuard', () => {
     expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.PRESIDENCIA,
-          },
+          accessActor: { role: AreaRole.PRESIDENCIA },
           params: {
             id: '999',
           },
@@ -100,9 +98,9 @@ describe('RolesGuard', () => {
     expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.DIRECTIVA_DE_AREA,
-            'x-area-id': '12',
+          accessActor: {
+            role: AreaRole.DIRECTIVA_DE_AREA,
+            areaId: '12',
           },
           params: {
             id: '12',
@@ -118,9 +116,9 @@ describe('RolesGuard', () => {
     expect(() =>
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.DIRECTIVA_DE_AREA,
-            'x-area-id': '12',
+          accessActor: {
+            role: AreaRole.DIRECTIVA_DE_AREA,
+            areaId: '12',
           },
           params: {
             id: '19',
@@ -136,23 +134,20 @@ describe('RolesGuard', () => {
     expect(() =>
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1',
-          },
+          accessActor: { role: AreaRole.MIEMBRO },
         }),
       ),
     ).toThrow(ForbiddenException);
   });
 
   it('rejects Miembro without project ids', () => {
-    setupReflector([AreaRole.MIEMBRO]);
+    setupReflector([AreaRole.MIEMBRO], { requireProjectScope: true });
 
     expect(() =>
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
+          accessActor: {
+            role: AreaRole.MIEMBRO,
           },
         }),
       ),
@@ -168,9 +163,9 @@ describe('RolesGuard', () => {
     expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1, project-2',
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['project-1', 'project-2'],
           },
           params: {
             projectId: 'project-2',
@@ -189,9 +184,9 @@ describe('RolesGuard', () => {
     expect(() =>
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1, project-2',
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['project-1', 'project-2'],
           },
           params: {
             projectId: 'project-3',
@@ -201,15 +196,15 @@ describe('RolesGuard', () => {
     ).toThrow(ForbiddenException);
   });
 
-  it('attaches the parsed actor to the request', () => {
+  it('uses the access actor attached by authentication', () => {
     setupReflector([AreaRole.DIRECTIVA_DE_AREA]);
 
     const request: Partial<AccessControlledRequest> = {
-      headers: {
-        'x-role': AreaRole.DIRECTIVA_DE_AREA,
-        'x-area-id': '5',
-        'x-member-id': '17',
-        'x-project-ids': 'project-1, project-2',
+      accessActor: {
+        role: AreaRole.DIRECTIVA_DE_AREA,
+        areaId: '5',
+        memberId: '17',
+        projectIds: ['project-1', 'project-2'],
       },
     };
 
