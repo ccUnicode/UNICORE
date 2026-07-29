@@ -74,40 +74,23 @@ describe('RolesGuard', () => {
     await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
   });
 
-  it('rejects requests from disabled members via header', async () => {
-    setupReflector([AreaRole.MIEMBRO]);
-
-    await expect(
-      guard.canActivate(
-        createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1',
-            'x-member-id': '10',
-            'x-status': 'disabled',
-          },
-        }),
-      ),
-    ).rejects.toThrow(ForbiddenException);
-  });
-
   it('rejects requests from disabled members via database', async () => {
     setupReflector([AreaRole.MIEMBRO], undefined, 'disabled');
 
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1',
-            'x-member-id': '10',
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['project-1'],
+            memberId: '10',
           },
         }),
       ),
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('rejects requests with missing actor headers', async () => {
+  it('rejects requests without an authenticated access actor', async () => {
     setupReflector([AreaRole.PRESIDENCIA]);
 
     await expect(guard.canActivate(createContext({}))).rejects.toThrow(
@@ -115,7 +98,7 @@ describe('RolesGuard', () => {
     );
   });
 
-  it('rejects requests with invalid role headers', async () => {
+  it('does not trust a spoofed role header', async () => {
     setupReflector([AreaRole.PRESIDENCIA]);
 
     await expect(
@@ -135,10 +118,7 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.PRESIDENCIA,
-            'x-member-id': '10',
-          },
+          accessActor: { role: AreaRole.PRESIDENCIA, memberId: '10' },
           params: {
             id: '999',
           },
@@ -153,10 +133,10 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.DIRECTIVA_DE_AREA,
-            'x-area-id': '12',
-            'x-member-id': '10',
+          accessActor: {
+            role: AreaRole.DIRECTIVA_DE_AREA,
+            areaId: '12',
+            memberId: '10',
           },
           params: {
             id: '12',
@@ -172,10 +152,10 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.DIRECTIVA_DE_AREA,
-            'x-area-id': '12',
-            'x-member-id': '10',
+          accessActor: {
+            role: AreaRole.DIRECTIVA_DE_AREA,
+            areaId: '12',
+            memberId: '10',
           },
           params: {
             id: '19',
@@ -191,25 +171,21 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1',
-            'x-member-id': '10',
-          },
+          accessActor: { role: AreaRole.MIEMBRO, memberId: '10' },
         }),
       ),
     ).rejects.toThrow(ForbiddenException);
   });
 
   it('rejects Miembro without project ids', async () => {
-    setupReflector([AreaRole.MIEMBRO]);
+    setupReflector([AreaRole.MIEMBRO], { requireProjectScope: true });
 
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-member-id': '10',
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            memberId: '10',
           },
         }),
       ),
@@ -225,10 +201,10 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1, project-2',
-            'x-member-id': '10',
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['project-1', 'project-2'],
+            memberId: '10',
           },
           params: {
             projectId: 'project-2',
@@ -247,10 +223,10 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1, project-2',
-            'x-member-id': '10',
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['project-1', 'project-2'],
+            memberId: '10',
           },
           params: {
             projectId: 'project-3',
@@ -260,14 +236,14 @@ describe('RolesGuard', () => {
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('rejects requests with missing x-member-id header', async () => {
+  it('rejects requests with missing memberId in accessActor', async () => {
     setupReflector([AreaRole.PRESIDENCIA]);
 
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.PRESIDENCIA,
+          accessActor: {
+            role: AreaRole.PRESIDENCIA,
           },
         }),
       ),
@@ -285,10 +261,10 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1',
-            'x-member-id': '10',
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['project-1'],
+            memberId: '10',
           },
         }),
       ),
@@ -301,25 +277,25 @@ describe('RolesGuard', () => {
     await expect(
       guard.canActivate(
         createContext({
-          headers: {
-            'x-role': AreaRole.MIEMBRO,
-            'x-project-ids': 'project-1',
-            'x-member-id': '999', // Non-existent member ID
+          accessActor: {
+            role: AreaRole.MIEMBRO,
+            projectIds: ['project-1'],
+            memberId: '999',
           },
         }),
       ),
     ).rejects.toThrow(ForbiddenException);
   });
 
-  it('attaches the parsed actor to the request', async () => {
+  it('uses the access actor attached by authentication', async () => {
     setupReflector([AreaRole.DIRECTIVA_DE_AREA]);
 
     const request: Partial<AccessControlledRequest> = {
-      headers: {
-        'x-role': AreaRole.DIRECTIVA_DE_AREA,
-        'x-area-id': '5',
-        'x-member-id': '17',
-        'x-project-ids': 'project-1, project-2',
+      accessActor: {
+        role: AreaRole.DIRECTIVA_DE_AREA,
+        areaId: '5',
+        memberId: '17',
+        projectIds: ['project-1', 'project-2'],
       },
     };
 

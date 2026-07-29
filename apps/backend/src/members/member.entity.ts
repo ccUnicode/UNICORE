@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { Skill } from '../skills/skill.entity';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
@@ -43,6 +44,18 @@ export class Member {
   cycle: number | null;
 
   @Column({
+    name: 'password_hash',
+    type: 'varchar',
+    length: 255,
+    nullable: true,
+    select: false,
+  })
+  passwordHash?: string | null;
+
+  @Column({ name: 'session_version', type: 'int', default: 0 })
+  sessionVersion?: number;
+
+  @Column({
     name: 'activity_status',
     type: 'enum',
     enum: MemberActivityStatus,
@@ -70,6 +83,9 @@ export class Member {
 
   @OneToMany(() => AreaMembership, (membership) => membership.member)
   memberships: AreaMembership[];
+
+  @OneToMany(() => ProjectMembership, (membership) => membership.member)
+  projectMemberships?: ProjectMembership[];
 
   get role(): AreaRole {
     const primary = getPrimaryMembership(this.memberships);

@@ -17,6 +17,7 @@ const member: Member = {
   availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
   skills: [],
   memberships: [],
+  projectMemberships: [],
   createdAt: new Date(),
   updatedAt: new Date(),
   get role(): AreaRole {

@@ -8,6 +8,7 @@ import { MembersModule } from './members/members.module';
 import { AreaMembershipsModule } from './area-memberships/area-memberships.module';
 import { ProjectsModule } from './projects/projects.module';
 import { MigrateMemberRolesAndAreas1787788800000 } from './migrations/1787788800000-MigrateMemberRolesAndAreas';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -40,6 +41,7 @@ import { MigrateMemberRolesAndAreas1787788800000 } from './migrations/1787788800
     MembersModule,
     AreaMembershipsModule,
     ProjectsModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],

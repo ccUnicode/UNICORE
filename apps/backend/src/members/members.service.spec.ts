@@ -11,6 +11,7 @@ import { MemberAvailabilityStatus } from './enums/member-availability-status.enu
 import { Member } from './member.entity';
 import { MembersService } from './members.service';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
+import { toMemberResponse } from './utils/member-response.util';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
@@ -145,6 +146,7 @@ describe('MembersService', () => {
           area: { id: 3 } as Area,
         } as AreaMembership,
       ],
+      projectMemberships: [],
       get role(): AreaRole {
         return AreaRole.DIRECTIVA_DE_AREA;
       },
@@ -227,6 +229,7 @@ describe('MembersService', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       memberships: [],
+      projectMemberships: [],
       get role(): AreaRole {
         return AreaRole.MIEMBRO;
       },
@@ -324,6 +327,7 @@ describe('MembersService', () => {
         createdAt: new Date(),
         updatedAt: new Date(),
         memberships: [],
+        projectMemberships: [],
         get role(): AreaRole {
           return AreaRole.MIEMBRO;
         },
@@ -769,7 +773,9 @@ describe('MembersService', () => {
         },
         { areaId: 99, availabilityStatus: MemberAvailabilityStatus.AVAILABLE },
       ),
-    ).resolves.toEqual(scopedMembers);
+    ).resolves.toEqual(
+      scopedMembers.map((m) => toMemberResponse(m, AreaRole.DIRECTIVA_DE_AREA)),
+    );
     expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
       'member.availabilityStatus = :availabilityStatus',
       { availabilityStatus: MemberAvailabilityStatus.AVAILABLE },

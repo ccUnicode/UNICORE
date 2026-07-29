@@ -75,6 +75,7 @@ describe('MembersController', () => {
       createdAt: new Date(),
       updatedAt: new Date(),
       memberships: [],
+      projectMemberships: [],
     } satisfies Member;
 
     const createMemberDto = {
