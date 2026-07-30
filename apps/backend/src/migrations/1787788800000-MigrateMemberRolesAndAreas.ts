@@ -2,9 +2,30 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // 1. Drop NOT NULL restriction on area_memberships.area_id
+    // Check if the members table exists
+    const hasMembersTable = (await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.tables 
+        WHERE table_name='members'
+      );
+    `)) as { exists: boolean }[];
+
+    if (!hasMembersTable[0]?.exists) {
+      return;
+    }
+
+    // 1. Create area_memberships table if it does not exist (since synchronize hasn't run yet)
     await queryRunner.query(`
-      ALTER TABLE area_memberships ALTER COLUMN area_id DROP NOT NULL;
+      CREATE TABLE IF NOT EXISTS area_memberships (
+        id SERIAL PRIMARY KEY,
+        role VARCHAR(30) DEFAULT 'miembro',
+        member_id INTEGER NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+        area_id INTEGER REFERENCES areas(id) ON DELETE CASCADE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        UNIQUE (member_id, area_id)
+      );
     `);
 
     // 2. Convert availability_status column to varchar to allow updating enum values safely in a transaction
@@ -83,6 +104,18 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    const hasMembersTable = (await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.tables 
+        WHERE table_name='members'
+      );
+    `)) as { exists: boolean }[];
+
+    if (!hasMembersTable[0]?.exists) {
+      return;
+    }
+
     const hasRoleColumn = (await queryRunner.query(`
       SELECT EXISTS (
         SELECT 1 
@@ -127,7 +160,7 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
       `);
     }
 
-    // Revert enum change and restore NOT NULL if needed (TypeORM sync handles NOT NULL generally, but let's revert data update)
+    // Revert enum change and restore NOT NULL if needed
     const hasAvailabilityStatusColumn = (await queryRunner.query(`
       SELECT EXISTS (
         SELECT 1 
@@ -146,5 +179,10 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
         WHERE availability_status = 'not_available';
       `);
     }
+
+    // Drop area_memberships table
+    await queryRunner.query(`
+      DROP TABLE IF EXISTS area_memberships CASCADE;
+    `);
   }
 }
