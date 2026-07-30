@@ -28,7 +28,7 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
       );
     `);
 
-    // 2. Convert availability_status column to varchar to allow updating enum values safely in a transaction
+    // 2. Convert availability_status column to enum with 'not_available' instead of 'unavailable'
     const hasAvailabilityStatusColumn = (await queryRunner.query(`
       SELECT EXISTS (
         SELECT 1 
@@ -42,9 +42,18 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
         ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
       `);
       await queryRunner.query(`
+        DROP TYPE IF EXISTS members_availability_status_enum;
+      `);
+      await queryRunner.query(`
+        CREATE TYPE members_availability_status_enum AS ENUM ('available', 'not_available', 'disabled');
+      `);
+      await queryRunner.query(`
         UPDATE members 
         SET availability_status = 'not_available' 
         WHERE availability_status = 'unavailable';
+      `);
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum USING availability_status::members_availability_status_enum;
       `);
     }
 
@@ -61,13 +70,13 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
       // 3. Copy data: migrate from members.role & members.area_id to area_memberships
       await queryRunner.query(`
         INSERT INTO area_memberships (member_id, area_id, role, created_at, updated_at)
-        SELECT m.id, m.area_id, m.role, NOW(), NOW()
+        SELECT m.id, m.area_id, m.role::varchar, NOW(), NOW()
         FROM members m
         WHERE NOT EXISTS (
             SELECT 1 
             FROM area_memberships am 
             WHERE am.member_id = m.id 
-              AND am.role = m.role 
+              AND am.role = m.role::varchar 
               AND (am.area_id = m.area_id OR (am.area_id IS NULL AND m.area_id IS NULL))
         );
       `);
@@ -126,15 +135,33 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
     const exists = hasRoleColumn[0]?.exists;
 
     if (!exists) {
+      // Re-create the role enum type if it does not exist
+      await queryRunner.query(`
+        DO $$ BEGIN
+          CREATE TYPE members_role_enum AS ENUM ('presidencia', 'directiva_de_area', 'miembro');
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;
+      `);
+
+      // Re-create the status enum type if it does not exist
+      await queryRunner.query(`
+        DO $$ BEGIN
+          CREATE TYPE members_status_enum AS ENUM ('Available', 'Unavailable', 'Disabled');
+        EXCEPTION
+          WHEN duplicate_object THEN null;
+        END $$;
+      `);
+
       // Re-create the columns with their original types
       await queryRunner.query(
-        `ALTER TABLE members ADD COLUMN IF NOT EXISTS role varchar(30) DEFAULT 'miembro';`,
+        `ALTER TABLE members ADD COLUMN IF NOT EXISTS role members_role_enum DEFAULT 'miembro';`,
       );
       await queryRunner.query(
         `ALTER TABLE members ADD COLUMN IF NOT EXISTS area_id integer;`,
       );
       await queryRunner.query(
-        `ALTER TABLE members ADD COLUMN IF NOT EXISTS status varchar(30) DEFAULT 'Available';`,
+        `ALTER TABLE members ADD COLUMN IF NOT EXISTS status members_status_enum DEFAULT 'Available';`,
       );
 
       // Restore data from area_memberships
@@ -142,23 +169,28 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
         UPDATE members m
         SET 
           role = COALESCE(
-            (SELECT am.role FROM area_memberships am WHERE am.member_id = m.id ORDER BY 
+            (SELECT am.role::members_role_enum FROM area_memberships am WHERE am.member_id = m.id ORDER BY 
               CASE am.role 
                 WHEN 'presidencia' THEN 1 
                 WHEN 'directiva_de_area' THEN 2 
                 ELSE 3 
               END ASC LIMIT 1),
-            'miembro'
+            'miembro'::members_role_enum
           ),
           area_id = (SELECT am.area_id FROM area_memberships am WHERE am.member_id = m.id AND am.area_id IS NOT NULL LIMIT 1),
-          status = CASE m.availability_status
-            WHEN 'available' THEN 'Available'
-            WHEN 'not_available' THEN 'Not Available'
-            WHEN 'disabled' THEN 'Disabled'
-            ELSE 'Available'
+          status = CASE m.availability_status::varchar
+            WHEN 'available' THEN 'Available'::members_status_enum
+            WHEN 'not_available' THEN 'Unavailable'::members_status_enum
+            WHEN 'disabled' THEN 'Disabled'::members_status_enum
+            ELSE 'Available'::members_status_enum
           END;
       `);
     }
+
+    // Revert cycle column if it exists
+    await queryRunner.query(
+      `ALTER TABLE members DROP COLUMN IF EXISTS cycle CASCADE;`,
+    );
 
     // Revert enum change and restore NOT NULL if needed
     const hasAvailabilityStatusColumn = (await queryRunner.query(`
@@ -174,9 +206,18 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
         ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
       `);
       await queryRunner.query(`
+        DROP TYPE IF EXISTS members_availability_status_enum;
+      `);
+      await queryRunner.query(`
+        CREATE TYPE members_availability_status_enum AS ENUM ('available', 'unavailable', 'disabled');
+      `);
+      await queryRunner.query(`
         UPDATE members 
         SET availability_status = 'unavailable' 
         WHERE availability_status = 'not_available';
+      `);
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum USING availability_status::members_availability_status_enum;
       `);
     }
 
