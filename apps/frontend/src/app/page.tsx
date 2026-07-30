@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ProjectManagement from "./project-management";
 
 type View =
   | "dashboard"
@@ -40,6 +41,7 @@ type Member = {
   institution?: string;
   studentCode?: string | null;
   major: string;
+  cycle?: number | null;
   role: string;
   areaId?: number | null;
   area?: Area | null;
@@ -51,7 +53,7 @@ type Member = {
 
 type ProjectMembership = {
   id: number;
-  role: string;
+  role: "representative" | "subrepresentative" | "member";
   memberId: number;
   member?: Member;
 };
@@ -59,7 +61,19 @@ type ProjectMembership = {
 type ProjectPhase = {
   id: number;
   name: string;
+  description?: string | null;
   orderIndex: number;
+};
+
+type ProjectLabel = {
+  id?: number;
+  name: string;
+};
+
+type ProjectLink = {
+  id?: number;
+  name: string;
+  url: string;
 };
 
 type ProjectStatus =
@@ -79,6 +93,8 @@ type Project = {
   area?: Area | null;
   phases?: ProjectPhase[];
   memberships?: ProjectMembership[];
+  labels?: ProjectLabel[];
+  links?: ProjectLink[];
   status: ProjectStatus;
   isArchived: boolean;
   createdAt?: string;
@@ -366,6 +382,12 @@ export default function Home() {
     setAuthState("anonymous");
   };
 
+  const refreshProjects = async (): Promise<void> => {
+    if (!accessToken) return;
+    const loadedProjects = await getAllProjects(accessToken);
+    setProjects(loadedProjects);
+  };
+
   const areaMetrics = useMemo(
     () =>
       areas.map((area) => {
@@ -544,7 +566,17 @@ export default function Home() {
                 onBack={() => setView("members")}
               />
             )}
-            {view === "projects" && <ProjectsView projects={projects} />}
+            {view === "projects" && accessToken && (
+              <ProjectManagement
+                projects={projects}
+                areas={areas}
+                members={members}
+                accessToken={accessToken}
+                apiUrl={API_URL}
+                currentRole={currentMember.role}
+                onProjectsChanged={refreshProjects}
+              />
+            )}
             {view === "tasks" && <PlaceholderView title="Tareas" />}
             {view === "integrations" && <PlaceholderView title="Integraciones" />}
             {view === "audit" && <PlaceholderView title="Auditoría" />}
@@ -1062,89 +1094,6 @@ function MemberProfileView({
           </Panel>
         </div>
       </div>
-    </div>
-  );
-}
-
-function ProjectsView({ projects }: { projects: Project[] }) {
-  const [projectQuery, setProjectQuery] = useState("");
-  const filteredProjects = projects.filter((project) =>
-    `${project.name} ${project.description ?? ""} ${project.area?.name ?? ""}`
-      .toLowerCase()
-      .includes(projectQuery.trim().toLowerCase()),
-  );
-
-  return (
-    <div>
-      <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-        <SectionTitle title="Proyectos" />
-        <button
-          type="button"
-          className="h-10 rounded-md bg-white/14 px-5 text-sm font-bold text-white hover:bg-white/20"
-        >
-          + Crear Proyecto
-        </button>
-      </div>
-      <SearchInput
-        value={projectQuery}
-        placeholder="Buscar proyectos..."
-        onChange={setProjectQuery}
-      />
-      <div className="mt-10 grid gap-x-32 gap-y-20 xl:grid-cols-2">
-        {filteredProjects.map((project) => (
-          <ProjectCard key={project.id} project={project} />
-        ))}
-      </div>
-      {filteredProjects.length === 0 && (
-        <EmptyState text="No hay proyectos que coincidan con la búsqueda." />
-      )}
-    </div>
-  );
-}
-
-function ProjectCard({ project }: { project: Project }) {
-  const status = project.isArchived ? "archived" : project.status;
-  const statusLabels: Record<ProjectStatus | "archived", string> = {
-    planned: "En planificación",
-    active: "Activo",
-    on_hold: "Pausado",
-    completed: "Completado",
-    cancelled: "Cancelado",
-    archived: "Archivado",
-  };
-
-  return (
-    <article className="grid min-h-[190px] grid-cols-[92px_minmax(0,1fr)] gap-8 rounded-md border border-white/10 bg-[#20212c] p-8">
-      <ProjectMark />
-      <div className="min-w-0">
-        <h2 className="truncate text-3xl font-black">{project.name}</h2>
-        <p className="mt-3 max-w-md text-sm leading-5 text-white/60">
-          {project.description ?? "Proyecto registrado en UNICORE."}
-        </p>
-        <div className="mt-7 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            className="rounded bg-[#171822] px-4 py-1.5 text-xs font-bold text-white hover:bg-black/40"
-          >
-            Editar Proyecto
-          </button>
-          <span className={`rounded px-3 py-1 text-xs font-bold ${statusClass(status)}`}>
-            {statusLabels[status]}
-          </span>
-        </div>
-      </div>
-    </article>
-  );
-}
-
-function ProjectMark() {
-  return (
-    <div className="relative h-[92px] w-[92px] text-white">
-      <div className="absolute left-1 top-2 h-16 w-6 rounded-b-full rounded-t-sm bg-white" />
-      <div className="absolute right-1 top-2 h-16 w-6 rounded-b-full rounded-t-sm bg-white" />
-      <div className="absolute left-[34px] top-7 h-0 w-0 border-y-[15px] border-l-[24px] border-y-transparent border-l-[#20212c]" />
-      <div className="absolute bottom-4 left-2 h-1 w-20 rotate-12 rounded bg-white" />
-      <div className="absolute bottom-2 left-2 h-1 w-20 -rotate-12 rounded bg-white" />
     </div>
   );
 }
