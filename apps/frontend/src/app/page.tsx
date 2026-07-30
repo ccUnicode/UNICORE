@@ -97,6 +97,16 @@ type PaginatedProjects = {
 type LoadState = "idle" | "loading" | "ready" | "error";
 type AuthState = "initializing" | "anonymous" | "authenticated";
 
+class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 type AuthResponse = {
   accessToken: string;
   tokenType: "Bearer";
@@ -116,6 +126,23 @@ const navItems: Array<{ id: View; label: string; icon: string }> = [
   { id: "audit", label: "Auditoría", icon: "⌕" },
   { id: "profile", label: "Perfil", icon: "◎" },
 ];
+
+function canSeeNavItem(item: View, role?: string): boolean {
+  const normalizedRole = role?.trim().toLowerCase();
+  const canManagePeople =
+    normalizedRole === "presidencia" ||
+    normalizedRole === "directiva_de_area";
+
+  if (item === "areas" || item === "members") {
+    return canManagePeople;
+  }
+
+  if (item === "audit") {
+    return canManagePeople;
+  }
+
+  return true;
+}
 
 const chartDays = [
   { day: "Lun", done: 46, planned: 72 },
@@ -148,7 +175,7 @@ async function getJson<T>(path: string, accessToken: string): Promise<T> {
 
   if (!response.ok) {
     const message = await readError(response);
-    throw new Error(message);
+    throw new ApiError(message, response.status);
   }
 
   return response.json() as Promise<T>;
@@ -248,6 +275,9 @@ export default function Home() {
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState("");
   const currentMemberRole = currentMember?.role;
+  const visibleNavItems = navItems.filter((item) =>
+    canSeeNavItem(item.id, currentMemberRole),
+  );
 
   useEffect(() => {
     let ignore = false;
@@ -320,6 +350,19 @@ export default function Home() {
         setLoadState("ready");
       } catch (currentError) {
         if (ignore) return;
+
+        if (currentError instanceof ApiError && currentError.status === 401) {
+          window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
+          setAccessToken(null);
+          setCurrentMember(null);
+          setAreas([]);
+          setMembers([]);
+          setProjects([]);
+          setLoadState("idle");
+          setAuthState("anonymous");
+          return;
+        }
+
         setError(
           currentError instanceof Error
             ? currentError.message
@@ -434,7 +477,7 @@ export default function Home() {
         <aside className="fixed inset-y-0 left-0 z-20 hidden w-[306px] border-r border-white/5 bg-[#191922] px-8 py-10 lg:block">
           <Logo />
           <nav className="mt-12 space-y-4">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <NavButton
                 key={item.id}
                 active={view === item.id}
@@ -468,7 +511,7 @@ export default function Home() {
               onChange={(event) => setView(event.target.value as View)}
               className="rounded-md border border-white/10 bg-[#20212c] px-3 py-2 text-sm text-white"
             >
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <option key={item.id} value={item.id}>
                   {item.label}
                 </option>
