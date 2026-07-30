@@ -9,6 +9,7 @@ import { MemberAvailabilityStatus } from './enums/member-availability-status.enu
 import { Member } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
+import { toMemberResponse } from './utils/member-response.util';
 
 const getMembersControllerMethod = (methodName: keyof MembersController) => {
   const descriptor = Object.getOwnPropertyDescriptor(
@@ -92,7 +93,7 @@ describe('MembersController', () => {
     mockMembersService.create.mockResolvedValue(createdMember);
 
     await expect(controller.create(createMemberDto)).resolves.toEqual(
-      createdMember,
+      toMemberResponse(createdMember, AreaRole.PRESIDENCIA),
     );
     expect(mockMembersService.create).toHaveBeenCalledWith(createMemberDto);
   });
@@ -129,7 +130,7 @@ describe('MembersController', () => {
         { confirmName: 'Ana Lucia Rojas Perez' },
         accessActor,
       ),
-    ).resolves.toEqual(deactivatedMember);
+    ).resolves.toEqual(toMemberResponse(deactivatedMember, accessActor.role));
     expect(mockMembersService.deactivate).toHaveBeenCalledWith(
       1,
       'Ana Lucia Rojas Perez',

@@ -17,10 +17,10 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
-import { MemberResponse } from './dto/member-response.dto';
+import type { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { Member } from './member.entity';
 import { MembersService } from './members.service';
+import { toMemberResponse } from './utils/member-response.util';
 
 @Controller('members')
 @UseGuards(RolesGuard)
@@ -29,8 +29,11 @@ export class MembersController {
 
   @Post()
   @Roles(AreaRole.PRESIDENCIA)
-  create(@Body() createMemberDto: CreateMemberDto): Promise<Member> {
-    return this.membersService.create(createMemberDto);
+  async create(
+    @Body() createMemberDto: CreateMemberDto,
+  ): Promise<MemberResponse> {
+    const member = await this.membersService.create(createMemberDto);
+    return toMemberResponse(member, AreaRole.PRESIDENCIA);
   }
 
   @Get()
@@ -44,24 +47,26 @@ export class MembersController {
 
   @Patch(':id')
   @Roles(AreaRole.PRESIDENCIA)
-  update(
+  async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateMemberDto: UpdateMemberDto,
-  ): Promise<Member> {
-    return this.membersService.update(id, updateMemberDto);
+  ): Promise<MemberResponse> {
+    const member = await this.membersService.update(id, updateMemberDto);
+    return toMemberResponse(member, AreaRole.PRESIDENCIA);
   }
 
   @Patch(':id/deactivate')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
-  deactivate(
+  async deactivate(
     @Param('id', ParseIntPipe) id: number,
     @Body() confirmNameDto: ConfirmNameDto,
     @CurrentAccessActor() accessActor: RequestAccessActor,
-  ): Promise<Member> {
-    return this.membersService.deactivate(
+  ): Promise<MemberResponse> {
+    const member = await this.membersService.deactivate(
       id,
       confirmNameDto.confirmName,
       accessActor,
     );
+    return toMemberResponse(member, accessActor.role);
   }
 }

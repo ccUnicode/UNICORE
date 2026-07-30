@@ -15,6 +15,8 @@ import { MemberActivityStatus } from '../members/enums/member-activity-status.en
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { MembersService } from '../members/members.service';
+import { MemberResponse } from '../members/dto/member-response.dto';
+import { toMemberResponse } from '../members/utils/member-response.util';
 import { AuthTokenService } from './auth-token.service';
 import { BootstrapAuthDto } from './dto/bootstrap-auth.dto';
 import { LoginDto } from './dto/login.dto';
@@ -33,7 +35,7 @@ const DUMMY_PASSWORD_HASH = [
 export interface AuthResponse {
   accessToken: string;
   tokenType: 'Bearer';
-  member: Member;
+  member: MemberResponse;
 }
 
 @Injectable()
@@ -87,6 +89,7 @@ export class AuthService {
 
         const member = await membersRepository.findOne({
           where: { id: bootstrapDto.memberId },
+          relations: ['memberships'],
         });
 
         if (!member) {
@@ -131,6 +134,7 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<AuthResponse> {
     const member = await this.membersRepository
       .createQueryBuilder('member')
+      .leftJoinAndSelect('member.memberships', 'memberships')
       .addSelect(['member.passwordHash', 'member.sessionVersion'])
       .where('member.institution = :institution', {
         institution: 'UNI',
@@ -200,7 +204,7 @@ export class AuthService {
         member.sessionVersion ?? 0,
       ),
       tokenType: 'Bearer',
-      member,
+      member: toMemberResponse(member, AreaRole.PRESIDENCIA),
     };
   }
 

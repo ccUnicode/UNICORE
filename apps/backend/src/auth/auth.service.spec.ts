@@ -11,12 +11,14 @@ import { MemberActivityStatus } from '../members/enums/member-activity-status.en
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { MembersService } from '../members/members.service';
+import { toMemberResponse } from '../members/utils/member-response.util';
 import { AuthTokenService } from './auth-token.service';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 
 describe('AuthService', () => {
   const queryBuilder = {
+    leftJoinAndSelect: jest.fn(),
     addSelect: jest.fn(),
     where: jest.fn(),
     andWhere: jest.fn(),
@@ -61,6 +63,7 @@ describe('AuthService', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    queryBuilder.leftJoinAndSelect.mockReturnValue(queryBuilder);
     queryBuilder.addSelect.mockReturnValue(queryBuilder);
     queryBuilder.where.mockReturnValue(queryBuilder);
     queryBuilder.andWhere.mockReturnValue(queryBuilder);
@@ -101,7 +104,7 @@ describe('AuthService', () => {
     ).resolves.toEqual({
       accessToken: 'signed-token',
       tokenType: 'Bearer',
-      member,
+      member: toMemberResponse(member, AreaRole.PRESIDENCIA),
     });
     expect(membersRepository.update).toHaveBeenCalledWith(4, {
       passwordHash: 'stored-hash',
