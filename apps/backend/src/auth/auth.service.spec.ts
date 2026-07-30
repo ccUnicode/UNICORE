@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 import { Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { MembersService } from '../members/members.service';
 import { AuthTokenService } from './auth-token.service';
@@ -232,6 +233,28 @@ describe('AuthService', () => {
       'a-secure-password',
       expect.stringMatching(/^scrypt\$16384\$8\$1\$/),
     );
+  });
+
+  it('rejects login for active but disabled members', async () => {
+    const member = {
+      id: 7,
+      institution: 'UNI',
+      studentCode: '20260007',
+      passwordHash: 'stored-hash',
+      activityStatus: MemberActivityStatus.ACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      sessionVersion: 5,
+    } as Member;
+
+    queryBuilder.getOne.mockResolvedValue(member);
+    jest.mocked(passwordService.verify).mockResolvedValue(true);
+
+    await expect(
+      service.login({
+        studentCode: '20260007',
+        password: 'a-secure-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('increments the session version when changing a password', async () => {
