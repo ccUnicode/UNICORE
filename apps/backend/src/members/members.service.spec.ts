@@ -1,7 +1,14 @@
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { In, QueryFailedError, Repository } from 'typeorm';
+import {
+  DataSource,
+  EntityManager,
+  In,
+  ObjectLiteral,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { Skill } from '../skills/skill.entity';
@@ -50,6 +57,7 @@ describe('MembersService', () => {
   let skillsRepository: SkillRepositoryMock;
   let areasRepository: AreaRepositoryMock;
   let areaMembershipsRepository: AreaMembershipRepositoryMock;
+  let mockDataSource: DataSource;
   let persistedAreaDirectiveMember: Member;
   let persistedSkills: Skill[];
 
@@ -100,6 +108,30 @@ describe('MembersService', () => {
       find: jest.fn().mockResolvedValue([]),
     };
 
+    const mockEntityManager = {
+      getRepository: <T extends ObjectLiteral>(
+        entity: new () => T,
+      ): Repository<T> => {
+        if ((entity as any) === Member)
+          return membersRepository as unknown as Repository<T>;
+        if ((entity as any) === Skill)
+          return skillsRepository as unknown as Repository<T>;
+        if ((entity as any) === Area)
+          return areasRepository as unknown as Repository<T>;
+        if ((entity as any) === AreaMembership)
+          return areaMembershipsRepository as unknown as Repository<T>;
+        throw new Error('Entity not mocked');
+      },
+    } as unknown as EntityManager;
+
+    mockDataSource = {
+      transaction: jest
+        .fn()
+        .mockImplementation(<T>(cb: (em: EntityManager) => Promise<T>) =>
+          cb(mockEntityManager),
+        ),
+    } as unknown as DataSource;
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MembersService,
@@ -118,6 +150,10 @@ describe('MembersService', () => {
         {
           provide: getRepositoryToken(AreaMembership),
           useValue: areaMembershipsRepository,
+        },
+        {
+          provide: DataSource,
+          useValue: mockDataSource,
         },
       ],
     }).compile();
