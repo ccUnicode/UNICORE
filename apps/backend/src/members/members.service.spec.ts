@@ -660,6 +660,7 @@ describe('MembersService', () => {
           member: { id: 10 },
           role: AreaRole.DIRECTIVA_DE_AREA,
         },
+        order: { id: 'ASC' },
       });
       expect(areaMembershipsRepository.remove).toHaveBeenCalledWith(
         mockMembership,
@@ -703,6 +704,7 @@ describe('MembersService', () => {
           member: { id: 10 },
           role: AreaRole.DIRECTIVA_DE_AREA,
         },
+        order: { id: 'ASC' },
       });
       expect(areaMembershipsRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -751,6 +753,7 @@ describe('MembersService', () => {
           member: { id: 10 },
           role: AreaRole.DIRECTIVA_DE_AREA,
         },
+        order: { id: 'ASC' },
       });
       expect(areaMembershipsRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({

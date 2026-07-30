@@ -109,7 +109,11 @@ const getPrimaryMembership = (
     [AreaRole.DIRECTIVA_DE_AREA]: 2,
     [AreaRole.MIEMBRO]: 3,
   };
-  return [...memberships].sort((a, b) => {
-    return (priority[a.role] || 3) - (priority[b.role] || 3);
-  })[0];
+  return memberships.reduce((primary, current) => {
+    if (!primary) return current;
+    const priorityDiff = priority[current.role] - priority[primary.role];
+    if (priorityDiff < 0) return current;
+    if (priorityDiff > 0) return primary;
+    return current.id < primary.id ? current : primary;
+  });
 };

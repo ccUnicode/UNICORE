@@ -168,6 +168,7 @@ export class MembersService {
               member: { id },
               role: targetRole,
             },
+            order: { id: 'ASC' },
           })
         : null;
 
