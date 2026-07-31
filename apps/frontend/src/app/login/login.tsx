@@ -3,11 +3,11 @@
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { AUTH_TOKEN_STORAGE_KEY, postJson } from "@/lib/auth-client";
 import {
-  ApiError,
-  AUTH_TOKEN_STORAGE_KEY,
-  postJson,
-} from "@/lib/auth-client";
+  getLoginErrorMessage,
+  validateLoginCredentials,
+} from "./login-validation";
 
 type LoginResponse = {
   accessToken: string;
@@ -45,35 +45,6 @@ function PasswordVisibilityIcon({ visible }: { visible: boolean }) {
       {visible && <path d="m4 4 16 16" />}
     </svg>
   );
-}
-
-function getLoginErrorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.status === 401) {
-      return "El código de estudiante o la contraseña no son correctos.";
-    }
-    if (error.status === 429) {
-      return "Has realizado demasiados intentos. Espera un momento y vuelve a intentarlo.";
-    }
-    if (error.status === 400) {
-      return "Revisa los datos ingresados e inténtalo nuevamente.";
-    }
-    if (error.status === 403) {
-      return "Tu cuenta no tiene acceso habilitado a UNICORE.";
-    }
-    if (error.status >= 500) {
-      return "El servidor no pudo procesar la solicitud. Inténtalo nuevamente en unos minutos.";
-    }
-  }
-
-  if (
-    error instanceof Error &&
-    /failed to fetch|networkerror|load failed/i.test(error.message)
-  ) {
-    return "No pudimos conectar con el servidor. Revisa tu conexión e inténtalo nuevamente.";
-  }
-
-  return "No se pudo iniciar sesión. Inténtalo nuevamente.";
 }
 
 function LoginErrorNotice({ message }: { message: string }) {
@@ -131,16 +102,12 @@ export default function Login() {
     setLoginError("");
 
     const normalizedStudentCode = studentCode.trim();
-    if (!normalizedStudentCode) {
-      setLoginError("Ingresa tu código de estudiante.");
-      return;
-    }
-    if (!password) {
-      setLoginError("Ingresa tu contraseña.");
-      return;
-    }
-    if (password.length < 12) {
-      setLoginError("La contraseña debe tener al menos 12 caracteres.");
+    const validationError = validateLoginCredentials(
+      normalizedStudentCode,
+      password,
+    );
+    if (validationError) {
+      setLoginError(validationError);
       return;
     }
 

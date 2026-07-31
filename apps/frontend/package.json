@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src next.config.ts postcss.config.mjs",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/app/login/login-validation.test.js",
     "type-check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {
