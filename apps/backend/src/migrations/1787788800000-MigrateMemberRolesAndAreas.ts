@@ -75,18 +75,30 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
     const exists = hasRoleColumn[0]?.exists;
 
     if (exists) {
-      // 3. Copy data: migrate from members.role & members.area_id to area_memberships
+      // Create tracking table for migrated memberships
       await queryRunner.query(`
-        INSERT INTO area_memberships (member_id, area_id, role, created_at, updated_at)
-        SELECT m.id, m.area_id, m.role::varchar, NOW(), NOW()
-        FROM members m
-        WHERE NOT EXISTS (
-            SELECT 1 
-            FROM area_memberships am 
-            WHERE am.member_id = m.id 
-              AND am.role = m.role::varchar 
-              AND (am.area_id = m.area_id OR (am.area_id IS NULL AND m.area_id IS NULL))
+        CREATE TABLE IF NOT EXISTS _migrated_area_memberships (
+          membership_id INTEGER PRIMARY KEY
         );
+      `);
+
+      // 3. Copy data: migrate from members.role & members.area_id to area_memberships and track IDs
+      await queryRunner.query(`
+        WITH inserted AS (
+          INSERT INTO area_memberships (member_id, area_id, role, created_at, updated_at)
+          SELECT m.id, m.area_id, m.role::varchar, NOW(), NOW()
+          FROM members m
+          WHERE NOT EXISTS (
+              SELECT 1 
+              FROM area_memberships am 
+              WHERE am.member_id = m.id 
+                AND am.role = m.role::varchar 
+                AND (am.area_id = m.area_id OR (am.area_id IS NULL AND m.area_id IS NULL))
+          )
+          RETURNING id
+        )
+        INSERT INTO _migrated_area_memberships (membership_id)
+        SELECT id FROM inserted;
       `);
 
       // 4. Validate data: ensure all members have at least one membership
@@ -237,9 +249,23 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
       `);
     }
 
-    // Drop area_memberships table
-    await queryRunner.query(`
-      DROP TABLE IF EXISTS area_memberships CASCADE;
-    `);
+    // Revert the row changes: delete only the tracked memberships
+    const hasTrackingTable = (await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.tables 
+        WHERE table_name='_migrated_area_memberships'
+      );
+    `)) as { exists: boolean }[];
+
+    if (hasTrackingTable[0]?.exists) {
+      await queryRunner.query(`
+        DELETE FROM area_memberships 
+        WHERE id IN (SELECT membership_id FROM _migrated_area_memberships);
+      `);
+      await queryRunner.query(`
+        DROP TABLE IF EXISTS _migrated_area_memberships;
+      `);
+    }
   }
 }
