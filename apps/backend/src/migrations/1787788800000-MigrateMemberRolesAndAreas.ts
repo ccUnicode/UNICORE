@@ -39,21 +39,29 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
 
     if (hasAvailabilityStatusColumn[0]?.exists) {
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
+        DROP TYPE IF EXISTS members_availability_status_enum_old;
       `);
       await queryRunner.query(`
-        DROP TYPE IF EXISTS members_availability_status_enum;
+        ALTER TYPE members_availability_status_enum RENAME TO members_availability_status_enum_old;
       `);
       await queryRunner.query(`
         CREATE TYPE members_availability_status_enum AS ENUM ('available', 'not_available', 'disabled');
       `);
       await queryRunner.query(`
-        UPDATE members 
-        SET availability_status = 'not_available' 
-        WHERE availability_status = 'unavailable';
+        ALTER TABLE members ALTER COLUMN availability_status DROP DEFAULT;
       `);
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum USING availability_status::members_availability_status_enum;
+        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum 
+          USING CASE availability_status::varchar
+            WHEN 'unavailable' THEN 'not_available'::members_availability_status_enum
+            ELSE availability_status::varchar::members_availability_status_enum
+          END;
+      `);
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status SET DEFAULT 'available'::members_availability_status_enum;
+      `);
+      await queryRunner.query(`
+        DROP TYPE members_availability_status_enum_old;
       `);
     }
 
@@ -203,21 +211,29 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
 
     if (hasAvailabilityStatusColumn[0]?.exists) {
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
+        DROP TYPE IF EXISTS members_availability_status_enum_new;
       `);
       await queryRunner.query(`
-        DROP TYPE IF EXISTS members_availability_status_enum;
+        ALTER TYPE members_availability_status_enum RENAME TO members_availability_status_enum_new;
       `);
       await queryRunner.query(`
         CREATE TYPE members_availability_status_enum AS ENUM ('available', 'unavailable', 'disabled');
       `);
       await queryRunner.query(`
-        UPDATE members 
-        SET availability_status = 'unavailable' 
-        WHERE availability_status = 'not_available';
+        ALTER TABLE members ALTER COLUMN availability_status DROP DEFAULT;
       `);
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum USING availability_status::members_availability_status_enum;
+        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum 
+          USING CASE availability_status::varchar
+            WHEN 'not_available' THEN 'unavailable'::members_availability_status_enum
+            ELSE availability_status::varchar::members_availability_status_enum
+          END;
+      `);
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status SET DEFAULT 'available'::members_availability_status_enum;
+      `);
+      await queryRunner.query(`
+        DROP TYPE members_availability_status_enum_new;
       `);
     }
 
