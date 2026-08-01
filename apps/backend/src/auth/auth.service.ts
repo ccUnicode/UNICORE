@@ -204,7 +204,7 @@ export class AuthService {
         member.sessionVersion ?? 0,
       ),
       tokenType: 'Bearer',
-      member: toMemberResponse(member, AreaRole.PRESIDENCIA),
+      member: toMemberResponse(member, member.role),
     };
   }
 

@@ -56,7 +56,7 @@ export class AuthController {
 
   @Get('me')
   me(@CurrentMember() member: Member): MemberResponse {
-    return toMemberResponse(member, AreaRole.PRESIDENCIA);
+    return toMemberResponse(member, member.role);
   }
 
   @Put('members/:memberId/password')

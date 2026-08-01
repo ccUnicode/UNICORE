@@ -44,6 +44,7 @@ const createSkill = (
 
 const createQueryBuilderMock = (members: Member[]) => ({
   leftJoinAndSelect: jest.fn().mockReturnThis(),
+  innerJoin: jest.fn().mockReturnThis(),
   orderBy: jest.fn().mockReturnThis(),
   addOrderBy: jest.fn().mockReturnThis(),
   andWhere: jest.fn().mockReturnThis(),
@@ -417,9 +418,15 @@ describe('MembersService', () => {
     it('filters by areaId', async () => {
       const filterDto = { areaId: 5 };
       await expect(service.findAll(filterDto)).resolves.toEqual(storedMembers);
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
-        'area.id = :areaId',
+      expect(queryBuilderMock.innerJoin).toHaveBeenCalledWith(
+        'member.memberships',
+        'areaMembershipFilter',
+        'areaMembershipFilter.areaId = :areaId',
         { areaId: 5 },
+      );
+      expect(queryBuilderMock.andWhere).not.toHaveBeenCalledWith(
+        'area.id = :areaId',
+        expect.anything(),
       );
     });
 
@@ -446,8 +453,10 @@ describe('MembersService', () => {
         'member.availabilityStatus = :availabilityStatus',
         { availabilityStatus: MemberAvailabilityStatus.AVAILABLE },
       );
-      expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
-        'area.id = :areaId',
+      expect(queryBuilderMock.innerJoin).toHaveBeenCalledWith(
+        'member.memberships',
+        'areaMembershipFilter',
+        'areaMembershipFilter.areaId = :areaId',
         { areaId: 3 },
       );
       expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
@@ -819,8 +828,10 @@ describe('MembersService', () => {
       'member.availabilityStatus = :availabilityStatus',
       { availabilityStatus: MemberAvailabilityStatus.AVAILABLE },
     );
-    expect(queryBuilderMock.andWhere).toHaveBeenCalledWith(
-      'area.id = :areaId',
+    expect(queryBuilderMock.innerJoin).toHaveBeenCalledWith(
+      'member.memberships',
+      'areaMembershipFilter',
+      'areaMembershipFilter.areaId = :areaId',
       { areaId: 3 },
     );
   });

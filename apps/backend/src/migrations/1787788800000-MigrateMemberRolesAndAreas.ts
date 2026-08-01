@@ -39,21 +39,29 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
 
     if (hasAvailabilityStatusColumn[0]?.exists) {
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
+        DROP TYPE IF EXISTS members_availability_status_enum_old;
       `);
       await queryRunner.query(`
-        DROP TYPE IF EXISTS members_availability_status_enum;
+        ALTER TYPE members_availability_status_enum RENAME TO members_availability_status_enum_old;
       `);
       await queryRunner.query(`
         CREATE TYPE members_availability_status_enum AS ENUM ('available', 'not_available', 'disabled');
       `);
       await queryRunner.query(`
-        UPDATE members 
-        SET availability_status = 'not_available' 
-        WHERE availability_status = 'unavailable';
+        ALTER TABLE members ALTER COLUMN availability_status DROP DEFAULT;
       `);
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum USING availability_status::members_availability_status_enum;
+        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum 
+          USING CASE availability_status::varchar
+            WHEN 'unavailable' THEN 'not_available'::members_availability_status_enum
+            ELSE availability_status::varchar::members_availability_status_enum
+          END;
+      `);
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status SET DEFAULT 'available'::members_availability_status_enum;
+      `);
+      await queryRunner.query(`
+        DROP TYPE members_availability_status_enum_old;
       `);
     }
 
@@ -67,18 +75,30 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
     const exists = hasRoleColumn[0]?.exists;
 
     if (exists) {
-      // 3. Copy data: migrate from members.role & members.area_id to area_memberships
+      // Create tracking table for migrated memberships
       await queryRunner.query(`
-        INSERT INTO area_memberships (member_id, area_id, role, created_at, updated_at)
-        SELECT m.id, m.area_id, m.role::varchar, NOW(), NOW()
-        FROM members m
-        WHERE NOT EXISTS (
-            SELECT 1 
-            FROM area_memberships am 
-            WHERE am.member_id = m.id 
-              AND am.role = m.role::varchar 
-              AND (am.area_id = m.area_id OR (am.area_id IS NULL AND m.area_id IS NULL))
+        CREATE TABLE IF NOT EXISTS _migrated_area_memberships (
+          membership_id INTEGER PRIMARY KEY
         );
+      `);
+
+      // 3. Copy data: migrate from members.role & members.area_id to area_memberships and track IDs
+      await queryRunner.query(`
+        WITH inserted AS (
+          INSERT INTO area_memberships (member_id, area_id, role, created_at, updated_at)
+          SELECT m.id, m.area_id, m.role::varchar, NOW(), NOW()
+          FROM members m
+          WHERE NOT EXISTS (
+              SELECT 1 
+              FROM area_memberships am 
+              WHERE am.member_id = m.id 
+                AND am.role = m.role::varchar 
+                AND (am.area_id = m.area_id OR (am.area_id IS NULL AND m.area_id IS NULL))
+          )
+          RETURNING id
+        )
+        INSERT INTO _migrated_area_memberships (membership_id)
+        SELECT id FROM inserted;
       `);
 
       // 4. Validate data: ensure all members have at least one membership
@@ -203,27 +223,49 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
 
     if (hasAvailabilityStatusColumn[0]?.exists) {
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE varchar(50);
+        DROP TYPE IF EXISTS members_availability_status_enum_new;
       `);
       await queryRunner.query(`
-        DROP TYPE IF EXISTS members_availability_status_enum;
+        ALTER TYPE members_availability_status_enum RENAME TO members_availability_status_enum_new;
       `);
       await queryRunner.query(`
         CREATE TYPE members_availability_status_enum AS ENUM ('available', 'unavailable', 'disabled');
       `);
       await queryRunner.query(`
-        UPDATE members 
-        SET availability_status = 'unavailable' 
-        WHERE availability_status = 'not_available';
+        ALTER TABLE members ALTER COLUMN availability_status DROP DEFAULT;
       `);
       await queryRunner.query(`
-        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum USING availability_status::members_availability_status_enum;
+        ALTER TABLE members ALTER COLUMN availability_status TYPE members_availability_status_enum 
+          USING CASE availability_status::varchar
+            WHEN 'not_available' THEN 'unavailable'::members_availability_status_enum
+            ELSE availability_status::varchar::members_availability_status_enum
+          END;
+      `);
+      await queryRunner.query(`
+        ALTER TABLE members ALTER COLUMN availability_status SET DEFAULT 'available'::members_availability_status_enum;
+      `);
+      await queryRunner.query(`
+        DROP TYPE members_availability_status_enum_new;
       `);
     }
 
-    // Drop area_memberships table
-    await queryRunner.query(`
-      DROP TABLE IF EXISTS area_memberships CASCADE;
-    `);
+    // Revert the row changes: delete only the tracked memberships
+    const hasTrackingTable = (await queryRunner.query(`
+      SELECT EXISTS (
+        SELECT 1 
+        FROM information_schema.tables 
+        WHERE table_name='_migrated_area_memberships'
+      );
+    `)) as { exists: boolean }[];
+
+    if (hasTrackingTable[0]?.exists) {
+      await queryRunner.query(`
+        DELETE FROM area_memberships 
+        WHERE id IN (SELECT membership_id FROM _migrated_area_memberships);
+      `);
+      await queryRunner.query(`
+        DROP TABLE IF EXISTS _migrated_area_memberships;
+      `);
+    }
   }
 }

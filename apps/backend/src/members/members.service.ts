@@ -262,7 +262,12 @@ export class MembersService {
     }
 
     if (areaId !== undefined) {
-      query.andWhere('area.id = :areaId', { areaId });
+      query.innerJoin(
+        'member.memberships',
+        'areaMembershipFilter',
+        'areaMembershipFilter.areaId = :areaId',
+        { areaId },
+      );
     }
 
     if (cycle !== undefined) {
