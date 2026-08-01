@@ -6,7 +6,13 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DeepPartial, EntityManager, In, Repository } from 'typeorm';
+import {
+  DataSource,
+  DeepPartial,
+  EntityManager,
+  In,
+  Repository,
+} from 'typeorm';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -20,18 +26,16 @@ import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
-import { MemberStatus } from './enums/member-status.enum';
 import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
 
-const LEGACY_STATUS_BY_AVAILABILITY: Record<
-  MemberAvailabilityStatus,
-  MemberStatus
-> = {
-  [MemberAvailabilityStatus.AVAILABLE]: MemberStatus.Available,
-  [MemberAvailabilityStatus.UNAVAILABLE]: MemberStatus.Unavailable,
-  [MemberAvailabilityStatus.DISABLED]: MemberStatus.Disabled,
-};
+interface LegacyCreateMemberInput extends CreateMemberDto {
+  status?: MemberAvailabilityStatus;
+}
+
+interface LegacyUpdateMemberInput extends UpdateMemberDto {
+  status?: MemberAvailabilityStatus;
+}
 
 @Injectable()
 export class MembersService {
@@ -44,22 +48,26 @@ export class MembersService {
     private readonly areasRepository: Repository<Area>,
     @InjectRepository(AreaMembership)
     private readonly areaMembershipsRepository: Repository<AreaMembership>,
+    private readonly dataSource: DataSource,
   ) {}
 
   async create(
     createMemberDto: CreateMemberDto,
     entityManager?: EntityManager,
   ): Promise<Member> {
-    const { skills, areaId, status, ...restDto } = createMemberDto;
-    const membersRepository =
-      entityManager?.getRepository(Member) ?? this.membersRepository;
-    const skillsRepository =
-      entityManager?.getRepository(Skill) ?? this.skillsRepository;
-    const areasRepository =
-      entityManager?.getRepository(Area) ?? this.areasRepository;
+    if (!entityManager) {
+      return this.dataSource.transaction(async (em) =>
+        this.create(createMemberDto, em),
+      );
+    }
+    const { skills, areaId, status, ...restDto } =
+      createMemberDto as LegacyCreateMemberInput;
+    const membersRepository = entityManager.getRepository(Member);
+    const skillsRepository = entityManager.getRepository(Skill);
+    const areasRepository = entityManager.getRepository(Area);
     const areaMembershipsRepository =
-      entityManager?.getRepository(AreaMembership) ??
-      this.areaMembershipsRepository;
+      entityManager.getRepository(AreaMembership);
+
     const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
@@ -72,26 +80,21 @@ export class MembersService {
       ...restDto,
       ...(resolvedAvailabilityStatus !== undefined && {
         availabilityStatus: resolvedAvailabilityStatus,
-        status: LEGACY_STATUS_BY_AVAILABILITY[resolvedAvailabilityStatus],
       }),
-      role: restDto.role ?? AreaRole.MIEMBRO,
       skills: resolvedSkills,
-      area:
-        areaId !== undefined && areaId !== null ? { id: areaId } : undefined,
-    });
+    } as DeepPartial<Member>);
 
     try {
       const savedMember = await membersRepository.save(member);
 
-      if (areaId !== undefined && areaId !== null) {
-        const membership = areaMembershipsRepository.create({
-          member: savedMember,
-          area: { id: areaId },
-          role: AreaRole.DIRECTIVA_DE_AREA,
-        });
-        await areaMembershipsRepository.save(membership);
-      }
+      const membership = areaMembershipsRepository.create({
+        member: savedMember,
+        area: areaId !== undefined && areaId !== null ? { id: areaId } : null,
+        role: createMemberDto.role ?? AreaRole.MIEMBRO,
+      });
+      await areaMembershipsRepository.save(membership);
 
+      savedMember.memberships = [membership];
       return savedMember;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -106,66 +109,97 @@ export class MembersService {
     }
   }
 
-  async update(id: number, updateMemberDto: UpdateMemberDto): Promise<Member> {
-    const { activityStatus, availabilityStatus, status, areaId } =
-      updateMemberDto;
+  async update(
+    id: number,
+    updateMemberDto: UpdateMemberDto,
+    entityManager?: EntityManager,
+  ): Promise<Member> {
+    if (!entityManager) {
+      return this.dataSource.transaction(async (em) =>
+        this.update(id, updateMemberDto, em),
+      );
+    }
+    const { activityStatus, availabilityStatus, status, areaId, cycle } =
+      updateMemberDto as LegacyUpdateMemberInput;
     const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
+    const membersRepository = entityManager.getRepository(Member);
+    const areaMembershipsRepository =
+      entityManager.getRepository(AreaMembership);
+    const areasRepository = entityManager.getRepository(Area);
+
     if (areaId !== undefined && areaId !== null) {
-      await this.validateActiveAreaExists(areaId);
+      await this.validateActiveAreaExists(areaId, areasRepository);
     }
 
-    const preloadData: DeepPartial<Member> = {
-      id,
-      ...(activityStatus !== undefined && { activityStatus }),
-      ...(resolvedAvailabilityStatus !== undefined && {
-        availabilityStatus: resolvedAvailabilityStatus,
-        status: LEGACY_STATUS_BY_AVAILABILITY[resolvedAvailabilityStatus],
-      }),
-      ...(areaId !== undefined && {
-        area: areaId === null ? null : { id: areaId },
-      }),
-    };
-
-    const member = await this.membersRepository.preload(preloadData);
+    const member = await membersRepository.findOne({
+      where: { id },
+      relations: ['memberships'],
+    });
 
     if (!member) {
       throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
-    const savedMember = await this.membersRepository.save(member);
+    if (activityStatus !== undefined) {
+      member.activityStatus = activityStatus;
+    }
+    if (resolvedAvailabilityStatus !== undefined) {
+      member.availabilityStatus = resolvedAvailabilityStatus;
+    }
+    if (cycle !== undefined) {
+      member.cycle = cycle === null ? null : cycle;
+    }
+
+    const savedMember = await membersRepository.save(member);
 
     if (areaId !== undefined) {
-      const existingDirectivaMembership =
-        await this.areaMembershipsRepository.findOne({
-          where: {
-            member: { id },
-            role: AreaRole.DIRECTIVA_DE_AREA,
-          },
-        });
+      const roles = savedMember.memberships.map((m) => m.role);
+      let targetRole: AreaRole | null = null;
+      if (roles.includes(AreaRole.DIRECTIVA_DE_AREA)) {
+        targetRole = AreaRole.DIRECTIVA_DE_AREA;
+      } else if (roles.includes(AreaRole.MIEMBRO)) {
+        targetRole = AreaRole.MIEMBRO;
+      }
+
+      const existingMembership = targetRole
+        ? await areaMembershipsRepository.findOne({
+            where: {
+              member: { id },
+              role: targetRole,
+            },
+            order: { id: 'ASC' },
+          })
+        : null;
 
       if (areaId === null) {
-        if (existingDirectivaMembership) {
-          await this.areaMembershipsRepository.remove(
-            existingDirectivaMembership,
-          );
+        if (existingMembership) {
+          if (existingMembership.role === AreaRole.DIRECTIVA_DE_AREA) {
+            await areaMembershipsRepository.remove(existingMembership);
+          } else {
+            existingMembership.area = null;
+            await areaMembershipsRepository.save(existingMembership);
+          }
         }
       } else {
-        if (existingDirectivaMembership) {
-          existingDirectivaMembership.area = { id: areaId } as Area;
-          await this.areaMembershipsRepository.save(
-            existingDirectivaMembership,
-          );
+        if (existingMembership) {
+          existingMembership.area = { id: areaId } as Area;
+          await areaMembershipsRepository.save(existingMembership);
         } else {
-          const newMembership = this.areaMembershipsRepository.create({
+          const newMembership = areaMembershipsRepository.create({
             member: savedMember,
             area: { id: areaId },
             role: AreaRole.DIRECTIVA_DE_AREA,
           });
-          await this.areaMembershipsRepository.save(newMembership);
+          await areaMembershipsRepository.save(newMembership);
         }
       }
     }
+
+    // Load memberships relation to keep getters working
+    savedMember.memberships = await areaMembershipsRepository.find({
+      where: { member: { id } },
+    });
 
     return savedMember;
   }
@@ -195,17 +229,15 @@ export class MembersService {
 
     member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
-    member.status =
-      LEGACY_STATUS_BY_AVAILABILITY[MemberAvailabilityStatus.DISABLED];
 
     return this.membersRepository.save(member);
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
     const activityStatus = filterDto?.activityStatus;
-    const availabilityStatus =
-      filterDto?.availabilityStatus ?? filterDto?.status;
+    const availabilityStatus = filterDto?.availabilityStatus;
     const areaId = filterDto?.areaId;
+    const cycle = filterDto?.cycle;
     const skills = filterDto?.skills;
 
     const query = this.membersRepository
@@ -230,7 +262,16 @@ export class MembersService {
     }
 
     if (areaId !== undefined) {
-      query.andWhere('area.id = :areaId', { areaId });
+      query.innerJoin(
+        'member.memberships',
+        'areaMembershipFilter',
+        'areaMembershipFilter.areaId = :areaId',
+        { areaId },
+      );
+    }
+
+    if (cycle !== undefined) {
+      query.andWhere('member.cycle = :cycle', { cycle });
     }
 
     if (skills && skills.length > 0) {

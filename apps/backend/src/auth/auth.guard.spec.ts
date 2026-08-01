@@ -6,6 +6,7 @@ import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { AccessControlledRequest } from '../common/interfaces/access-controlled-request.interface';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { AuthGuard } from './auth.guard';
 import { AuthTokenService } from './auth-token.service';
@@ -88,7 +89,7 @@ describe('AuthGuard', () => {
     expect(request.authenticatedMember).toBe(member);
     expect(membersRepository.findOne).toHaveBeenCalledWith({
       where: { id: 7 },
-      relations: { projectMemberships: true },
+      relations: { projectMemberships: true, memberships: true },
     });
   });
 
@@ -140,6 +141,31 @@ describe('AuthGuard', () => {
     jest.mocked(membersRepository.findOne).mockResolvedValue({
       id: 7,
       activityStatus: MemberActivityStatus.INACTIVE,
+    } as Member);
+
+    await expect(
+      guard.canActivate(
+        createContext({ headers: { authorization: 'Bearer valid-token' } }),
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejects disabled authenticated members', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(false),
+    } as unknown as Reflector;
+    const guard = new AuthGuard(reflector, tokenService, membersRepository);
+
+    jest.mocked(tokenService.verify).mockReturnValue({
+      sub: 7,
+      ver: 0,
+      iat: 1,
+      exp: 2,
+    });
+    jest.mocked(membersRepository.findOne).mockResolvedValue({
+      id: 7,
+      activityStatus: MemberActivityStatus.ACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
     } as Member);
 
     await expect(

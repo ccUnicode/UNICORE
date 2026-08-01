@@ -14,6 +14,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { Member } from '../members/member.entity';
+import type { MemberResponse } from '../members/dto/member-response.dto';
+import { toMemberResponse } from '../members/utils/member-response.util';
 import { AuthResponse, AuthService } from './auth.service';
 import { CurrentMember } from './current-member.decorator';
 import { BootstrapAuthDto } from './dto/bootstrap-auth.dto';
@@ -53,8 +55,8 @@ export class AuthController {
   }
 
   @Get('me')
-  me(@CurrentMember() member: Member): Member {
-    return member;
+  me(@CurrentMember() member: Member): MemberResponse {
+    return toMemberResponse(member, member.role);
   }
 
   @Put('members/:memberId/password')

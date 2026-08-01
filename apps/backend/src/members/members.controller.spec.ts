@@ -1,14 +1,15 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DataSource } from 'typeorm';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
-import { MemberStatus } from './enums/member-status.enum';
 import { Member } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
+import { toMemberResponse } from './utils/member-response.util';
 
 const getMembersControllerMethod = (methodName: keyof MembersController) => {
   const descriptor = Object.getOwnPropertyDescriptor(
@@ -43,6 +44,14 @@ describe('MembersController', () => {
           provide: MembersService,
           useValue: mockMembersService,
         },
+        {
+          provide: DataSource,
+          useValue: {
+            getRepository: jest.fn().mockReturnValue({
+              findOne: jest.fn().mockResolvedValue(null),
+            }),
+          },
+        },
       ],
     }).compile();
 
@@ -60,13 +69,12 @@ describe('MembersController', () => {
       birthDate: '2004-04-18',
       role: AreaRole.MIEMBRO,
       areaId: null,
-      area: null,
+      cycle: null,
       activityStatus: MemberActivityStatus.ACTIVE,
       availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       skills: [],
       createdAt: new Date(),
       updatedAt: new Date(),
-      status: MemberStatus.Available,
       memberships: [],
       projectMemberships: [],
     } satisfies Member;
@@ -85,7 +93,7 @@ describe('MembersController', () => {
     mockMembersService.create.mockResolvedValue(createdMember);
 
     await expect(controller.create(createMemberDto)).resolves.toEqual(
-      createdMember,
+      toMemberResponse(createdMember, AreaRole.PRESIDENCIA),
     );
     expect(mockMembersService.create).toHaveBeenCalledWith(createMemberDto);
   });
@@ -96,7 +104,9 @@ describe('MembersController', () => {
       areaId: '2',
     };
     const storedMembers: Member[] = [];
-    const filterDto = { status: MemberAvailabilityStatus.AVAILABLE };
+    const filterDto = {
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+    };
 
     mockMembersService.findAccessible.mockResolvedValue(storedMembers);
 
@@ -120,7 +130,7 @@ describe('MembersController', () => {
         { confirmName: 'Ana Lucia Rojas Perez' },
         accessActor,
       ),
-    ).resolves.toEqual(deactivatedMember);
+    ).resolves.toEqual(toMemberResponse(deactivatedMember, accessActor.role));
     expect(mockMembersService.deactivate).toHaveBeenCalledWith(
       1,
       'Ana Lucia Rojas Perez',

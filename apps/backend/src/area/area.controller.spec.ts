@@ -1,5 +1,6 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DataSource } from 'typeorm';
 import { ACCESS_SCOPE_KEY } from '../common/decorators/access-scope.decorator';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -39,6 +40,14 @@ describe('AreaController', () => {
         {
           provide: AreaService,
           useValue: mockAreaService,
+        },
+        {
+          provide: DataSource,
+          useValue: {
+            getRepository: jest.fn().mockReturnValue({
+              findOne: jest.fn().mockResolvedValue(null),
+            }),
+          },
         },
       ],
     }).compile();

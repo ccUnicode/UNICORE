@@ -12,8 +12,11 @@ import { createHash, timingSafeEqual } from 'crypto';
 import { Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
+import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { MembersService } from '../members/members.service';
+import { MemberResponse } from '../members/dto/member-response.dto';
+import { toMemberResponse } from '../members/utils/member-response.util';
 import { AuthTokenService } from './auth-token.service';
 import { BootstrapAuthDto } from './dto/bootstrap-auth.dto';
 import { LoginDto } from './dto/login.dto';
@@ -32,7 +35,7 @@ const DUMMY_PASSWORD_HASH = [
 export interface AuthResponse {
   accessToken: string;
   tokenType: 'Bearer';
-  member: Member;
+  member: MemberResponse;
 }
 
 @Injectable()
@@ -86,6 +89,7 @@ export class AuthService {
 
         const member = await membersRepository.findOne({
           where: { id: bootstrapDto.memberId },
+          relations: ['memberships'],
         });
 
         if (!member) {
@@ -130,6 +134,7 @@ export class AuthService {
   async login(loginDto: LoginDto): Promise<AuthResponse> {
     const member = await this.membersRepository
       .createQueryBuilder('member')
+      .leftJoinAndSelect('member.memberships', 'memberships')
       .addSelect(['member.passwordHash', 'member.sessionVersion'])
       .where('member.institution = :institution', {
         institution: 'UNI',
@@ -148,7 +153,8 @@ export class AuthService {
       !member ||
       !member.passwordHash ||
       !credentialsAreValid ||
-      member.activityStatus !== MemberActivityStatus.ACTIVE
+      member.activityStatus !== MemberActivityStatus.ACTIVE ||
+      member.availabilityStatus === MemberAvailabilityStatus.DISABLED
     ) {
       throw new UnauthorizedException('Invalid credentials');
     }
@@ -198,7 +204,7 @@ export class AuthService {
         member.sessionVersion ?? 0,
       ),
       tokenType: 'Bearer',
-      member,
+      member: toMemberResponse(member, member.role),
     };
   }
 
@@ -207,13 +213,17 @@ export class AuthService {
     institution: string;
     studentCode?: string | null;
     activityStatus?: MemberActivityStatus;
+    availabilityStatus?: MemberAvailabilityStatus;
   }): void {
     const activityStatus = member.activityStatus ?? MemberActivityStatus.ACTIVE;
+    const availabilityStatus =
+      member.availabilityStatus ?? MemberAvailabilityStatus.AVAILABLE;
 
     if (
       member.role !== AreaRole.PRESIDENCIA ||
       member.institution.trim().toUpperCase() !== 'UNI' ||
       activityStatus !== MemberActivityStatus.ACTIVE ||
+      availabilityStatus === MemberAvailabilityStatus.DISABLED ||
       !member.studentCode?.trim()
     ) {
       throw new ForbiddenException(

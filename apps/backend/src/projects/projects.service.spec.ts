@@ -23,7 +23,6 @@ import { AreaMembership } from '../area-memberships/entities/area-membership.ent
 import { Member } from '../members/member.entity';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
-import { MemberStatus } from '../members/enums/member-status.enum';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectLabel } from './entities/project-label.entity';
@@ -139,27 +138,32 @@ const createAreaMembership = (
   ...overrides,
 });
 
-const createMember = (overrides: Partial<Member> = {}): Member => ({
-  id: 1,
-  institution: 'UNI',
-  studentCode: null,
-  firstNames: 'Juan',
-  lastNames: 'Pérez',
-  major: 'Ingeniería de Sistemas',
-  birthDate: '2000-01-01',
-  role: AreaRole.MIEMBRO,
-  areaId: 1,
-  area: null,
-  activityStatus: MemberActivityStatus.ACTIVE,
-  availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-  skills: [],
-  status: MemberStatus.Available,
-  memberships: [createAreaMembership()],
-  projectMemberships: [],
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  ...overrides,
-});
+const createMember = (overrides: Partial<Member> = {}): Member => {
+  const member = {
+    id: 1,
+    institution: 'UNI',
+    studentCode: null,
+    firstNames: 'Juan',
+    lastNames: 'Pérez',
+    major: 'Ingeniería de Sistemas',
+    birthDate: '2000-01-01',
+    activityStatus: MemberActivityStatus.ACTIVE,
+    availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+    skills: [],
+    memberships: [createAreaMembership()],
+    projectMemberships: [],
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    get role(): AreaRole {
+      return AreaRole.MIEMBRO;
+    },
+    get areaId(): number | null {
+      return 1;
+    },
+    ...overrides,
+  } as unknown as Member;
+  return member;
+};
 
 const createProjectMembership = (
   overrides: Partial<ProjectMembership> = {},
@@ -1225,7 +1229,7 @@ describe('ProjectsService', () => {
 
     it('rejects unavailable members', async () => {
       const member = createMember({
-        availabilityStatus: MemberAvailabilityStatus.UNAVAILABLE,
+        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
       });
 
       projectsRepository.findOne?.mockResolvedValue(createProject());
