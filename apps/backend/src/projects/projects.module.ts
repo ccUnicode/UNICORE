@@ -9,6 +9,7 @@ import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
+import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { ProjectsService } from './projects.service';
       ProjectLink,
       ProjectMembership,
       Member,
+      TaskAssignee,
     ]),
   ],
   controllers: [ProjectsController],

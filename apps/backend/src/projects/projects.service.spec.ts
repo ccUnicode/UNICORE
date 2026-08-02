@@ -32,6 +32,7 @@ import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
 import { ProjectsService } from './projects.service';
+import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
 
 type RepositoryMethodMocks<T extends ObjectLiteral> = Partial<
   Record<Exclude<keyof Repository<T>, 'manager'>, jest.Mock>
@@ -51,6 +52,7 @@ type ProjectLabelRepositoryMock = RepositoryMethodMocks<ProjectLabel>;
 type ProjectLinkRepositoryMock = RepositoryMethodMocks<ProjectLink>;
 type ProjectMembershipRepositoryMock = RepositoryMethodMocks<ProjectMembership>;
 type MemberRepositoryMock = RepositoryMethodMocks<Member>;
+type TaskAssigneeRepositoryMock = RepositoryMethodMocks<TaskAssignee>;
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -199,6 +201,7 @@ describe('ProjectsService', () => {
   let projectLinksRepository: ProjectLinkRepositoryMock;
   let projectMembershipsRepository: ProjectMembershipRepositoryMock;
   let membersRepository: MemberRepositoryMock;
+  let taskAssigneesRepository: TaskAssigneeRepositoryMock;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -260,6 +263,9 @@ describe('ProjectsService', () => {
     membersRepository = {
       findOne: jest.fn(),
     };
+    taskAssigneesRepository = {
+      findOne: jest.fn(),
+    };
     const getRepository = jest.fn(
       (
         entity:
@@ -268,13 +274,15 @@ describe('ProjectsService', () => {
           | typeof ProjectLabel
           | typeof ProjectLink
           | typeof ProjectMembership
-          | typeof Member,
+          | typeof Member
+          | typeof TaskAssignee,
       ) => {
         if (entity === Project) return projectsRepository;
         if (entity === ProjectPhase) return projectPhasesRepository;
         if (entity === ProjectLabel) return projectLabelsRepository;
         if (entity === ProjectMembership) return projectMembershipsRepository;
         if (entity === Member) return membersRepository;
+        if (entity === TaskAssignee) return taskAssigneesRepository;
         return projectLinksRepository;
       },
     );
@@ -314,6 +322,10 @@ describe('ProjectsService', () => {
         {
           provide: getRepositoryToken(Member),
           useValue: membersRepository,
+        },
+        {
+          provide: getRepositoryToken(TaskAssignee),
+          useValue: taskAssigneesRepository,
         },
         {
           provide: AreaService,
@@ -1356,6 +1368,27 @@ describe('ProjectsService', () => {
       expect(projectMembershipsRepository.remove).toHaveBeenCalledWith(
         membership,
       );
+      expect(taskAssigneesRepository.findOne).toHaveBeenCalledWith({
+        where: { projectMembershipId: membership.id },
+        select: ['id'],
+      });
+    });
+
+    it('rejects removing a member that still owns task assignments', async () => {
+      const membership = createProjectMembership();
+
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      projectMembershipsRepository.findOne?.mockResolvedValue(membership);
+      taskAssigneesRepository.findOne?.mockResolvedValue({ id: 1 });
+
+      await expect(
+        service.removeTeamMember(1, 1, presidencyActor),
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Reassign member tasks before removing them from the project team',
+        ),
+      );
+      expect(projectMembershipsRepository.remove).not.toHaveBeenCalled();
     });
 
     it('rejects when the membership does not exist', async () => {

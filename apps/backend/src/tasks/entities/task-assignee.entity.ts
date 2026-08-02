@@ -38,7 +38,7 @@ export class TaskAssignee {
   projectMembershipId: number;
 
   @ManyToOne(() => ProjectMembership, {
-    onDelete: 'CASCADE',
+    onDelete: 'RESTRICT',
     nullable: false,
   })
   @JoinColumn({ name: 'project_membership_id' })
