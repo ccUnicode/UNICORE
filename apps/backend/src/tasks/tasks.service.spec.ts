@@ -441,6 +441,36 @@ describe('TasksService', () => {
     );
   });
 
+  it('returns an empty page without loading tasks when an assignee has no matches', async () => {
+    projectsRepository.findOne.mockResolvedValue(createProject());
+    taskAssigneesRepository.find.mockResolvedValue([]);
+
+    await expect(
+      service.findAll(
+        { projectId: 1, assigneeId: 99, page: 2, limit: 5 },
+        presidencyActor,
+      ),
+    ).resolves.toEqual({
+      data: [],
+      meta: { total: 0, page: 2, limit: 5, lastPage: 0 },
+    });
+    expect(tasksRepository.findAndCount).not.toHaveBeenCalled();
+  });
+
+  it('rejects phase filters from another project', async () => {
+    projectsRepository.findOne.mockResolvedValue(createProject());
+    projectPhasesRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.findAll({ projectId: 1, phaseId: 99 }, presidencyActor),
+    ).rejects.toThrow(
+      new BadRequestException(
+        'Project phase with ID 99 does not belong to project 1',
+      ),
+    );
+    expect(tasksRepository.findAndCount).not.toHaveBeenCalled();
+  });
+
   it('rejects task reads outside member project participation', async () => {
     tasksRepository.findOne.mockResolvedValue(createTask());
     projectMembershipsRepository.findOne.mockResolvedValue(null);
