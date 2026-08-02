@@ -278,6 +278,36 @@ describe('TasksService', () => {
       );
     });
 
+    it('creates tasks with nullable optional fields', async () => {
+      const membership = createMembership();
+
+      projectsRepository.findOne.mockResolvedValue(createProject());
+      projectMembershipsRepository.find.mockResolvedValue([membership]);
+      tasksRepository.findOne.mockResolvedValue(createTask());
+
+      await expect(
+        service.create(
+          {
+            ...createTaskDto,
+            phaseId: null,
+            description: null,
+            priority: null,
+            dueDate: null,
+          },
+          presidencyActor,
+        ),
+      ).resolves.toEqual(expect.objectContaining({ id: 1 }));
+      expect(projectPhasesRepository.findOne).not.toHaveBeenCalled();
+      expect(tasksRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          phaseId: null,
+          description: null,
+          priority: TaskPriority.MEDIUM,
+          dueDate: null,
+        }),
+      );
+    });
+
     it('rejects regular project members that try to create tasks', async () => {
       projectsRepository.findOne.mockResolvedValue(createProject());
       projectMembershipsRepository.findOne.mockResolvedValue(

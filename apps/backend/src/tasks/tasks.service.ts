@@ -78,7 +78,10 @@ export class TasksService {
         );
         this.assertProjectIsActive(project);
 
-        if (createTaskDto.phaseId !== undefined) {
+        if (
+          createTaskDto.phaseId !== undefined &&
+          createTaskDto.phaseId !== null
+        ) {
           await this.findPhaseOrThrow(
             project.id,
             createTaskDto.phaseId,

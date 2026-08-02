@@ -28,7 +28,7 @@ export class CreateTaskDto {
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  phaseId?: number;
+  phaseId?: number | null;
 
   @Transform(trimString)
   @IsString()
@@ -40,15 +40,15 @@ export class CreateTaskDto {
   @Transform(trimString)
   @IsString()
   @MaxLength(2000)
-  description?: string;
+  description?: string | null;
 
   @IsOptional()
   @IsEnum(TaskPriority)
-  priority?: TaskPriority;
+  priority?: TaskPriority | null;
 
   @IsOptional()
   @IsDateString()
-  dueDate?: string;
+  dueDate?: string | null;
 
   @Type(() => Number)
   @IsArray()
