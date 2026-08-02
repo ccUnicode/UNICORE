@@ -95,6 +95,8 @@ const createTaskAssignee = (
     memberId: 1,
     task: {} as Task,
     member: createMember(),
+    projectMembershipId: 1,
+    projectMembership: createMembership(),
     createdAt: new Date(),
     ...overrides,
   }) as TaskAssignee;
@@ -163,6 +165,7 @@ describe('TasksService', () => {
       ),
       save: jest.fn((assignees: TaskAssignee[]) => Promise.resolve(assignees)),
       delete: jest.fn(),
+      find: jest.fn(),
     };
     projectsRepository = {
       findOne: jest.fn(),
@@ -251,7 +254,11 @@ describe('TasksService', () => {
         relations: ['member'],
       });
       expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
-        expect.objectContaining({ taskId: 1, memberId: 1 }),
+        expect.objectContaining({
+          taskId: 1,
+          memberId: 1,
+          projectMembershipId: 1,
+        }),
       ]);
     });
 
@@ -362,7 +369,45 @@ describe('TasksService', () => {
       meta: { total: 1, page: 1, limit: 10, lastPage: 1 },
     });
     expect(tasksRepository.findAndCount).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { projectId: 1 }, skip: 0, take: 10 }),
+      expect.objectContaining({
+        where: { projectId: 1 },
+        order: { createdAt: 'DESC', id: 'DESC' },
+        skip: 0,
+        take: 10,
+      }),
+    );
+  });
+
+  it('keeps every task assignee when filtering by one assignee', async () => {
+    const task = createTask({
+      assignees: [
+        createTaskAssignee(),
+        createTaskAssignee({
+          id: 2,
+          memberId: 2,
+          member: createMember({ id: 2 }),
+        }),
+      ],
+    });
+
+    projectsRepository.findOne.mockResolvedValue(createProject());
+    taskAssigneesRepository.find.mockResolvedValue([{ taskId: 1 }]);
+    tasksRepository.findAndCount.mockResolvedValue([[task], 1]);
+
+    const result = await service.findAll(
+      { projectId: 1, assigneeId: 1 },
+      presidencyActor,
+    );
+
+    expect(result.data[0].assignees).toHaveLength(2);
+    expect(taskAssigneesRepository.find).toHaveBeenCalledWith({
+      where: { memberId: 1, task: { projectId: 1 } },
+      select: ['taskId'],
+    });
+    expect(tasksRepository.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { projectId: 1, id: In([1]) },
+      }),
     );
   });
 
@@ -413,8 +458,16 @@ describe('TasksService', () => {
   it('replaces task assignees atomically', async () => {
     const task = createTask();
     const memberships = [
-      createMembership({ memberId: 2, member: createMember({ id: 2 }) }),
-      createMembership({ memberId: 3, member: createMember({ id: 3 }) }),
+      createMembership({
+        id: 2,
+        memberId: 2,
+        member: createMember({ id: 2 }),
+      }),
+      createMembership({
+        id: 3,
+        memberId: 3,
+        member: createMember({ id: 3 }),
+      }),
     ];
 
     tasksRepository.findOne.mockResolvedValue(task);
@@ -426,8 +479,16 @@ describe('TasksService', () => {
     ).resolves.toEqual(expect.objectContaining({ id: 1 }));
     expect(taskAssigneesRepository.delete).toHaveBeenCalledWith({ taskId: 1 });
     expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
-      expect.objectContaining({ taskId: 1, memberId: 2 }),
-      expect.objectContaining({ taskId: 1, memberId: 3 }),
+      expect.objectContaining({
+        taskId: 1,
+        memberId: 2,
+        projectMembershipId: 2,
+      }),
+      expect.objectContaining({
+        taskId: 1,
+        memberId: 3,
+        projectMembershipId: 3,
+      }),
     ]);
   });
 

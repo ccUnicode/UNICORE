@@ -8,6 +8,7 @@ import {
   Unique,
 } from 'typeorm';
 import { Member } from '../../members/member.entity';
+import { ProjectMembership } from '../../projects/entities/project-membership.entity';
 import { Task } from './task.entity';
 
 @Entity('task_assignees')
@@ -32,6 +33,16 @@ export class TaskAssignee {
   @ManyToOne(() => Member, { onDelete: 'CASCADE', nullable: false })
   @JoinColumn({ name: 'member_id' })
   member: Member;
+
+  @Column({ name: 'project_membership_id', type: 'int' })
+  projectMembershipId: number;
+
+  @ManyToOne(() => ProjectMembership, {
+    onDelete: 'CASCADE',
+    nullable: false,
+  })
+  @JoinColumn({ name: 'project_membership_id' })
+  projectMembership: ProjectMembership;
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

@@ -105,6 +105,7 @@ export class TasksService {
           taskAssigneesRepository.create({
             taskId: savedTask.id,
             memberId: membership.memberId,
+            projectMembershipId: membership.id,
           }),
         );
 
@@ -123,10 +124,32 @@ export class TasksService {
     const project = await this.findProjectOrThrow(filterDto.projectId);
     await this.assertProjectAccess(project, accessActor, 'read');
 
+    if (filterDto.phaseId !== undefined) {
+      await this.findPhaseOrThrow(project.id, filterDto.phaseId);
+    }
+
     const page = filterDto.page ?? 1;
     const limit = filterDto.limit ?? 10;
+    let filteredTaskIds: number[] | undefined;
+
+    if (filterDto.assigneeId !== undefined) {
+      const assignments = await this.taskAssigneesRepository.find({
+        where: {
+          memberId: filterDto.assigneeId,
+          task: { projectId: project.id },
+        },
+        select: ['taskId'],
+      });
+      filteredTaskIds = assignments.map(({ taskId }) => taskId);
+
+      if (filteredTaskIds.length === 0) {
+        return this.emptyPage(page, limit);
+      }
+    }
+
     const where: FindOptionsWhere<Task> = {
       projectId: project.id,
+      ...(filteredTaskIds !== undefined && { id: In(filteredTaskIds) }),
       ...(filterDto.status !== undefined && { status: filterDto.status }),
       ...(filterDto.priority !== undefined && {
         priority: filterDto.priority,
@@ -134,14 +157,11 @@ export class TasksService {
       ...(filterDto.phaseId !== undefined && {
         phaseId: filterDto.phaseId,
       }),
-      ...(filterDto.assigneeId !== undefined && {
-        assignees: { memberId: filterDto.assigneeId },
-      }),
     };
     const [data, total] = await this.tasksRepository.findAndCount({
       where,
       relations: ['project', 'phase', 'assignees', 'assignees.member'],
-      order: { createdAt: 'DESC' },
+      order: { createdAt: 'DESC', id: 'DESC' },
       skip: (page - 1) * limit,
       take: limit,
     });
@@ -302,6 +322,7 @@ export class TasksService {
           taskAssigneesRepository.create({
             taskId: task.id,
             memberId: membership.memberId,
+            projectMembershipId: membership.id,
           }),
         ),
       );
@@ -478,6 +499,13 @@ export class TasksService {
     if (project.isArchived) {
       throw new BadRequestException('Archived projects cannot modify tasks');
     }
+  }
+
+  private emptyPage(page: number, limit: number): PaginatedResponse<Task> {
+    return {
+      data: [],
+      meta: { total: 0, page, limit, lastPage: 0 },
+    };
   }
 
   private limitAssigneeFields(task: Task): void {
