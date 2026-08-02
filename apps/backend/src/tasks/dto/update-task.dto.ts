@@ -5,6 +5,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsString,
+  Matches,
   MaxLength,
   Min,
   ValidateIf,
@@ -36,7 +37,8 @@ export class UpdateTaskDto {
   priority?: TaskPriority;
 
   @ValidateIf(isDefinedAndNotNull)
-  @IsDateString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  @IsDateString({ strict: true, strictSeparator: true })
   dueDate?: string | null;
 
   @ValidateIf(isDefinedAndNotNull)
