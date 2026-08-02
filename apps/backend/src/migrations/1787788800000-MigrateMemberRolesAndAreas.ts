@@ -27,6 +27,9 @@ export class MigrateMemberRolesAndAreas1787788800000 implements MigrationInterfa
         UNIQUE (member_id, area_id)
       );
     `);
+    await queryRunner.query(`
+      ALTER TABLE area_memberships ALTER COLUMN area_id DROP NOT NULL;
+    `);
 
     // 2. Convert availability_status column to enum with 'not_available' instead of 'unavailable'
     const hasAvailabilityStatusColumn = (await queryRunner.query(`

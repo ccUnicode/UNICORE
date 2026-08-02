@@ -14,7 +14,7 @@ type Skill = {
 };
 
 type AreaMembership = {
-  areaId: number;
+  areaId: number | null;
 };
 
 type Member = {
@@ -151,7 +151,9 @@ function normalize(value: string): string {
 function memberAreaIds(member: Member): number[] {
   const ids = new Set<number>();
   if (typeof member.areaId === "number") ids.add(member.areaId);
-  member.memberships?.forEach((membership) => ids.add(membership.areaId));
+  member.memberships?.forEach((membership) => {
+    if (typeof membership.areaId === "number") ids.add(membership.areaId);
+  });
   return [...ids];
 }
 

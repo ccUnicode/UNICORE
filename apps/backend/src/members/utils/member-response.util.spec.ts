@@ -1,4 +1,5 @@
 import { AreaRole } from '../../common/enums/area-role.enum';
+import { AreaMembership } from '../../area-memberships/entities/area-membership.entity';
 import { MemberActivityStatus } from '../enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
 import { Member } from '../member.entity';
@@ -66,5 +67,31 @@ describe('toMemberResponse', () => {
       role: AreaRole.MIEMBRO,
       areaId: 3,
     });
+  });
+
+  it('removes membership back-references so the response is serializable', () => {
+    const membership = {
+      id: 10,
+      memberId: member.id,
+      areaId: 3,
+      role: AreaRole.MIEMBRO,
+      member,
+      area: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as AreaMembership;
+    const memberWithMembership = {
+      ...member,
+      memberships: [membership],
+    } as Member;
+    membership.member = memberWithMembership;
+
+    const response = toMemberResponse(
+      memberWithMembership,
+      AreaRole.PRESIDENCIA,
+    );
+
+    expect(response.memberships[0]).not.toHaveProperty('member');
+    expect(() => JSON.stringify(response)).not.toThrow();
   });
 });
