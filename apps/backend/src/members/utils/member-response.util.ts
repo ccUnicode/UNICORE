@@ -23,7 +23,15 @@ export const toMemberResponse = (
     updatedAt: member.updatedAt,
     role: member.role,
     areaId: member.areaId,
-    memberships: member.memberships,
+    memberships: (member.memberships ?? []).map((membership) => ({
+      id: membership.id,
+      role: membership.role,
+      memberId: membership.memberId,
+      areaId: membership.areaId,
+      area: membership.area,
+      createdAt: membership.createdAt,
+      updatedAt: membership.updatedAt,
+    })),
   };
 
   if (canViewInternalMemberFields(role)) {
