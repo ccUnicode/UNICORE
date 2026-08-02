@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { In } from 'typeorm';
+import { FindOperator, In } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { ProjectRole } from '../common/enums/project-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
@@ -421,7 +421,6 @@ describe('TasksService', () => {
     });
 
     projectsRepository.findOne.mockResolvedValue(createProject());
-    taskAssigneesRepository.find.mockResolvedValue([{ taskId: 1 }]);
     tasksRepository.findAndCount.mockResolvedValue([[task], 1]);
 
     const result = await service.findAll(
@@ -430,20 +429,23 @@ describe('TasksService', () => {
     );
 
     expect(result.data[0].assignees).toHaveLength(2);
-    expect(taskAssigneesRepository.find).toHaveBeenCalledWith({
-      where: { memberId: 1, task: { projectId: 1 } },
-      select: ['taskId'],
-    });
-    expect(tasksRepository.findAndCount).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { projectId: 1, id: In([1]) },
-      }),
+    expect(taskAssigneesRepository.find).not.toHaveBeenCalled();
+    const [{ where }] = tasksRepository.findAndCount.mock.calls[0] as [
+      { where: { projectId: number; id: FindOperator<number> } },
+    ];
+    expect(where.projectId).toBe(1);
+    expect(where.id.type).toBe('raw');
+    expect(where.id.objectLiteralParameters).toEqual({ assigneeId: 1 });
+    expect(where.id.getSql?.('Task.id')).toBe(
+      'EXISTS (SELECT 1 FROM task_assignees task_assignee_filter ' +
+        'WHERE task_assignee_filter.task_id = Task.id ' +
+        'AND task_assignee_filter.member_id = :assigneeId)',
     );
   });
 
-  it('returns an empty page without loading tasks when an assignee has no matches', async () => {
+  it('lets the paginated query return an empty page when an assignee has no matches', async () => {
     projectsRepository.findOne.mockResolvedValue(createProject());
-    taskAssigneesRepository.find.mockResolvedValue([]);
+    tasksRepository.findAndCount.mockResolvedValue([[], 0]);
 
     await expect(
       service.findAll(
@@ -454,7 +456,13 @@ describe('TasksService', () => {
       data: [],
       meta: { total: 0, page: 2, limit: 5, lastPage: 0 },
     });
-    expect(tasksRepository.findAndCount).not.toHaveBeenCalled();
+    expect(taskAssigneesRepository.find).not.toHaveBeenCalled();
+    expect(tasksRepository.findAndCount).toHaveBeenCalledWith(
+      expect.objectContaining({
+        skip: 5,
+        take: 5,
+      }),
+    );
   });
 
   it('rejects phase filters from another project', async () => {

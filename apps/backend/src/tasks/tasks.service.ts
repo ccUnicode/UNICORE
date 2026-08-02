@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Repository } from 'typeorm';
+import { FindOptionsWhere, In, Raw, Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { ProjectRole } from '../common/enums/project-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
@@ -133,26 +133,18 @@ export class TasksService {
 
     const page = filterDto.page ?? 1;
     const limit = filterDto.limit ?? 10;
-    let filteredTaskIds: number[] | undefined;
-
-    if (filterDto.assigneeId !== undefined) {
-      const assignments = await this.taskAssigneesRepository.find({
-        where: {
-          memberId: filterDto.assigneeId,
-          task: { projectId: project.id },
-        },
-        select: ['taskId'],
-      });
-      filteredTaskIds = assignments.map(({ taskId }) => taskId);
-
-      if (filteredTaskIds.length === 0) {
-        return this.emptyPage(page, limit);
-      }
-    }
 
     const where: FindOptionsWhere<Task> = {
       projectId: project.id,
-      ...(filteredTaskIds !== undefined && { id: In(filteredTaskIds) }),
+      ...(filterDto.assigneeId !== undefined && {
+        id: Raw(
+          (taskIdAlias) =>
+            `EXISTS (SELECT 1 FROM task_assignees task_assignee_filter ` +
+            `WHERE task_assignee_filter.task_id = ${taskIdAlias} ` +
+            `AND task_assignee_filter.member_id = :assigneeId)`,
+          { assigneeId: filterDto.assigneeId },
+        ),
+      }),
       ...(filterDto.status !== undefined && { status: filterDto.status }),
       ...(filterDto.priority !== undefined && {
         priority: filterDto.priority,
@@ -502,13 +494,6 @@ export class TasksService {
     if (project.isArchived) {
       throw new BadRequestException('Archived projects cannot modify tasks');
     }
-  }
-
-  private emptyPage(page: number, limit: number): PaginatedResponse<Task> {
-    return {
-      data: [],
-      meta: { total: 0, page, limit, lastPage: 0 },
-    };
   }
 
   private limitAssigneeFields(task: Task): void {

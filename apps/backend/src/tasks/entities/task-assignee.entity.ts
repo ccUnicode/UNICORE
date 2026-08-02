@@ -2,6 +2,7 @@ import {
   CreateDateColumn,
   Column,
   Entity,
+  Index,
   JoinColumn,
   ManyToOne,
   PrimaryGeneratedColumn,
@@ -13,6 +14,7 @@ import { Task } from './task.entity';
 
 @Entity('task_assignees')
 @Unique(['taskId', 'memberId'])
+@Index('IDX_task_assignees_member_task', ['memberId', 'taskId'])
 export class TaskAssignee {
   @PrimaryGeneratedColumn('increment')
   id: number;
