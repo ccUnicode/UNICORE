@@ -39,6 +39,7 @@ import { ProjectMembership } from './entities/project-membership.entity';
 import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
+import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
 
 @Injectable()
 export class ProjectsService {
@@ -55,6 +56,8 @@ export class ProjectsService {
     private readonly projectMembershipsRepository: Repository<ProjectMembership>,
     @InjectRepository(Member)
     private readonly membersRepository: Repository<Member>,
+    @InjectRepository(TaskAssignee)
+    private readonly taskAssigneesRepository: Repository<TaskAssignee>,
     private readonly areaService: AreaService,
   ) {}
 
@@ -569,6 +572,17 @@ export class ProjectsService {
     if (!membership) {
       throw new NotFoundException(
         `Membership for member ${memberId} in project ${projectId} not found`,
+      );
+    }
+
+    const taskAssignment = await this.taskAssigneesRepository.findOne({
+      where: { projectMembershipId: membership.id },
+      select: ['id'],
+    });
+
+    if (taskAssignment) {
+      throw new BadRequestException(
+        'Reassign member tasks before removing them from the project team',
       );
     }
 
