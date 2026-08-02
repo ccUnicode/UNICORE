@@ -8,6 +8,7 @@ import { MembersModule } from './members/members.module';
 import { AreaMembershipsModule } from './area-memberships/area-memberships.module';
 import { ProjectsModule } from './projects/projects.module';
 import { MigrateMemberRolesAndAreas1787788800000 } from './migrations/1787788800000-MigrateMemberRolesAndAreas';
+import { RepairMemberAreaMemberships1787788800001 } from './migrations/1787788800001-RepairMemberAreaMemberships';
 import { AuthModule } from './auth/auth.module';
 
 @Module({
@@ -32,7 +33,10 @@ import { AuthModule } from './auth/auth.module';
                 rejectUnauthorized: false,
               }
             : false,
-          migrations: [MigrateMemberRolesAndAreas1787788800000],
+          migrations: [
+            MigrateMemberRolesAndAreas1787788800000,
+            RepairMemberAreaMemberships1787788800001,
+          ],
           migrationsRun: true,
         };
       },

@@ -1,6 +1,11 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  combineProjectExperience,
+  getMemberProjectLabelNames,
+  getPortfolioLabelNames,
+} from "./project-experience";
 
 type Area = {
   id: number;
@@ -260,10 +265,15 @@ export default function ProjectManagement({
   const [areaFilter, setAreaFilter] = useState("");
   const [labelFilter, setLabelFilter] = useState("");
   const [loading, setLoading] = useState(false);
+  const [archivedLoading, setArchivedLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   const visibleProjects = archivedOnly ? archivedProjects : projects;
+  const experienceProjects = useMemo(
+    () => combineProjectExperience(projects, archivedProjects),
+    [archivedProjects, projects],
+  );
   const labels = useMemo(
     () =>
       Array.from(
@@ -295,11 +305,10 @@ export default function ProjectManagement({
   }, [areaFilter, labelFilter, query, statusFilter, visibleProjects]);
 
   useEffect(() => {
-    if (!archivedOnly) return;
     let ignore = false;
 
     const loadArchived = async () => {
-      setLoading(true);
+      setArchivedLoading(true);
       setError("");
       try {
         const loaded = await fetchProjectList(apiUrl, accessToken, true);
@@ -313,7 +322,7 @@ export default function ProjectManagement({
           );
         }
       } finally {
-        if (!ignore) setLoading(false);
+        if (!ignore) setArchivedLoading(false);
       }
     };
 
@@ -457,7 +466,7 @@ export default function ProjectManagement({
           ) : (
             <ProjectDetail
               project={projectDetail}
-              portfolioProjects={projects}
+              portfolioProjects={experienceProjects}
               members={members}
               canManage={canManage && !projectDetail.isArchived}
               loading={loading}
@@ -607,7 +616,9 @@ export default function ProjectManagement({
         </div>
       </div>
 
-      {loading && <p className="mt-5 text-sm text-white/50">Actualizando…</p>}
+      {(loading || (archivedOnly && archivedLoading)) && (
+        <p className="mt-5 text-sm text-white/50">Actualizando…</p>
+      )}
       <div className="mt-8 grid gap-6 xl:grid-cols-2">
         {filteredProjects.map((project) => (
           <ProjectCard
@@ -617,7 +628,7 @@ export default function ProjectManagement({
           />
         ))}
       </div>
-      {!loading && filteredProjects.length === 0 && (
+      {!loading && !archivedLoading && filteredProjects.length === 0 && (
         <div className="mt-8 rounded-md border border-dashed border-white/15 p-10 text-center text-sm text-white/45">
           No hay proyectos que coincidan con los filtros.
         </div>
@@ -1000,14 +1011,7 @@ function TeamPanel({
   const majors = Array.from(
     new Set(areaCandidates.map((member) => member.major).filter(Boolean)),
   ).sort((a, b) => a.localeCompare(b));
-  const projectLabels = Array.from(
-    new Set(
-      portfolioProjects.flatMap(
-        (portfolioProject) =>
-          portfolioProject.labels?.map((label) => label.name) ?? [],
-      ),
-    ),
-  ).sort((a, b) => a.localeCompare(b));
+  const projectLabels = getPortfolioLabelNames(portfolioProjects);
 
   const candidates = areaCandidates
     .filter((member) => {
@@ -1019,16 +1023,10 @@ function TeamPanel({
         );
       const matchesSkill =
         !skillFilter || memberSkills.includes(normalize(skillFilter));
-      const memberProjectLabels = portfolioProjects
-        .filter((portfolioProject) =>
-          portfolioProject.memberships?.some(
-            (membership) => membership.memberId === member.id,
-          ),
-        )
-        .flatMap(
-          (portfolioProject) =>
-            portfolioProject.labels?.map((label) => normalize(label.name)) ?? [],
-        );
+      const memberProjectLabels = getMemberProjectLabelNames(
+        portfolioProjects,
+        member.id,
+      ).map(normalize);
       const matchesProjectLabel =
         !labelFilter ||
         memberProjectLabels.includes(normalize(labelFilter));
