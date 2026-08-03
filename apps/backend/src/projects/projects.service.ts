@@ -888,8 +888,8 @@ export class ProjectsService {
         return;
       }
 
-      const { id, firstNames, lastNames } = membership.member;
-      membership.member = { id, firstNames, lastNames } as Member;
+      const { id, firstNames, lastNames, activityStatus, availabilityStatus, major } = membership.member;
+      membership.member = { id, firstNames, lastNames, activityStatus, availabilityStatus, major } as Member;
     });
   }
 }
