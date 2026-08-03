@@ -602,7 +602,7 @@ export default function TaskManagement({
 
   // Status transitions
   const handleTransition = async (nextStatus: TaskStatus) => {
-    if (!taskDetail) return;
+    if (!taskDetail || nextStatus === taskDetail.status) return;
     setLoading(true);
     setError("");
     setNotice("");
@@ -1411,11 +1411,11 @@ export default function TaskManagement({
                         <button
                           key={st}
                           type="button"
-                          disabled={!isAllowed && !isActive}
+                          disabled={isActive || !isAllowed}
                           onClick={() => handleTransition(st)}
                           className={`rounded px-3 py-1.5 text-xs font-semibold border transition ${
                             isActive
-                              ? "bg-[#4067c9] text-white border-[#4067c9]"
+                              ? "bg-[#4067c9] text-white border-[#4067c9] cursor-default"
                               : isAllowed
                                 ? "bg-[#161726] text-zinc-300 border-[#1e1f2e]/85 hover:bg-[#1f2033] hover:text-white"
                                 : "bg-zinc-950/20 text-zinc-600 border-zinc-900/40 cursor-not-allowed opacity-45"
