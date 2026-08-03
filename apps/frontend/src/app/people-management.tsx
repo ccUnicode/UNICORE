@@ -1,10 +1,10 @@
 "use client";
 
+import Image from "next/image";
 import { FormEvent, ReactNode, useMemo, useState } from "react";
 import { ApiError, authorizedJson } from "@/lib/auth-client";
 import {
   filterAndSortMembers,
-  getProjectLabelsForMember,
   type MemberDirectoryFilters,
 } from "./people-management-utils";
 
@@ -50,6 +50,8 @@ export type ManagedProject = {
   area?: ManagedArea | null;
   labels?: Array<{ id?: number; name: string }>;
   memberships?: Array<{ memberId: number; role?: string }>;
+  status?: string;
+  isArchived?: boolean;
 };
 
 export type AreaMetric = {
@@ -89,9 +91,42 @@ function statusClass(status?: string): string {
       return "bg-rose-300 text-rose-950";
     case "not_available":
       return "bg-amber-300 text-amber-950";
+    case "archived":
+      return "bg-rose-300 text-rose-950";
     default:
       return "bg-white/15 text-white/75";
   }
+}
+
+const statusLabels: Record<string, string> = {
+  active: "Activo",
+  available: "Disponible",
+  inactive: "Inactivo",
+  disabled: "Inhabilitado",
+  not_available: "No disponible",
+  archived: "Archivada",
+  planned: "Planificado",
+  on_hold: "En pausa",
+  completed: "Completado",
+  cancelled: "Cancelado",
+};
+
+function displayStatus(value?: string): string {
+  if (!value) return "N/D";
+  return statusLabels[value] ?? value.replaceAll("_", " ");
+}
+
+function displayRole(value?: string): string {
+  if (!value) return "Miembro";
+  const roles: Record<string, string> = {
+    miembro: "Miembro",
+    member: "Miembro",
+    presidencia: "Presidencia",
+    directiva_de_area: "Directiva",
+    representative: "Representante",
+    subrepresentative: "Subrepresentante",
+  };
+  return roles[value] ?? value.replaceAll("_", " ");
 }
 
 function StatusPill({ value }: { value?: string }) {
@@ -99,7 +134,7 @@ function StatusPill({ value }: { value?: string }) {
     <span
       className={`rounded px-2 py-1 text-[11px] font-bold ${statusClass(value)}`}
     >
-      {value?.replaceAll("_", " ") ?? "N/D"}
+      {displayStatus(value)}
     </span>
   );
 }
@@ -164,16 +199,18 @@ function PageHeading({
   action,
 }: {
   title: string;
-  subtitle: string;
+  subtitle?: string;
   action?: ReactNode;
 }) {
   return (
-    <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between lg:mb-9">
       <div>
-        <h1 className="text-5xl font-black leading-tight sm:text-6xl">
+        <h1 className="text-5xl font-bold leading-tight sm:text-6xl lg:text-[72px]">
           {title}
         </h1>
-        <p className="mt-3 max-w-3xl text-base text-white/55">{subtitle}</p>
+        {subtitle && (
+          <p className="mt-3 max-w-3xl text-base text-white/55">{subtitle}</p>
+        )}
       </div>
       {action}
     </div>
@@ -221,6 +258,7 @@ export function AreasManagementView({
   const [status, setStatus] = useState("");
   const [editing, setEditing] = useState<ManagedArea | "create" | null>(null);
   const [archiving, setArchiving] = useState<ManagedArea | null>(null);
+  const [openMenuAreaId, setOpenMenuAreaId] = useState<number | null>(null);
   const canEdit = currentRole === "presidencia";
   const filtered = metrics.filter(({ area }) => {
     const matchesQuery = `${area.name} ${area.description ?? ""}`
@@ -235,22 +273,8 @@ export function AreasManagementView({
 
   return (
     <div>
-      <PageHeading
-        title="Áreas"
-        subtitle="Gestiona las áreas operativas, sus integrantes y los proyectos vinculados."
-        action={
-          canEdit ? (
-            <button
-              type="button"
-              className={primaryButton}
-              onClick={() => setEditing("create")}
-            >
-              ＋ Añadir área
-            </button>
-          ) : undefined
-        }
-      />
-      <div className="mb-8 flex flex-col gap-3 lg:flex-row">
+      <PageHeading title="Áreas" />
+      <div className="mb-14 flex max-w-[950px] flex-col gap-3 lg:flex-row">
         <SearchField
           value={query}
           placeholder="Buscar áreas..."
@@ -267,56 +291,131 @@ export function AreasManagementView({
           <option value="archived">Archivadas</option>
         </select>
       </div>
-      <div className="grid gap-7 md:grid-cols-2 xl:grid-cols-3">
-        {filtered.map((metric) => (
-          <article
-            key={metric.area.id}
-            className="group rounded-md border border-white/8 bg-[#212330] p-5 transition hover:-translate-y-0.5 hover:border-white/20"
-          >
-            <button
-              type="button"
-              onClick={() => onSelectArea(metric.area.id)}
-              className="w-full text-left"
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(310px,400px))] gap-x-14 gap-y-16">
+        {filtered.map((metric) => {
+          const leaders = metric.members
+            .filter((member) =>
+              member.memberships?.some(
+                (item) =>
+                  item.areaId === metric.area.id &&
+                  item.role === "directiva_de_area",
+              ),
+            )
+            .concat(metric.members)
+            .filter(
+              (member, index, all) =>
+                all.findIndex((candidate) => candidate.id === member.id) ===
+                index,
+            )
+            .slice(0, 2);
+          return (
+            <article
+              key={metric.area.id}
+              className="group relative flex min-h-[574px] flex-col rounded-md bg-[#212330] p-5 transition hover:-translate-y-0.5"
             >
-              <div className="mb-5 grid h-36 place-items-center rounded-md bg-[#d9d9d9] text-5xl font-black text-[#212330]">
-                {metric.area.name.slice(0, 2).toUpperCase()}
+              <button
+                type="button"
+                onClick={() => onSelectArea(metric.area.id)}
+                className="text-left"
+              >
+                <div className="mb-4 h-[244px] w-full rounded-md bg-[#d9d9d9]" />
+                <div className="flex flex-wrap gap-2">
+                  <StatusPill
+                    value={metric.area.isArchived ? "archived" : "active"}
+                  />
+                  <span className="rounded bg-yellow-200 px-2 py-1 text-[11px] font-medium text-yellow-900">
+                    ♟ {metric.memberCount} miembros
+                  </span>
+                  <span className="rounded bg-violet-200 px-2 py-1 text-[11px] font-medium text-violet-900">
+                    ▣ {metric.projectCount} proyectos
+                  </span>
+                </div>
+                <h2 className="mt-4 text-xl font-semibold">
+                  {metric.area.name}
+                </h2>
+                <p className="mt-2 min-h-12 text-sm leading-5 text-white/70">
+                  {metric.area.description ?? "Área operativa de UNICORE."}
+                </p>
+              </button>
+              <div className="mt-auto flex min-h-16 items-end gap-8 pt-5 pr-10">
+                {(leaders.length ? leaders : metric.members.slice(0, 2)).map(
+                  (leader, index) => (
+                    <div
+                      key={leader.id}
+                      className="flex items-center gap-3 text-xs text-white/80"
+                    >
+                      <Image
+                        src="/figma/member-avatar.png"
+                        alt=""
+                        width={50}
+                        height={50}
+                        className="h-[50px] w-[50px] rounded-full object-cover"
+                      />
+                      <span>{index === 0 ? "Director" : "Subdirector"}</span>
+                    </div>
+                  ),
+                )}
+                {!leaders.length && !metric.members.length && (
+                  <span className="text-xs text-white/35">
+                    Sin responsables
+                  </span>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                <StatusPill
-                  value={metric.area.isArchived ? "archived" : "active"}
-                />
-                <span className="rounded bg-yellow-200 px-2 py-1 text-[11px] font-bold text-yellow-900">
-                  {metric.memberCount} miembros
-                </span>
-                <span className="rounded bg-violet-200 px-2 py-1 text-[11px] font-bold text-violet-900">
-                  {metric.projectCount} proyectos
-                </span>
-              </div>
-              <h2 className="mt-4 text-xl font-black">{metric.area.name}</h2>
-              <p className="mt-2 min-h-10 text-sm leading-5 text-white/55">
-                {metric.area.description ?? "Área operativa de UNICORE."}
-              </p>
-            </button>
-            {canEdit && !metric.area.isArchived && (
-              <div className="mt-5 flex justify-end gap-2 border-t border-white/8 pt-4">
-                <button
-                  type="button"
-                  className={secondaryButton}
-                  onClick={() => setEditing(metric.area)}
-                >
-                  Editar
-                </button>
-                <button
-                  type="button"
-                  className={dangerButton}
-                  onClick={() => setArchiving(metric.area)}
-                >
-                  Archivar área
-                </button>
-              </div>
-            )}
-          </article>
-        ))}
+              {canEdit && !metric.area.isArchived && (
+                <div className="absolute right-5 bottom-5">
+                  <button
+                    type="button"
+                    className="px-2 text-2xl leading-none text-white/40 hover:text-white"
+                    aria-label={`Acciones de ${metric.area.name}`}
+                    onClick={() =>
+                      setOpenMenuAreaId((current) =>
+                        current === metric.area.id ? null : metric.area.id,
+                      )
+                    }
+                  >
+                    ···
+                  </button>
+                  {openMenuAreaId === metric.area.id && (
+                    <div className="absolute right-0 bottom-8 z-10 grid w-40 rounded-md border border-white/10 bg-[#191822] p-1 text-sm shadow-2xl">
+                      <button
+                        type="button"
+                        className="rounded px-3 py-2 text-left hover:bg-white/10"
+                        onClick={() => {
+                          setEditing(metric.area);
+                          setOpenMenuAreaId(null);
+                        }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded px-3 py-2 text-left text-rose-200 hover:bg-white/10"
+                        onClick={() => {
+                          setArchiving(metric.area);
+                          setOpenMenuAreaId(null);
+                        }}
+                      >
+                        Archivar área
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </article>
+          );
+        })}
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setEditing("create")}
+            className="grid min-h-[574px] place-content-center gap-4 text-center text-sm text-white/85"
+          >
+            <span className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-[#212330] text-4xl font-light">
+              +
+            </span>
+            <span>Añadir área</span>
+          </button>
+        )}
       </div>
       {filtered.length === 0 && (
         <div className="rounded-md border border-dashed border-white/15 px-6 py-14 text-center text-white/45">
@@ -656,6 +755,7 @@ export function MembersManagementView({
 }) {
   const [filters, setFilters] = useState(emptyFilters);
   const [creating, setCreating] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const filtered = useMemo(
     () => filterAndSortMembers(members, projects, filters),
     [members, projects, filters],
@@ -681,26 +781,12 @@ export function MembersManagementView({
     setFilters((current) => ({ ...current, [key]: value }));
   return (
     <div>
-      <PageHeading
-        title="Miembros"
-        subtitle="Consulta perfiles, disponibilidad, skills, ciclos y participación por área."
-        action={
-          currentRole === "presidencia" ? (
-            <button
-              type="button"
-              className={primaryButton}
-              onClick={() => setCreating(true)}
-            >
-              ＋ Añadir miembro
-            </button>
-          ) : undefined
-        }
-      />
-      <div className="mb-7 grid gap-3 lg:grid-cols-4">
-        <div className="lg:col-span-2">
+      <PageHeading title="Miembros" />
+      <div className="relative mb-10 grid gap-3 lg:grid-cols-[minmax(320px,2.4fr)_minmax(150px,1fr)_minmax(160px,1fr)_minmax(150px,1fr)_44px]">
+        <div>
           <SearchField
             value={filters.query}
-            placeholder="Buscar miembro, carrera o skill..."
+            placeholder="Buscar miembro..."
             onChange={(value) => setFilter("query", value)}
           />
         </div>
@@ -729,34 +815,53 @@ export function MembersManagementView({
           onChange={(value) => setFilter("areaId", value)}
           options={areas.map((area) => [String(area.id), area.name])}
         />
-        <FilterSelect
-          label="Ciclo"
-          value={filters.cycle}
-          onChange={(value) => setFilter("cycle", value)}
-          options={cycles.map((cycle) => [String(cycle), `${cycle}°`])}
-        />
-        <FilterSelect
-          label="Carrera"
-          value={filters.career}
-          onChange={(value) => setFilter("career", value)}
-          options={careers.map((career) => [career, career])}
-        />
-        <FilterSelect
-          label="Etiqueta de proyecto"
-          value={filters.projectLabel}
-          onChange={(value) => setFilter("projectLabel", value)}
-          options={labels.map((label) => [label, label])}
-        />
+        <button
+          type="button"
+          className="grid h-11 place-items-center rounded-md bg-[#191822] text-xl text-white/55 hover:text-white"
+          title="Más filtros"
+          aria-label="Más filtros"
+          onClick={() => setShowAdvancedFilters((current) => !current)}
+        >
+          ⋯
+        </button>
+        {showAdvancedFilters && (
+          <div className="absolute top-14 right-0 z-20 grid w-full max-w-3xl gap-3 rounded-md border border-white/10 bg-[#191822] p-4 shadow-2xl sm:grid-cols-3">
+            <FilterSelect
+              label="Ciclo"
+              value={filters.cycle}
+              onChange={(value) => setFilter("cycle", value)}
+              options={cycles.map((cycle) => [String(cycle), `${cycle}°`])}
+            />
+            <FilterSelect
+              label="Carrera"
+              value={filters.career}
+              onChange={(value) => setFilter("career", value)}
+              options={careers.map((career) => [career, career])}
+            />
+            <FilterSelect
+              label="Etiqueta de proyecto"
+              value={filters.projectLabel}
+              onChange={(value) => setFilter("projectLabel", value)}
+              options={labels.map((label) => [label, label])}
+            />
+          </div>
+        )}
       </div>
-      <section className="rounded-md border border-white/8 bg-[#191822] p-5 sm:p-8">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-xl font-black">Resultados</h2>
-          <span className="text-sm text-white/45">
-            {filtered.length} miembros
-          </span>
-        </div>
+      <section className="min-h-[620px] rounded-md bg-[#191822] p-5 sm:p-6">
+        <div className="sr-only">{filtered.length} miembros encontrados</div>
         <MemberTable members={filtered} onOpenMember={onOpenMember} />
       </section>
+      {currentRole === "presidencia" && (
+        <div className="mt-8 flex justify-end">
+          <button
+            type="button"
+            className="rounded-md bg-[#212330] px-4 py-2.5 text-sm text-white/80 hover:bg-[#2b2d3d]"
+            onClick={() => setCreating(true)}
+          >
+            ＋ &nbsp; Añadir miembro
+          </button>
+        </div>
+      )}
       {creating && (
         <MemberForm
           areas={areas}
@@ -826,7 +931,7 @@ function MemberTable({
             <th className="px-4 py-3">Skills</th>
             <th className="px-4 py-3">Actividad</th>
             <th className="px-4 py-3">Disponibilidad</th>
-            <th className="rounded-r-md px-4 py-3">Área / Rol</th>
+            <th className="rounded-r-md px-4 py-3">Área</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-white/8">
@@ -844,25 +949,31 @@ function MemberTable({
                     : "text-white/80"
                 }
               >
-                <td className="px-4 py-4">
-                  <button
-                    type="button"
-                    onClick={() => onOpenMember(member.id)}
-                    className="font-bold text-white hover:underline"
-                  >
-                    {memberName(member)}
-                  </button>
-                  <p className="mt-1 text-xs text-white/40">
-                    {member.studentCode ?? "Sin código"}
-                  </p>
+                <td className="px-4 py-3">
+                  <div className="flex items-center gap-4">
+                    <Image
+                      src="/figma/member-avatar.png"
+                      alt=""
+                      width={48}
+                      height={48}
+                      className="h-12 w-12 rounded-full object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => onOpenMember(member.id)}
+                      className="font-medium text-white hover:underline"
+                    >
+                      {memberName(member)}
+                    </button>
+                  </div>
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-3">
                   {member.major}
                   <span className="ml-2 text-white/40">
                     {member.cycle ? `${member.cycle}°` : ""}
                   </span>
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-3">
                   <div className="flex max-w-56 flex-wrap gap-1">
                     {member.skills?.slice(0, 3).map((skill) => (
                       <span
@@ -879,20 +990,17 @@ function MemberTable({
                     )}
                   </div>
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-3">
                   <StatusPill value={member.activityStatus} />
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-3">
                   <StatusPill value={member.availabilityStatus} />
                 </td>
-                <td className="px-4 py-4">
+                <td className="px-4 py-3">
                   {membership?.area?.name ??
                     (membership?.areaId
                       ? `Área ${membership.areaId}`
                       : "Sin área")}
-                  <p className="mt-1 text-xs text-white/40">
-                    {membership?.role ?? member.role}
-                  </p>
                 </td>
               </tr>
             );
@@ -1166,6 +1274,56 @@ function FormInput({
   );
 }
 
+function ProjectLoad({ role }: { role?: string }) {
+  const load =
+    role === "representative"
+      ? { width: "76%", label: "Alta", color: "bg-[#b5774d]" }
+      : role === "subrepresentative"
+        ? { width: "58%", label: "Media", color: "bg-[#6777bb]" }
+        : { width: "38%", label: "Baja", color: "bg-[#6777bb]" };
+  return (
+    <div className="flex min-w-32 items-center gap-2">
+      <span className="h-1.5 w-20 overflow-hidden rounded-full bg-white/55">
+        <span
+          className={`block h-full rounded-full ${load.color}`}
+          style={{ width: load.width }}
+        />
+      </span>
+      <span className="text-xs font-medium">{load.label}</span>
+    </div>
+  );
+}
+
+function ParticipationChart() {
+  const points = [12, 19, 16, 23, 18, 7, 5];
+  const days = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sáb", "Dom"];
+  return (
+    <div className="mt-7 flex h-[250px] gap-3">
+      <div className="flex w-8 flex-col justify-between pb-8 text-right text-[10px] text-white/70">
+        {[24, 18, 12, 6, 0].map((value) => (
+          <span key={value}>{value}</span>
+        ))}
+      </div>
+      <div className="flex min-w-0 flex-1 items-end gap-4 border-l border-b border-white/45 px-4 pt-2 sm:gap-7">
+        {points.map((value, index) => (
+          <div
+            key={days[index]}
+            className="flex h-full min-w-0 flex-1 flex-col justify-end"
+          >
+            <span
+              className="w-full rounded-t bg-[#962b36]"
+              style={{ height: `${(value / 24) * 82}%` }}
+            />
+            <span className="h-8 pt-3 text-center text-[10px] text-white/85">
+              {days[index]}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function MemberProfileManagementView({
   member,
   areas,
@@ -1227,16 +1385,20 @@ export function MemberProfileManagementView({
           <Feedback>{error}</Feedback>
         </div>
       )}
-      <div className="grid gap-8 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="self-start rounded-md border border-white/8 bg-[#191822] p-7">
-          <div className="mx-auto grid h-28 w-28 place-items-center rounded-full bg-[#d9d9d9] text-4xl font-black text-[#212330]">
-            {member.firstNames[0]}
-            {member.lastNames[0]}
-          </div>
-          <h1 className="mt-5 text-center text-2xl font-black">
+      <div className="grid gap-16 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[439px_minmax(0,1fr)]">
+        <aside className="self-start rounded-md bg-[#191822] px-12 py-14">
+          <Image
+            src="/figma/member-avatar.png"
+            alt={`Foto de ${memberName(member)}`}
+            width={176}
+            height={176}
+            className="mx-auto h-44 w-44 rounded-full object-cover"
+            priority
+          />
+          <h1 className="mt-7 text-center text-xl font-semibold">
             {memberName(member)}
           </h1>
-          <p className="mt-1 text-center text-white/55">
+          <p className="mt-1 text-center text-white/75">
             {member.major}
             {member.cycle ? ` · ${member.cycle}°` : ""}
           </p>
@@ -1244,7 +1406,7 @@ export function MemberProfileManagementView({
             <StatusPill value={member.activityStatus} />
             <StatusPill value={member.availabilityStatus} />
           </div>
-          <div className="mt-7 space-y-3 border-t border-white/8 pt-5 text-sm">
+          <div className="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm">
             <ProfileRow
               label="Institución"
               value={member.institution ?? "UNI"}
@@ -1253,12 +1415,10 @@ export function MemberProfileManagementView({
               label="Código"
               value={member.studentCode ?? "Sin código"}
             />
-            <ProfileRow label="Rol" value={member.role} />
+            <ProfileRow label="Rol" value={displayRole(member.role)} />
           </div>
           <div className="mt-6">
-            <p className="mb-2 text-xs font-bold uppercase tracking-wide text-white/40">
-              Skills
-            </p>
+            <p className="mb-3 text-xs text-white/55">Skills</p>
             <div className="flex flex-wrap gap-2">
               {member.skills?.map((skill) => (
                 <span
@@ -1276,7 +1436,7 @@ export function MemberProfileManagementView({
           {canEdit && (
             <button
               type="button"
-              className={`${secondaryButton} mt-7 w-full`}
+              className="mt-7 w-full text-center text-xs text-white/45 hover:text-white"
               onClick={() => setEditing(true)}
             >
               Editar perfil
@@ -1285,21 +1445,21 @@ export function MemberProfileManagementView({
           {canDeactivate && member.activityStatus !== "inactive" && (
             <button
               type="button"
-              className={`${dangerButton} mt-3 w-full`}
+              className={`${dangerButton} mt-4 w-full bg-transparent py-3`}
               onClick={() => setDeactivating(true)}
             >
               Desactivar miembro
             </button>
           )}
         </aside>
-        <div className="grid gap-6">
-          <section className="rounded-md border border-white/8 bg-[#191822] p-6">
+        <div className="grid gap-11">
+          <section className="rounded-md bg-[#191822] p-6 lg:p-8">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-xl font-black">Áreas y roles</h2>
+              <h2 className="text-xl font-semibold">Áreas y roles</h2>
               {canEdit && (
                 <button
                   type="button"
-                  className={primaryButton}
+                  className="text-sm text-white/55 hover:text-white"
                   onClick={() => setMembership("create")}
                 >
                   ＋ Añadir
@@ -1328,7 +1488,7 @@ export function MemberProfileManagementView({
                         <td className="px-4 py-4">
                           {item.area?.name ?? `Área ${item.areaId}`}
                         </td>
-                        <td className="px-4 py-4">{item.role ?? "miembro"}</td>
+                        <td className="px-4 py-4">{displayRole(item.role)}</td>
                         <td className="px-4 py-4">
                           <StatusPill value={member.activityStatus} />
                         </td>
@@ -1361,40 +1521,56 @@ export function MemberProfileManagementView({
               )}
             </div>
           </section>
-          <section className="rounded-md border border-white/8 bg-[#191822] p-6">
-            <h2 className="mb-5 text-xl font-black">Proyectos</h2>
-            <div className="space-y-3">
-              {memberProjects.map((project) => (
-                <div
-                  key={project.id}
-                  className="flex items-center justify-between rounded-md bg-[#212330] px-4 py-3"
-                >
-                  <div>
-                    <p className="font-bold">{project.name}</p>
-                    <p className="mt-1 text-xs text-white/45">
-                      {project.area?.name ?? "Sin área"}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap justify-end gap-2">
-                    {getProjectLabelsForMember(member.id, [project]).map(
-                      (label) => (
-                        <span
-                          key={label}
-                          className="rounded bg-white/8 px-2 py-1 text-xs text-white/65"
-                        >
-                          {label}
-                        </span>
-                      ),
-                    )}
-                  </div>
-                </div>
-              ))}
+          <section className="rounded-md bg-[#191822] p-6 lg:p-8">
+            <h2 className="mb-5 text-xl font-semibold">Proyectos</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[650px] text-left text-sm">
+                <thead>
+                  <tr className="bg-[#212330] text-white/85">
+                    <th className="rounded-l-md px-4 py-3">Proyecto</th>
+                    <th className="px-4 py-3">Rol</th>
+                    <th className="px-4 py-3">Estado</th>
+                    <th className="rounded-r-md px-4 py-3">Carga</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/8">
+                  {memberProjects.map((project) => {
+                    const projectMembership = project.memberships?.find(
+                      (item) => item.memberId === member.id,
+                    );
+                    return (
+                      <tr key={project.id}>
+                        <td className="px-4 py-4">{project.name}</td>
+                        <td className="px-4 py-4">
+                          {displayRole(projectMembership?.role)}
+                        </td>
+                        <td className="px-4 py-4">
+                          <StatusPill
+                            value={
+                              project.isArchived
+                                ? "archived"
+                                : (project.status ?? "active")
+                            }
+                          />
+                        </td>
+                        <td className="px-4 py-4">
+                          <ProjectLoad role={projectMembership?.role} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
               {!memberProjects.length && (
-                <p className="text-sm text-white/40">
+                <p className="px-4 py-8 text-center text-sm text-white/40">
                   No hay proyectos asociados.
                 </p>
               )}
             </div>
+          </section>
+          <section className="rounded-md bg-[#191822] p-6 lg:p-8">
+            <h2 className="text-xl font-semibold">Participación</h2>
+            <ParticipationChart />
           </section>
         </div>
       </div>

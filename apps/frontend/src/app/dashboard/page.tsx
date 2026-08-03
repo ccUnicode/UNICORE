@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -127,14 +128,18 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 type AuthState = "initializing" | "anonymous" | "authenticated";
 
 const navItems: Array<{ id: View; label: string; icon: string }> = [
-  { id: "dashboard", label: "Dashboard", icon: "▦" },
-  { id: "areas", label: "Áreas", icon: "◈" },
-  { id: "members", label: "Miembros", icon: "●" },
-  { id: "projects", label: "Proyectos", icon: "▣" },
-  { id: "tasks", label: "Tareas", icon: "▤" },
-  { id: "integrations", label: "Integraciones", icon: "⌁" },
-  { id: "audit", label: "Auditoría", icon: "⌕" },
-  { id: "profile", label: "Perfil", icon: "◎" },
+  { id: "dashboard", label: "Dashboard", icon: "/figma/nav-dashboard.svg" },
+  { id: "areas", label: "Áreas", icon: "/figma/nav-areas.svg" },
+  { id: "members", label: "Miembros", icon: "/figma/nav-members.svg" },
+  { id: "projects", label: "Proyectos", icon: "/figma/nav-projects.svg" },
+  { id: "tasks", label: "Tareas", icon: "/figma/nav-tasks.svg" },
+  {
+    id: "integrations",
+    label: "Integraciones",
+    icon: "/figma/nav-integrations.svg",
+  },
+  { id: "audit", label: "Auditoría", icon: "/figma/nav-audit.svg" },
+  { id: "profile", label: "Perfil", icon: "/figma/nav-profile.svg" },
 ];
 
 function canSeeNavItem(item: View, role?: string): boolean {
@@ -180,6 +185,10 @@ function normalizeProjectList(
   payload: PaginatedProjects | Project[],
 ): Project[] {
   return Array.isArray(payload) ? payload : payload.data;
+}
+
+function getAreasPath(role: string): string {
+  return role === "presidencia" ? "/areas?includeArchived=true" : "/areas";
 }
 
 async function getAllProjects(accessToken: string): Promise<Project[]> {
@@ -276,7 +285,9 @@ export default function DashboardPage() {
       try {
         const isMember = authenticatedRole === "miembro";
         const [loadedAreas, loadedMembers, loadedProjects] = await Promise.all([
-          isMember ? Promise.resolve([]) : getJson<Area[]>("/areas", token),
+          isMember
+            ? Promise.resolve([])
+            : getJson<Area[]>(getAreasPath(authenticatedRole), token),
           isMember ? Promise.resolve([]) : getJson<Member[]>("/members", token),
           getAllProjects(token),
         ]);
@@ -341,9 +352,10 @@ export default function DashboardPage() {
   };
 
   const refreshPeopleData = async (): Promise<void> => {
-    if (!accessToken || currentMemberRole === "miembro") return;
+    if (!accessToken || !currentMemberRole || currentMemberRole === "miembro")
+      return;
     const [loadedAreas, loadedMembers, loadedProjects] = await Promise.all([
-      getJson<Area[]>("/areas", accessToken),
+      getJson<Area[]>(getAreasPath(currentMemberRole), accessToken),
       getJson<Member[]>("/members", accessToken),
       getAllProjects(accessToken),
     ]);
@@ -403,11 +415,11 @@ export default function DashboardPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#03030b] text-white">
+    <main className="min-h-screen bg-[#060610] text-white">
       <div className="flex min-h-screen">
-        <aside className="fixed inset-y-0 left-0 z-20 hidden w-[306px] border-r border-white/5 bg-[#191922] px-8 py-10 lg:block">
+        <aside className="fixed inset-y-0 left-0 z-20 hidden w-[306px] border-r border-white/5 bg-[#191822] px-[52px] py-[50px] lg:block">
           <Logo />
-          <nav className="mt-12 space-y-4">
+          <nav className="mt-9 space-y-4">
             {visibleNavItems.map((item) => (
               <NavButton
                 key={item.id}
@@ -418,7 +430,7 @@ export default function DashboardPage() {
               />
             ))}
           </nav>
-          <div className="mt-12 border-t border-white/10 pt-6">
+          <div className="absolute inset-x-[52px] bottom-8 border-t border-white/10 pt-6">
             <p className="truncate text-sm font-bold">
               {fullName(currentMember)}
             </p>
@@ -457,7 +469,7 @@ export default function DashboardPage() {
             </button>
           </header>
 
-          <div className="mx-auto w-full max-w-[1540px] px-5 py-8 sm:px-10 lg:px-20 lg:py-16">
+          <div className="w-full px-5 py-8 sm:px-10 lg:px-[68px] lg:py-[50px]">
             {error && (
               <div className="mb-8 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
                 No se pudo conectar con la API en {API_URL}: {error}
@@ -554,20 +566,24 @@ export default function DashboardPage() {
 
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="flex items-center gap-3">
-      <div className="grid h-10 w-10 place-items-center rounded-md border border-white/20 bg-white text-[#191922]">
-        <span className="text-xl font-black leading-none">U</span>
-      </div>
-      {!compact && (
-        <span className="text-2xl font-black tracking-[0.08em]">UNICORE</span>
-      )}
+    <div
+      className={`relative overflow-hidden ${compact ? "h-10 w-36" : "h-[73px] w-[202px]"}`}
+    >
+      <Image
+        src="/figma/unicore-logo.png"
+        alt="UNICORE"
+        fill
+        sizes={compact ? "144px" : "202px"}
+        className="object-cover"
+        priority
+      />
     </div>
   );
 }
 
 function SessionLoadingView() {
   return (
-    <main className="grid min-h-screen place-items-center bg-[#03030b] text-white">
+    <main className="grid min-h-screen place-items-center bg-[#060610] text-white">
       <p className="text-sm text-white/60">Validando sesión…</p>
     </main>
   );
@@ -588,13 +604,20 @@ function NavButton({
     <button
       type="button"
       onClick={onClick}
-      className={`flex h-10 w-full items-center gap-5 rounded-md px-3 text-left text-[23px] font-medium transition ${
+      className={`flex h-10 w-full items-center gap-5 rounded-md px-3 text-left text-[20px] font-medium outline-none transition ${
         active
           ? "bg-[#252633] text-white"
           : "text-white/90 hover:bg-white/5 hover:text-white"
       }`}
     >
-      <span className="grid h-7 w-7 place-items-center text-xl">{icon}</span>
+      <Image
+        src={icon}
+        alt=""
+        width={24}
+        height={24}
+        className="h-6 w-6 object-contain"
+        aria-hidden
+      />
       <span>{label}</span>
     </button>
   );
