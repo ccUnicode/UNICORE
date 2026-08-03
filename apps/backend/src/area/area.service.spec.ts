@@ -75,6 +75,21 @@ describe('AreaService', () => {
     });
   });
 
+  it('can include archived areas for Presidencia', async () => {
+    const storedAreas = [
+      createArea(),
+      createArea({ id: 2, name: 'Legacy', isArchived: true }),
+    ];
+    repository.find.mockResolvedValue(storedAreas);
+
+    await expect(
+      service.findAccessible({ role: AreaRole.PRESIDENCIA }, true),
+    ).resolves.toEqual(storedAreas);
+    expect(repository.find).toHaveBeenCalledWith({
+      order: { name: 'ASC' },
+    });
+  });
+
   it('lists only the assigned area for Directiva de Area', async () => {
     const storedArea: Area = {
       id: 3,

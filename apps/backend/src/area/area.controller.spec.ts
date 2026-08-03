@@ -86,9 +86,24 @@ describe('AreaController', () => {
       };
       mockAreaService.findAccessible.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.findAll(accessActor);
+      const result = await controller.findAll(accessActor, undefined);
       expect(result).toEqual(expectedResult);
-      expect(mockAreaService.findAccessible).toHaveBeenCalledWith(accessActor);
+      expect(mockAreaService.findAccessible).toHaveBeenCalledWith(
+        accessActor,
+        false,
+      );
+    });
+
+    it('forwards the archived-area option', async () => {
+      const accessActor = { role: AreaRole.PRESIDENCIA };
+      mockAreaService.findAccessible.mockResolvedValue([]);
+
+      await controller.findAll(accessActor, 'true');
+
+      expect(mockAreaService.findAccessible).toHaveBeenCalledWith(
+        accessActor,
+        true,
+      );
     });
   });
 
