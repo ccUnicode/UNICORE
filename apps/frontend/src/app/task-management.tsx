@@ -327,27 +327,87 @@ export default function TaskManagement({
   // Form values state
   const [formValues, setFormValues] = useState<TaskFormValues>(EMPTY_TASK_FORM);
 
+  const [selectedProjectDetails, setSelectedProjectDetails] = useState<Project | null>(null);
+  const [allMembers, setAllMembers] = useState<Member[]>([]);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadProjectDetails = async () => {
+      if (selectedProjectId === null) {
+        setSelectedProjectDetails(null);
+        return;
+      }
+      try {
+        const details = await requestJson<Project>(
+          apiUrl,
+          accessToken,
+          `/projects/${selectedProjectId}`,
+        );
+        if (!ignore) {
+          setSelectedProjectDetails(details);
+        }
+      } catch (err) {
+        console.warn("Failed to load project details: ", err);
+      }
+    };
+    void loadProjectDetails();
+    return () => {
+      ignore = true;
+    };
+  }, [selectedProjectId, apiUrl, accessToken]);
+
+  useEffect(() => {
+    let ignore = false;
+    const loadAllMembers = async () => {
+      try {
+        const data = await requestJson<Member[]>(
+          apiUrl,
+          accessToken,
+          "/members",
+        );
+        if (!ignore) {
+          setAllMembers(data);
+        }
+      } catch (err) {
+        console.warn("Failed to load members: ", err);
+      }
+    };
+    if (accessToken && accessToken !== "mock-token") {
+      void loadAllMembers();
+    }
+    return () => {
+      ignore = true;
+    };
+  }, [apiUrl, accessToken]);
+
   const selectedProject = useMemo(() => {
     return allowedProjects.find((p) => p.id === selectedProjectId) ?? null;
   }, [allowedProjects, selectedProjectId]);
 
+  const projectPhases = useMemo(() => {
+    const projectToUse = selectedProjectDetails || selectedProject;
+    return projectToUse?.phases ?? [];
+  }, [selectedProjectDetails, selectedProject]);
+
   const selectedProjectMembership = useMemo(() => {
-    if (!selectedProject || !currentMember) return null;
+    const projectToUse = selectedProjectDetails || selectedProject;
+    if (!projectToUse || !currentMember) return null;
     return (
-      selectedProject.memberships?.find(
+      projectToUse.memberships?.find(
         (m) => m.memberId === currentMember.id,
       ) ?? null
     );
-  }, [selectedProject, currentMember]);
+  }, [selectedProjectDetails, selectedProject, currentMember]);
 
   // Determine permissions
   const canManage = useMemo(() => {
-    if (!currentMember || !selectedProject) return false;
+    const projectToUse = selectedProjectDetails || selectedProject;
+    if (!currentMember || !projectToUse) return false;
     const role = currentMember.role?.toLowerCase();
     if (role === "presidencia") return true;
     if (role === "directiva_de_area") {
       const myAreaIds = getMemberAreaIds(currentMember);
-      const pAreaId = selectedProject.areaId ?? selectedProject.area?.id;
+      const pAreaId = projectToUse.areaId ?? projectToUse.area?.id;
       return pAreaId !== undefined && myAreaIds.includes(pAreaId);
     }
     if (selectedProjectMembership) {
@@ -355,35 +415,47 @@ export default function TaskManagement({
       return pRole === "representative" || pRole === "subrepresentative";
     }
     return false;
-  }, [currentMember, selectedProject, selectedProjectMembership]);
+  }, [currentMember, selectedProjectDetails, selectedProject, selectedProjectMembership]);
 
   const canChangeStatus = useMemo(() => {
-    if (!currentMember || !selectedProject) return false;
+    const projectToUse = selectedProjectDetails || selectedProject;
+    if (!currentMember || !projectToUse) return false;
     const role = currentMember.role?.toLowerCase();
     if (role === "presidencia") return true;
     if (role === "directiva_de_area") {
       const myAreaIds = getMemberAreaIds(currentMember);
-      const pAreaId = selectedProject.areaId ?? selectedProject.area?.id;
+      const pAreaId = projectToUse.areaId ?? projectToUse.area?.id;
       return pAreaId !== undefined && myAreaIds.includes(pAreaId);
     }
     return !!selectedProjectMembership;
-  }, [currentMember, selectedProject, selectedProjectMembership]);
+  }, [currentMember, selectedProjectDetails, selectedProject, selectedProjectMembership]);
 
   // Project team members (for assignments)
   const projectMembers = useMemo(() => {
-    if (!selectedProject) return [];
+    const projectToUse = selectedProjectDetails || selectedProject;
+    if (!projectToUse) return [];
+
+    const projectMemberIds = new Set(
+      projectToUse.memberships?.map((m) => m.memberId) ?? []
+    );
+
+    if (allMembers.length > 0) {
+      return allMembers.filter((m) => projectMemberIds.has(m.id));
+    }
+
     return (
-      selectedProject.memberships
+      projectToUse.memberships
         ?.map((m) => m.member)
         .filter((m): m is Member => !!m) ?? []
     );
-  }, [selectedProject]);
+  }, [selectedProjectDetails, selectedProject, allMembers]);
 
-  // Eligible members: active AND available
+  // Eligible members: active AND available (or assume true if status fields are omitted/undefined)
   const eligibleMembers = useMemo(() => {
     return projectMembers.filter(
       (m) =>
-        m.activityStatus === "active" && m.availabilityStatus === "available",
+        (m.activityStatus === undefined || m.activityStatus === "active") &&
+        (m.availabilityStatus === undefined || m.availabilityStatus === "available")
     );
   }, [projectMembers]);
 
@@ -1032,7 +1104,7 @@ export default function TaskManagement({
               </label>
             </div>
 
-            {selectedProject && selectedProject.phases && (
+            {projectPhases && projectPhases.length > 0 && (
               <label className="block">
                 <span className="text-xs font-semibold text-zinc-400">
                   Fase del Proyecto
@@ -1048,7 +1120,7 @@ export default function TaskManagement({
                   className="mt-2 h-10 w-full rounded bg-[#151522] border border-[#1e1f2e]/80 px-3 text-sm text-zinc-300 outline-none"
                 >
                   <option value="">Ninguna</option>
-                  {selectedProject.phases.map((ph) => (
+                  {projectPhases.map((ph) => (
                     <option key={ph.id} value={ph.id}>
                       {ph.name}
                     </option>
