@@ -9,6 +9,12 @@ import {
   getJson,
 } from "@/lib/auth-client";
 import ProjectManagement from "../project-management";
+import {
+  AreaDetailManagementView,
+  AreasManagementView,
+  MemberProfileManagementView,
+  MembersManagementView,
+} from "../people-management";
 
 type View =
   | "dashboard"
@@ -134,8 +140,7 @@ const navItems: Array<{ id: View; label: string; icon: string }> = [
 function canSeeNavItem(item: View, role?: string): boolean {
   const normalizedRole = role?.trim().toLowerCase();
   const canManagePeople =
-    normalizedRole === "presidencia" ||
-    normalizedRole === "directiva_de_area";
+    normalizedRole === "presidencia" || normalizedRole === "directiva_de_area";
 
   if (item === "areas" || item === "members") {
     return canManagePeople;
@@ -158,19 +163,6 @@ const chartDays = [
   { day: "Dom", done: 44, planned: 62 },
 ];
 
-const statusStyles: Record<string, string> = {
-  active: "bg-lime-500 text-lime-950",
-  available: "bg-lime-500 text-lime-950",
-  inactive: "bg-zinc-500 text-white",
-  not_available: "bg-amber-500 text-amber-950",
-  archived: "bg-zinc-600 text-white",
-  planning: "bg-rose-500 text-white",
-  paused: "bg-orange-500 text-orange-950",
-  on_hold: "bg-orange-500 text-orange-950",
-  completed: "bg-sky-500 text-sky-950",
-  cancelled: "bg-red-500 text-white",
-};
-
 function fullName(member: Member): string {
   return `${member.firstNames} ${member.lastNames}`.trim();
 }
@@ -184,19 +176,9 @@ function getMemberAreaIds(member: Member): number[] {
   return [...ids];
 }
 
-function getAreaName(area: Area, members: Member[]): string {
-  const firstMember = members.find((member) =>
-    member.memberships?.some(
-      (membership) => membership.areaId === area.id && membership.area?.name,
-    ),
-  );
-  return (
-    firstMember?.memberships?.find((membership) => membership.areaId === area.id)
-      ?.area?.name ?? area.name
-  );
-}
-
-function normalizeProjectList(payload: PaginatedProjects | Project[]): Project[] {
+function normalizeProjectList(
+  payload: PaginatedProjects | Project[],
+): Project[] {
   return Array.isArray(payload) ? payload : payload.data;
 }
 
@@ -222,10 +204,6 @@ async function getAllProjects(accessToken: string): Promise<Project[]> {
   return projects;
 }
 
-function statusClass(status?: string): string {
-  return statusStyles[status?.toLowerCase() ?? ""] ?? "bg-indigo-500 text-white";
-}
-
 export default function DashboardPage() {
   const router = useRouter();
   const [authState, setAuthState] = useState<AuthState>("initializing");
@@ -235,8 +213,6 @@ export default function DashboardPage() {
   const [areas, setAreas] = useState<Area[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [query, setQuery] = useState("");
-  const [memberStatus, setMemberStatus] = useState("");
   const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("idle");
@@ -286,11 +262,7 @@ export default function DashboardPage() {
   }, [authState, router]);
 
   useEffect(() => {
-    if (
-      authState !== "authenticated" ||
-      !accessToken ||
-      !currentMemberRole
-    ) {
+    if (authState !== "authenticated" || !accessToken || !currentMemberRole) {
       return;
     }
 
@@ -304,12 +276,8 @@ export default function DashboardPage() {
       try {
         const isMember = authenticatedRole === "miembro";
         const [loadedAreas, loadedMembers, loadedProjects] = await Promise.all([
-          isMember
-            ? Promise.resolve([])
-            : getJson<Area[]>("/areas", token),
-          isMember
-            ? Promise.resolve([])
-            : getJson<Member[]>("/members", token),
+          isMember ? Promise.resolve([]) : getJson<Area[]>("/areas", token),
+          isMember ? Promise.resolve([]) : getJson<Member[]>("/members", token),
           getAllProjects(token),
         ]);
 
@@ -318,7 +286,9 @@ export default function DashboardPage() {
         setAreas(loadedAreas);
         setSelectedAreaId((current) => current ?? loadedAreas[0]?.id ?? null);
         setMembers(loadedMembers);
-        setSelectedMemberId((current) => current ?? loadedMembers[0]?.id ?? null);
+        setSelectedMemberId(
+          (current) => current ?? loadedMembers[0]?.id ?? null,
+        );
         setProjects(loadedProjects);
         setLoadState("ready");
       } catch (currentError) {
@@ -370,6 +340,28 @@ export default function DashboardPage() {
     setProjects(loadedProjects);
   };
 
+  const refreshPeopleData = async (): Promise<void> => {
+    if (!accessToken || currentMemberRole === "miembro") return;
+    const [loadedAreas, loadedMembers, loadedProjects] = await Promise.all([
+      getJson<Area[]>("/areas", accessToken),
+      getJson<Member[]>("/members", accessToken),
+      getAllProjects(accessToken),
+    ]);
+    setAreas(loadedAreas);
+    setMembers(loadedMembers);
+    setProjects(loadedProjects);
+    setSelectedAreaId((current) =>
+      loadedAreas.some((area) => area.id === current)
+        ? current
+        : (loadedAreas[0]?.id ?? null),
+    );
+    setSelectedMemberId((current) =>
+      loadedMembers.some((member) => member.id === current)
+        ? current
+        : (loadedMembers[0]?.id ?? null),
+    );
+  };
+
   const areaMetrics = useMemo(
     () =>
       areas.map((area) => {
@@ -377,7 +369,8 @@ export default function DashboardPage() {
           getMemberAreaIds(member).includes(area.id),
         );
         const areaProjects = projects.filter(
-          (project) => project.areaId === area.id || project.area?.id === area.id,
+          (project) =>
+            project.areaId === area.id || project.area?.id === area.id,
         );
 
         return {
@@ -398,25 +391,6 @@ export default function DashboardPage() {
   const selectedMember =
     members.find((member) => member.id === selectedMemberId) ?? members[0];
 
-  const filteredMembers = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    return members.filter((member) => {
-      const matchesQuery =
-        normalizedQuery.length === 0 ||
-        fullName(member).toLowerCase().includes(normalizedQuery) ||
-        member.major.toLowerCase().includes(normalizedQuery) ||
-        member.skills?.some((skill) =>
-          skill.name.toLowerCase().includes(normalizedQuery),
-        );
-      const matchesStatus =
-        !memberStatus ||
-        member.availabilityStatus === memberStatus ||
-        member.activityStatus === memberStatus;
-
-      return matchesQuery && matchesStatus;
-    });
-  }, [members, query, memberStatus]);
-
   const activeMembers = members.filter(
     (member) => member.activityStatus !== "inactive",
   ).length;
@@ -424,7 +398,7 @@ export default function DashboardPage() {
     (member) => member.availabilityStatus === "available",
   ).length;
 
-  if (authState !== "authenticated" || !currentMember) {
+  if (authState !== "authenticated" || !currentMember || !accessToken) {
     return <SessionLoadingView />;
   }
 
@@ -502,8 +476,11 @@ export default function DashboardPage() {
               />
             )}
             {view === "areas" && (
-              <AreasView
+              <AreasManagementView
                 metrics={areaMetrics}
+                accessToken={accessToken}
+                currentRole={currentMember.role}
+                onChanged={refreshPeopleData}
                 onSelectArea={(areaId) => {
                   setSelectedAreaId(areaId);
                   setView("area-detail");
@@ -511,9 +488,13 @@ export default function DashboardPage() {
               />
             )}
             {view === "area-detail" && selectedArea && (
-              <AreaDetailView
+              <AreaDetailManagementView
                 metric={selectedArea}
+                accessToken={accessToken}
+                currentRole={currentMember.role}
+                onChanged={refreshPeopleData}
                 onBack={() => setView("areas")}
+                onGoToMembers={() => setView("members")}
                 onOpenMember={(memberId) => {
                   setSelectedMemberId(memberId);
                   setView("member-profile");
@@ -521,12 +502,13 @@ export default function DashboardPage() {
               />
             )}
             {view === "members" && (
-              <MembersView
-                members={filteredMembers}
-                query={query}
-                memberStatus={memberStatus}
-                onQueryChange={setQuery}
-                onStatusChange={setMemberStatus}
+              <MembersManagementView
+                members={members}
+                areas={areas}
+                projects={projects}
+                accessToken={accessToken}
+                currentRole={currentMember.role}
+                onChanged={refreshPeopleData}
                 onOpenMember={(memberId) => {
                   setSelectedMemberId(memberId);
                   setView("member-profile");
@@ -534,13 +516,13 @@ export default function DashboardPage() {
               />
             )}
             {view === "member-profile" && selectedMember && (
-              <MemberProfileView
+              <MemberProfileManagementView
                 member={selectedMember}
-                projects={projects.filter((project) =>
-                  project.memberships?.some(
-                    (membership) => membership.memberId === selectedMember.id,
-                  ),
-                )}
+                areas={areas}
+                projects={projects}
+                accessToken={accessToken}
+                currentRole={currentMember.role}
+                onChanged={refreshPeopleData}
                 onBack={() => setView("members")}
               />
             )}
@@ -556,7 +538,9 @@ export default function DashboardPage() {
               />
             )}
             {view === "tasks" && <PlaceholderView title="Tareas" />}
-            {view === "integrations" && <PlaceholderView title="Integraciones" />}
+            {view === "integrations" && (
+              <PlaceholderView title="Integraciones" />
+            )}
             {view === "audit" && <PlaceholderView title="Auditoría" />}
             {view === "profile" && (
               <ProfileView member={currentMember} onLogout={handleLogout} />
@@ -628,7 +612,9 @@ function SectionTitle({
       <h1 className="text-5xl font-black leading-tight tracking-normal sm:text-6xl">
         {title}
       </h1>
-      {subtitle && <p className="mt-3 max-w-3xl text-lg text-white/60">{subtitle}</p>}
+      {subtitle && (
+        <p className="mt-3 max-w-3xl text-lg text-white/60">{subtitle}</p>
+      )}
     </div>
   );
 }
@@ -667,7 +653,10 @@ function DashboardView({
           <div className="max-w-full overflow-x-auto pb-2">
             <div className="flex h-[280px] min-w-[460px] items-end gap-5 border-l border-b border-white/20 px-6 pb-7 sm:min-w-0">
               {chartDays.map((day) => (
-                <div key={day.day} className="flex flex-1 flex-col items-center gap-3">
+                <div
+                  key={day.day}
+                  className="flex flex-1 flex-col items-center gap-3"
+                >
                   <div className="flex h-[220px] items-end gap-1.5">
                     <span
                       className="w-5 rounded-t bg-white"
@@ -686,7 +675,10 @@ function DashboardView({
         </div>
 
         <div className="grid min-w-0 gap-6">
-          <MetricCard label="Áreas activas" value={loading ? "..." : areaCount} />
+          <MetricCard
+            label="Áreas activas"
+            value={loading ? "..." : areaCount}
+          />
           <MetricCard
             label="Miembros registrados"
             value={loading ? "..." : memberCount}
@@ -744,341 +736,18 @@ function DashboardView({
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number | string }) {
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number | string;
+}) {
   return (
     <div className="min-w-0 rounded-md border border-white/8 bg-[#20212c] p-7">
       <p className="text-sm font-semibold text-white/55">{label}</p>
       <p className="mt-4 text-3xl font-black">{value}</p>
     </div>
-  );
-}
-
-function AreasView({
-  metrics,
-  onSelectArea,
-}: {
-  metrics: Array<{
-    area: Area;
-    memberCount: number;
-    projectCount: number;
-    members: Member[];
-    projects: Project[];
-  }>;
-  onSelectArea: (areaId: number) => void;
-}) {
-  return (
-    <div>
-      <SectionTitle
-        title="Áreas"
-        subtitle="Cards dinámicas con conteos derivados de miembros y proyectos cargados desde API."
-      />
-      <div className="grid gap-7 md:grid-cols-2 xl:grid-cols-3">
-        {metrics.map((metric) => (
-          <button
-            key={metric.area.id}
-            type="button"
-            onClick={() => onSelectArea(metric.area.id)}
-            className="rounded-md border border-white/8 bg-[#20212c] p-7 text-left transition hover:-translate-y-0.5 hover:border-white/20"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <AreaBadge name={metric.area.name} />
-              <span className="rounded bg-white/8 px-2 py-1 text-xs text-white/65">
-                #{metric.area.id}
-              </span>
-            </div>
-            <h2 className="mt-6 text-2xl font-black">
-              {getAreaName(metric.area, metric.members)}
-            </h2>
-            <p className="mt-2 min-h-10 text-sm leading-5 text-white/55">
-              {metric.area.description ?? "Área operativa de UNICORE."}
-            </p>
-            <div className="mt-7 grid grid-cols-2 gap-3">
-              <CountPill label="Miembros" value={metric.memberCount} />
-              <CountPill label="Proyectos" value={metric.projectCount} />
-            </div>
-          </button>
-        ))}
-      </div>
-      {metrics.length === 0 && <EmptyState text="No hay áreas disponibles." />}
-    </div>
-  );
-}
-
-function AreaDetailView({
-  metric,
-  onBack,
-  onOpenMember,
-}: {
-  metric: {
-    area: Area;
-    memberCount: number;
-    projectCount: number;
-    members: Member[];
-    projects: Project[];
-  };
-  onBack: () => void;
-  onOpenMember: (memberId: number) => void;
-}) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-6 rounded-md bg-white/8 px-4 py-2 text-sm text-white/80 hover:bg-white/12"
-      >
-        &lt; Volver
-      </button>
-      <SectionTitle
-        title={metric.area.name}
-        subtitle={metric.area.description ?? "Detalle del área y sus miembros."}
-      />
-      <div className="mb-8 grid gap-4 md:grid-cols-3">
-        <MetricCard label="Miembros" value={metric.memberCount} />
-        <MetricCard label="Proyectos" value={metric.projectCount} />
-        <MetricCard
-          label="Disponibles"
-          value={
-            metric.members.filter(
-              (member) => member.availabilityStatus === "available",
-            ).length
-          }
-        />
-      </div>
-      <Panel title="Miembros del área">
-        <MemberTable members={metric.members} areaId={metric.area.id} onOpenMember={onOpenMember} />
-      </Panel>
-    </div>
-  );
-}
-
-function MembersView({
-  members,
-  query,
-  memberStatus,
-  onQueryChange,
-  onStatusChange,
-  onOpenMember,
-}: {
-  members: Member[];
-  query: string;
-  memberStatus: string;
-  onQueryChange: (value: string) => void;
-  onStatusChange: (value: string) => void;
-  onOpenMember: (memberId: number) => void;
-}) {
-  return (
-    <div>
-      <SectionTitle
-        title="Miembros"
-        subtitle="Directorio searchable y filtrable conectado a la API de miembros."
-      />
-      <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-center">
-        <SearchInput
-          value={query}
-          placeholder="Buscar miembros, carrera o skill..."
-          onChange={onQueryChange}
-        />
-        <select
-          value={memberStatus}
-          onChange={(event) => onStatusChange(event.target.value)}
-          className="h-10 rounded-md border border-white/10 bg-[#20212c] px-3 text-sm text-white"
-        >
-          <option value="">Todos los estados</option>
-          <option value="available">Disponible</option>
-          <option value="not_available">No disponible</option>
-          <option value="active">Activo</option>
-          <option value="inactive">Inactivo</option>
-        </select>
-      </div>
-      <Panel title={`Resultados (${members.length})`}>
-        <MemberTable members={members} onOpenMember={onOpenMember} />
-      </Panel>
-    </div>
-  );
-}
-
-function MemberProfileView({
-  member,
-  projects,
-  onBack,
-}: {
-  member: Member;
-  projects: Project[];
-  onBack: () => void;
-}) {
-  return (
-    <div>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-6 rounded-md bg-white/8 px-4 py-2 text-sm text-white/80 hover:bg-white/12"
-      >
-        &lt; Volver
-      </button>
-      <div className="grid gap-8 xl:grid-cols-[420px_minmax(0,1fr)]">
-        <div className="rounded-md border border-white/8 bg-[#20212c] p-8">
-          <div className="flex items-center gap-5">
-            <div className="grid h-20 w-20 place-items-center rounded-md bg-white text-3xl font-black text-[#20212c]">
-              {member.firstNames[0]}
-              {member.lastNames[0]}
-            </div>
-            <div>
-              <h1 className="text-3xl font-black">{fullName(member)}</h1>
-              <p className="mt-1 text-white/60">{member.major}</p>
-            </div>
-          </div>
-          <div className="mt-8 space-y-4 text-sm">
-            <InfoRow label="Institución" value={member.institution ?? "UNI"} />
-            <InfoRow label="Código" value={member.studentCode ?? "Sin código"} />
-            <InfoRow label="Rol" value={member.role} />
-            <InfoRow
-              label="Estado"
-              value={member.availabilityStatus ?? "Sin estado"}
-            />
-          </div>
-        </div>
-        <div className="grid gap-6">
-          <Panel title="Áreas">
-            <div className="flex flex-wrap gap-2">
-              {member.memberships?.map((membership) => (
-                <span
-                  key={`${membership.areaId}-${membership.role}`}
-                  className="rounded bg-white/8 px-3 py-1 text-sm text-white/80"
-                >
-                  {membership.area?.name ?? `Área ${membership.areaId}`} ·{" "}
-                  {membership.role ?? "miembro"}
-                </span>
-              ))}
-              {!member.memberships?.length && (
-                <span className="text-sm text-white/45">Sin áreas cargadas.</span>
-              )}
-            </div>
-          </Panel>
-          <Panel title="Skills">
-            <div className="flex flex-wrap gap-2">
-              {member.skills?.map((skill) => (
-                <span
-                  key={skill.id ?? skill.name}
-                  className="rounded bg-[#7478ff]/20 px-3 py-1 text-sm text-indigo-100"
-                >
-                  {skill.name}
-                </span>
-              ))}
-              {!member.skills?.length && (
-                <span className="text-sm text-white/45">Sin skills cargadas.</span>
-              )}
-            </div>
-          </Panel>
-          <Panel title="Proyectos">
-            <StackList
-              items={projects.map((project) => ({
-                title: project.name,
-                subtitle: project.description ?? "Sin descripción",
-                meta: project.area?.name ?? "Sin área",
-              }))}
-              empty="No hay proyectos asociados en la respuesta actual."
-            />
-          </Panel>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function MemberTable({
-  members,
-  areaId,
-  onOpenMember,
-}: {
-  members: Member[];
-  areaId?: number;
-  onOpenMember: (memberId: number) => void;
-}) {
-  if (members.length === 0) {
-    return <EmptyState text="No hay miembros para mostrar." compact />;
-  }
-
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] border-separate border-spacing-y-2 text-left">
-        <thead className="text-xs uppercase text-white/40">
-          <tr>
-            <th className="px-4 py-2">Miembro</th>
-            <th className="px-4 py-2">Carrera</th>
-            <th className="px-4 py-2">Rol</th>
-            <th className="px-4 py-2">Estado</th>
-            <th className="px-4 py-2">Skills</th>
-          </tr>
-        </thead>
-        <tbody>
-          {members.map((member) => {
-            const membershipRole =
-              areaId !== undefined
-                ? (member.memberships?.find((m) => m.areaId === areaId)?.role ?? member.role)
-                : member.role;
-
-            return (
-              <tr
-                key={member.id}
-                className="rounded-md bg-[#171822] text-sm text-white/80"
-              >
-                <td className="rounded-l-md px-4 py-4">
-                  <button
-                    type="button"
-                    onClick={() => onOpenMember(member.id)}
-                    className="font-bold text-white hover:underline"
-                  >
-                    {fullName(member)}
-                  </button>
-                  <p className="mt-1 text-xs text-white/45">
-                    {member.studentCode ?? "Sin código"}
-                  </p>
-                </td>
-                <td className="px-4 py-4">{member.major}</td>
-                <td className="px-4 py-4">{membershipRole}</td>
-                <td className="px-4 py-4">
-                  <span
-                    className={`rounded px-2 py-1 text-xs font-bold ${statusClass(
-                      member.availabilityStatus ?? member.activityStatus,
-                    )}`}
-                  >
-                    {member.availabilityStatus ?? member.activityStatus ?? "N/D"}
-                  </span>
-                </td>
-                <td className="rounded-r-md px-4 py-4">
-                  {member.skills?.slice(0, 3).map((skill) => skill.name).join(", ") ||
-                    "Sin skills"}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function SearchInput({
-  value,
-  placeholder,
-  onChange,
-}: {
-  value: string;
-  placeholder: string;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="relative block w-full max-w-[670px]">
-      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-zinc-500">
-        ⌕
-      </span>
-      <input
-        value={value}
-        placeholder={placeholder}
-        onChange={(event) => onChange(event.target.value)}
-        className="h-10 w-full rounded-md border border-white/10 bg-[#f1f1f5] pl-9 pr-4 text-sm text-zinc-900 outline-none ring-0 placeholder:text-zinc-500 focus:border-indigo-300"
-      />
-    </label>
   );
 }
 
@@ -1126,23 +795,6 @@ function StackList({
           )}
         </div>
       ))}
-    </div>
-  );
-}
-
-function AreaBadge({ name }: { name: string }) {
-  return (
-    <div className="grid h-14 w-14 place-items-center rounded-md bg-white text-xl font-black text-[#20212c]">
-      {name.slice(0, 2).toUpperCase()}
-    </div>
-  );
-}
-
-function CountPill({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded bg-[#171822] px-4 py-3">
-      <p className="text-xs text-white/45">{label}</p>
-      <p className="mt-1 text-xl font-black">{value}</p>
     </div>
   );
 }
@@ -1210,10 +862,7 @@ function ProfileView({
               (member.areaId ? `Área ${member.areaId}` : "Todas")
             }
           />
-          <InfoRow
-            label="API"
-            value={API_URL.replace(/^https?:\/\//, "")}
-          />
+          <InfoRow label="API" value={API_URL.replace(/^https?:\/\//, "")} />
         </div>
         <button
           type="button"
