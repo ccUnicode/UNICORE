@@ -331,12 +331,12 @@ export default function TaskManagement({
   const [allMembers, setAllMembers] = useState<Member[]>([]);
 
   useEffect(() => {
+    setSelectedProjectDetails(null); // Clear on select or reset
+    if (selectedProjectId === null) {
+      return;
+    }
     let ignore = false;
     const loadProjectDetails = async () => {
-      if (selectedProjectId === null) {
-        setSelectedProjectDetails(null);
-        return;
-      }
       try {
         const details = await requestJson<Project>(
           apiUrl,
@@ -348,6 +348,9 @@ export default function TaskManagement({
         }
       } catch (err) {
         console.warn("Failed to load project details: ", err);
+        if (!ignore) {
+          setSelectedProjectDetails(null); // Clear on request failure
+        }
       }
     };
     void loadProjectDetails();
@@ -384,24 +387,32 @@ export default function TaskManagement({
     return allowedProjects.find((p) => p.id === selectedProjectId) ?? null;
   }, [allowedProjects, selectedProjectId]);
 
+  // Helper to ensure we only use loaded details that match the currently selected project ID
+  const activeProjectDetails = useMemo(() => {
+    if (selectedProjectDetails && selectedProjectDetails.id === selectedProjectId) {
+      return selectedProjectDetails;
+    }
+    return null;
+  }, [selectedProjectDetails, selectedProjectId]);
+
   const projectPhases = useMemo(() => {
-    const projectToUse = selectedProjectDetails || selectedProject;
+    const projectToUse = activeProjectDetails || selectedProject;
     return projectToUse?.phases ?? [];
-  }, [selectedProjectDetails, selectedProject]);
+  }, [activeProjectDetails, selectedProject]);
 
   const selectedProjectMembership = useMemo(() => {
-    const projectToUse = selectedProjectDetails || selectedProject;
+    const projectToUse = activeProjectDetails || selectedProject;
     if (!projectToUse || !currentMember) return null;
     return (
       projectToUse.memberships?.find(
         (m) => m.memberId === currentMember.id,
       ) ?? null
     );
-  }, [selectedProjectDetails, selectedProject, currentMember]);
+  }, [activeProjectDetails, selectedProject, currentMember]);
 
   // Determine permissions
   const canManage = useMemo(() => {
-    const projectToUse = selectedProjectDetails || selectedProject;
+    const projectToUse = activeProjectDetails || selectedProject;
     if (!currentMember || !projectToUse) return false;
     const role = currentMember.role?.toLowerCase();
     if (role === "presidencia") return true;
@@ -415,10 +426,10 @@ export default function TaskManagement({
       return pRole === "representative" || pRole === "subrepresentative";
     }
     return false;
-  }, [currentMember, selectedProjectDetails, selectedProject, selectedProjectMembership]);
+  }, [currentMember, activeProjectDetails, selectedProject, selectedProjectMembership]);
 
   const canChangeStatus = useMemo(() => {
-    const projectToUse = selectedProjectDetails || selectedProject;
+    const projectToUse = activeProjectDetails || selectedProject;
     if (!currentMember || !projectToUse) return false;
     const role = currentMember.role?.toLowerCase();
     if (role === "presidencia") return true;
@@ -428,11 +439,11 @@ export default function TaskManagement({
       return pAreaId !== undefined && myAreaIds.includes(pAreaId);
     }
     return !!selectedProjectMembership;
-  }, [currentMember, selectedProjectDetails, selectedProject, selectedProjectMembership]);
+  }, [currentMember, activeProjectDetails, selectedProject, selectedProjectMembership]);
 
   // Project team members (for assignments)
   const projectMembers = useMemo(() => {
-    const projectToUse = selectedProjectDetails || selectedProject;
+    const projectToUse = activeProjectDetails || selectedProject;
     if (!projectToUse) return [];
 
     const projectMemberIds = new Set(
@@ -448,7 +459,7 @@ export default function TaskManagement({
         ?.map((m) => m.member)
         .filter((m): m is Member => !!m) ?? []
     );
-  }, [selectedProjectDetails, selectedProject, allMembers]);
+  }, [activeProjectDetails, selectedProject, allMembers]);
 
   // Eligible members: active AND available (or assume true if status fields are omitted/undefined)
   const eligibleMembers = useMemo(() => {
