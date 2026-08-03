@@ -76,6 +76,23 @@ function memberName(member: ManagedMember): string {
   return `${member.firstNames} ${member.lastNames}`.trim();
 }
 
+function displayCycle(cycle?: number | null): string {
+  if (!cycle) return "Sin ciclo";
+  const suffixes: Record<number, string> = {
+    1: "ro",
+    2: "vo",
+    3: "er",
+    4: "to",
+    5: "to",
+    6: "to",
+    7: "vo",
+    8: "vo",
+    9: "no",
+    10: "mo",
+  };
+  return `${cycle}${suffixes[cycle] ?? "°"}`;
+}
+
 function messageFrom(error: unknown): string {
   if (error instanceof ApiError || error instanceof Error) return error.message;
   return "No se pudo completar la operación.";
@@ -969,8 +986,8 @@ function MemberTable({
                 </td>
                 <td className="px-4 py-3">
                   {member.major}
-                  <span className="ml-2 text-white/40">
-                    {member.cycle ? `${member.cycle}°` : ""}
+                  <span className="ml-2 text-white/50">
+                    · {displayCycle(member.cycle)}
                   </span>
                 </td>
                 <td className="px-4 py-3">
@@ -1399,8 +1416,7 @@ export function MemberProfileManagementView({
             {memberName(member)}
           </h1>
           <p className="mt-1 text-center text-white/75">
-            {member.major}
-            {member.cycle ? ` · ${member.cycle}°` : ""}
+            {member.major} · {displayCycle(member.cycle)}
           </p>
           <div className="mt-4 flex justify-center gap-2">
             <StatusPill value={member.activityStatus} />
