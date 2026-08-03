@@ -469,6 +469,38 @@ describe('MembersService', () => {
   });
 
   describe('update', () => {
+    it('updates editable profile fields and skills', async () => {
+      const updatedSkill = createSkill(3, 'nestjs');
+      const updateDto = {
+        firstNames: 'Ana',
+        lastNames: 'Rojas',
+        major: 'Ingenieria de Software',
+        birthDate: '2004-05-20',
+        skills: ['nestjs'],
+      };
+
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+      skillsRepository.find?.mockResolvedValue([updatedSkill]);
+      membersRepository.save?.mockImplementation((member: Member) =>
+        Promise.resolve(member),
+      );
+
+      await expect(service.update(10, updateDto)).resolves.toEqual(
+        expect.objectContaining({
+          firstNames: 'Ana',
+          lastNames: 'Rojas',
+          major: 'Ingenieria de Software',
+          birthDate: '2004-05-20',
+          skills: [updatedSkill],
+        }),
+      );
+      expect(skillsRepository.find).toHaveBeenCalledWith({
+        where: { name: In(['nestjs']) },
+      });
+    });
+
     it('successfully updates a member availability status', async () => {
       const updateDto = {
         availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,

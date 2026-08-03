@@ -119,11 +119,19 @@ export class MembersService {
         this.update(id, updateMemberDto, em),
       );
     }
-    const { activityStatus, availabilityStatus, status, areaId, cycle } =
-      updateMemberDto as LegacyUpdateMemberInput;
+    const {
+      activityStatus,
+      availabilityStatus,
+      status,
+      areaId,
+      cycle,
+      skills,
+      ...profileUpdates
+    } = updateMemberDto as LegacyUpdateMemberInput;
     const resolvedAvailabilityStatus = availabilityStatus ?? status;
 
     const membersRepository = entityManager.getRepository(Member);
+    const skillsRepository = entityManager.getRepository(Skill);
     const areaMembershipsRepository =
       entityManager.getRepository(AreaMembership);
     const areasRepository = entityManager.getRepository(Area);
@@ -141,6 +149,11 @@ export class MembersService {
       throw new NotFoundException(`Member with ID ${id} not found`);
     }
 
+    Object.assign(member, profileUpdates);
+
+    if (skills !== undefined) {
+      member.skills = await this.resolveSkills(skills, skillsRepository);
+    }
     if (activityStatus !== undefined) {
       member.activityStatus = activityStatus;
     }
@@ -151,7 +164,18 @@ export class MembersService {
       member.cycle = cycle === null ? null : cycle;
     }
 
-    const savedMember = await membersRepository.save(member);
+    let savedMember: Member;
+    try {
+      savedMember = await membersRepository.save(member);
+    } catch (error) {
+      if (isUniqueViolation(error)) {
+        throw new ConflictException(
+          'A member with the same institution and student code already exists.',
+        );
+      }
+
+      throw error;
+    }
 
     if (areaId !== undefined) {
       const roles = savedMember.memberships.map((m) => m.role);
