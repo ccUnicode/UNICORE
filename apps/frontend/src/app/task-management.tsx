@@ -104,6 +104,16 @@ export type Task = {
   updatedAt?: string;
 };
 
+export type PaginatedResponse<T> = {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    lastPage: number;
+  };
+};
+
 type TaskFormValues = {
   title: string;
   description: string;
@@ -292,6 +302,13 @@ export default function TaskManagement({
     null,
   );
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [meta, setMeta] = useState<{
+    total: number;
+    page: number;
+    limit: number;
+    lastPage: number;
+  } | null>(null);
+  const [page, setPage] = useState(1);
   const [selectedTaskId, setSelectedTaskId] = useState<number | null>(null);
   const [taskDetail, setTaskDetail] = useState<Task | null>(null);
 
@@ -378,20 +395,31 @@ export default function TaskManagement({
   }, [allowedProjects, selectedProjectId]);
 
   // Load tasks when project or filters change
+  // Reset page when project or filters change
+  useEffect(() => {
+    setPage(1);
+  }, [selectedProjectId, statusFilter, priorityFilter]);
+
   const loadTasks = useCallback(async () => {
     if (selectedProjectId === null) {
       setTasks([]);
+      setMeta(null);
       return;
     }
     setTasksLoading(true);
     setError("");
     try {
-      let path = `/tasks?projectId=${selectedProjectId}`;
+      let path = `/tasks?projectId=${selectedProjectId}&page=${page}&limit=10`;
       if (statusFilter) path += `&status=${statusFilter}`;
       if (priorityFilter) path += `&priority=${priorityFilter}`;
 
-      const loadedTasks = await requestJson<Task[]>(apiUrl, accessToken, path);
-      setTasks(loadedTasks);
+      const payload = await requestJson<PaginatedResponse<Task>>(
+        apiUrl,
+        accessToken,
+        path,
+      );
+      setTasks(payload.data);
+      setMeta(payload.meta);
     } catch (currentError) {
       setError(
         currentError instanceof Error
@@ -405,6 +433,7 @@ export default function TaskManagement({
     selectedProjectId,
     statusFilter,
     priorityFilter,
+    page,
     apiUrl,
     accessToken,
   ]);
@@ -846,35 +875,55 @@ export default function TaskManagement({
           {/* Footer exactly as Figma */}
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-t border-[#1e1f2e]/60 px-6 py-4 bg-[#0c0d16] bg-opacity-75 text-xs text-zinc-500">
             <span>
-              Mostrando 1 a {filteredTasks.length} de {filteredTasks.length} Tareas
+              {meta ? (
+                `Mostrando ${(meta.page - 1) * meta.limit + 1} a ${Math.min(
+                  meta.page * meta.limit,
+                  meta.total,
+                )} de ${meta.total} Tareas`
+              ) : (
+                `Mostrando 0 de 0 Tareas`
+              )}
             </span>
-            <div className="flex items-center gap-1.5">
-              <button
-                type="button"
-                className="grid h-7 w-7 place-items-center rounded bg-[#161726] hover:bg-[#1f2033] text-zinc-400 disabled:opacity-30"
-                disabled
-              >
-                ‹
-              </button>
-              <button
-                type="button"
-                className="grid h-7 w-7 place-items-center rounded bg-[#4067c9] text-white font-bold"
-              >
-                1
-              </button>
-              <button
-                type="button"
-                className="grid h-7 w-7 place-items-center rounded bg-[#161726] hover:bg-[#1f2033]"
-              >
-                2
-              </button>
-              <button
-                type="button"
-                className="grid h-7 w-7 place-items-center rounded bg-[#161726] hover:bg-[#1f2033]"
-              >
-                ›
-              </button>
-            </div>
+            {meta && meta.lastPage > 1 && (
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="grid h-7 w-7 place-items-center rounded bg-[#161726] hover:bg-[#1f2033] text-zinc-400 disabled:opacity-30"
+                  disabled={page === 1}
+                  aria-label="Página anterior"
+                >
+                  ‹
+                </button>
+                {Array.from({ length: meta.lastPage }).map((_, idx) => {
+                  const pNum = idx + 1;
+                  const isCurrent = pNum === page;
+                  return (
+                    <button
+                      key={pNum}
+                      type="button"
+                      onClick={() => setPage(pNum)}
+                      className={`grid h-7 w-7 place-items-center rounded font-bold text-xs ${
+                        isCurrent
+                          ? "bg-[#4067c9] text-white"
+                          : "bg-[#161726] text-zinc-400 hover:bg-[#1f2033]"
+                      }`}
+                    >
+                      {pNum}
+                    </button>
+                  );
+                })}
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(meta.lastPage, p + 1))}
+                  className="grid h-7 w-7 place-items-center rounded bg-[#161726] hover:bg-[#1f2033] text-zinc-400 disabled:opacity-30"
+                  disabled={page === meta.lastPage}
+                  aria-label="Página siguiente"
+                >
+                  ›
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
