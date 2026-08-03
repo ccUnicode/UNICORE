@@ -417,9 +417,9 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-[#060610] text-white">
       <div className="flex min-h-screen">
-        <aside className="fixed inset-y-0 left-0 z-20 hidden w-[306px] border-r border-white/5 bg-[#191822] px-[52px] py-[50px] lg:block">
+        <aside className="fixed inset-y-0 left-0 z-20 hidden w-[306px] flex-col overflow-y-auto border-r border-white/5 bg-[#191822] px-[52px] py-[50px] lg:flex">
           <Logo />
-          <nav className="mt-9 space-y-4">
+          <nav className="mt-9 flex-none space-y-3">
             {visibleNavItems.map((item) => (
               <NavButton
                 key={item.id}
@@ -430,7 +430,7 @@ export default function DashboardPage() {
               />
             ))}
           </nav>
-          <div className="absolute inset-x-[52px] bottom-8 border-t border-white/10 pt-6">
+          <div className="mt-auto flex-none border-t border-white/10 pt-6">
             <p className="truncate text-sm font-bold">
               {fullName(currentMember)}
             </p>
