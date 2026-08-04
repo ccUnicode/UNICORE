@@ -24,6 +24,19 @@ export function appendTaskComment(
   });
 }
 
+export function appendCommentToMatchingTask<
+  T extends { id: number; comments?: TaskCommentItem[] },
+>(task: T | null, comment: TaskCommentItem): T | null {
+  if (!task || task.id !== comment.taskId) {
+    return task;
+  }
+
+  return {
+    ...task,
+    comments: appendTaskComment(task.comments ?? [], comment),
+  };
+}
+
 export function formatCollaborationTimestamp(value: string): string {
   return new Intl.DateTimeFormat('es-PE', {
     dateStyle: 'medium',

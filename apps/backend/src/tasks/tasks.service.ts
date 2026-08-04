@@ -194,6 +194,12 @@ export class TasksService {
   async findOne(id: number, accessActor: RequestAccessActor): Promise<Task> {
     const task = await this.findTaskOrThrow(id);
     await this.assertProjectAccess(task.project, accessActor, 'read');
+    const [comments, statusHistory] = await Promise.all([
+      this.loadComments(task.id),
+      this.loadStatusHistory(task.id),
+    ]);
+    task.comments = comments;
+    task.statusHistory = statusHistory;
     this.limitAssigneeFields(task);
 
     return task;
@@ -314,7 +320,7 @@ export class TasksService {
     createTaskCommentDto: CreateTaskCommentDto,
     accessActor: RequestAccessActor,
   ): Promise<TaskComment> {
-    const task = await this.findTaskOrThrow(id);
+    const task = await this.findTaskForAccessOrThrow(id);
     await this.assertProjectAccess(task.project, accessActor, 'read');
     this.assertProjectIsActive(task.project);
 
@@ -345,14 +351,10 @@ export class TasksService {
     id: number,
     accessActor: RequestAccessActor,
   ): Promise<TaskComment[]> {
-    const task = await this.findTaskOrThrow(id);
+    const task = await this.findTaskForAccessOrThrow(id);
     await this.assertProjectAccess(task.project, accessActor, 'read');
 
-    const comments = await this.taskCommentsRepository.find({
-      where: { taskId: task.id },
-      relations: ['author'],
-      order: { createdAt: 'ASC', id: 'ASC' },
-    });
+    const comments = await this.loadComments(task.id);
     comments.forEach((comment) => this.limitMemberFields(comment, 'author'));
     return comments;
   }
@@ -361,14 +363,10 @@ export class TasksService {
     id: number,
     accessActor: RequestAccessActor,
   ): Promise<TaskStatusHistory[]> {
-    const task = await this.findTaskOrThrow(id);
+    const task = await this.findTaskForAccessOrThrow(id);
     await this.assertProjectAccess(task.project, accessActor, 'read');
 
-    const history = await this.taskStatusHistoryRepository.find({
-      where: { taskId: task.id },
-      relations: ['actor'],
-      order: { createdAt: 'DESC', id: 'DESC' },
-    });
+    const history = await this.loadStatusHistory(task.id);
     history.forEach((entry) => this.limitMemberFields(entry, 'actor'));
     return history;
   }
@@ -421,20 +419,7 @@ export class TasksService {
   private async findTaskOrThrow(id: number): Promise<Task> {
     const task = await this.tasksRepository.findOne({
       where: { id },
-      relations: [
-        'project',
-        'phase',
-        'assignees',
-        'assignees.member',
-        'comments',
-        'comments.author',
-        'statusHistory',
-        'statusHistory.actor',
-      ],
-      order: {
-        comments: { createdAt: 'ASC', id: 'ASC' },
-        statusHistory: { createdAt: 'DESC', id: 'DESC' },
-      },
+      relations: ['project', 'phase', 'assignees', 'assignees.member'],
     });
 
     if (!task) {
@@ -442,6 +427,35 @@ export class TasksService {
     }
 
     return task;
+  }
+
+  private async findTaskForAccessOrThrow(id: number): Promise<Task> {
+    const task = await this.tasksRepository.findOne({
+      where: { id },
+      relations: ['project'],
+    });
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    return task;
+  }
+
+  private loadComments(taskId: number): Promise<TaskComment[]> {
+    return this.taskCommentsRepository.find({
+      where: { taskId },
+      relations: ['author'],
+      order: { createdAt: 'ASC', id: 'ASC' },
+    });
+  }
+
+  private loadStatusHistory(taskId: number): Promise<TaskStatusHistory[]> {
+    return this.taskStatusHistoryRepository.find({
+      where: { taskId },
+      relations: ['actor'],
+      order: { createdAt: 'DESC', id: 'DESC' },
+    });
   }
 
   private async findTaskForUpdate(

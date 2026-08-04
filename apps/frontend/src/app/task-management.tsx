@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import {
-  appendTaskComment,
+  appendCommentToMatchingTask,
   CollaborationMember,
   formatCollaborationTimestamp,
   TaskCommentItem,
@@ -339,8 +339,11 @@ export default function TaskManagement({
   const [tasksLoading, setTasksLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const [commentContent, setCommentContent] = useState("");
+  const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>(
+    {},
+  );
   const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const commentContent = taskDetail ? (commentDrafts[taskDetail.id] ?? "") : "";
 
   // Filters state
   const [statusFilter, setStatusFilter] = useState("");
@@ -647,6 +650,7 @@ export default function TaskManagement({
   // Status transitions
   const handleTransition = async (nextStatus: TaskStatus) => {
     if (!taskDetail || nextStatus === taskDetail.status) return;
+    const taskId = taskDetail.id;
     setLoading(true);
     setError("");
     setNotice("");
@@ -654,7 +658,7 @@ export default function TaskManagement({
       await requestJson<Task>(
         apiUrl,
         accessToken,
-        `/tasks/${taskDetail.id}/status`,
+        `/tasks/${taskId}/status`,
         {
           method: "PATCH",
           body: JSON.stringify({ status: nextStatus }),
@@ -666,9 +670,11 @@ export default function TaskManagement({
       const detail = await requestJson<Task>(
         apiUrl,
         accessToken,
-        `/tasks/${taskDetail.id}`,
+        `/tasks/${taskId}`,
       );
-      setTaskDetail(detail);
+      setTaskDetail((current) =>
+        current?.id === detail.id ? detail : current,
+      );
     } catch (currentError) {
       setError(
         currentError instanceof Error
@@ -683,6 +689,8 @@ export default function TaskManagement({
   const handleCommentSubmit = async (event: FormEvent) => {
     event.preventDefault();
     if (!taskDetail || !commentContent.trim()) return;
+    const submittedTaskId = taskDetail.id;
+    const submittedContent = commentContent.trim();
 
     setCommentSubmitting(true);
     setError("");
@@ -691,24 +699,23 @@ export default function TaskManagement({
       const createdComment = await requestJson<TaskCommentItem>(
         apiUrl,
         accessToken,
-        `/tasks/${taskDetail.id}/comments`,
+        `/tasks/${submittedTaskId}/comments`,
         {
           method: "POST",
-          body: JSON.stringify({ content: commentContent }),
+          body: JSON.stringify({ content: submittedContent }),
         },
       );
       setTaskDetail((current) =>
-        current
-          ? {
-              ...current,
-              comments: appendTaskComment(
-                current.comments ?? [],
-                createdComment,
-              ),
-            }
-          : current,
+        appendCommentToMatchingTask(current, createdComment),
       );
-      setCommentContent("");
+      setCommentDrafts((current) => {
+        if (current[submittedTaskId]?.trim() !== submittedContent) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[submittedTaskId];
+        return next;
+      });
       setNotice("Comentario agregado");
     } catch (currentError) {
       setError(
@@ -1435,7 +1442,12 @@ export default function TaskManagement({
                     <span className="sr-only">Agregar comentario</span>
                     <textarea
                       value={commentContent}
-                      onChange={(event) => setCommentContent(event.target.value)}
+                      onChange={(event) =>
+                        setCommentDrafts((current) => ({
+                          ...current,
+                          [taskDetail.id]: event.target.value,
+                        }))
+                      }
                       maxLength={2000}
                       rows={3}
                       required

@@ -171,7 +171,7 @@ describe('TasksService', () => {
       ),
       save: jest.fn((assignees: TaskAssignee[]) => Promise.resolve(assignees)),
       delete: jest.fn(),
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     };
     taskCommentsRepository = {
       create: jest.fn((comment: Partial<TaskComment>) => ({
@@ -181,7 +181,7 @@ describe('TasksService', () => {
       })),
       save: jest.fn((comment: TaskComment) => Promise.resolve(comment)),
       findOne: jest.fn(),
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     };
     taskStatusHistoryRepository = {
       create: jest.fn((history: Partial<TaskStatusHistory>) => ({
@@ -190,7 +190,7 @@ describe('TasksService', () => {
         ...history,
       })),
       save: jest.fn((history: TaskStatusHistory) => Promise.resolve(history)),
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     };
     projectsRepository = {
       findOne: jest.fn(),
@@ -523,6 +523,28 @@ describe('TasksService', () => {
         'Task access is limited to projects where you participate',
       ),
     );
+  });
+
+  it('loads task collaboration in independent queries', async () => {
+    const task = createTask();
+
+    tasksRepository.findOne.mockResolvedValue(task);
+
+    await expect(service.findOne(1, presidencyActor)).resolves.toEqual(task);
+    expect(tasksRepository.findOne).toHaveBeenCalledWith({
+      where: { id: 1 },
+      relations: ['project', 'phase', 'assignees', 'assignees.member'],
+    });
+    expect(taskCommentsRepository.find).toHaveBeenCalledWith({
+      where: { taskId: 1 },
+      relations: ['author'],
+      order: { createdAt: 'ASC', id: 'ASC' },
+    });
+    expect(taskStatusHistoryRepository.find).toHaveBeenCalledWith({
+      where: { taskId: 1 },
+      relations: ['actor'],
+      order: { createdAt: 'DESC', id: 'DESC' },
+    });
   });
 
   it('allows a project member to advance an adjacent task status', async () => {

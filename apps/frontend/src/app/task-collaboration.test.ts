@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { appendTaskComment, TaskCommentItem } from './task-collaboration';
+import {
+  appendCommentToMatchingTask,
+  appendTaskComment,
+  TaskCommentItem,
+} from './task-collaboration';
 
 const comment = (
   id: number,
@@ -34,5 +38,15 @@ describe('task collaboration helpers', () => {
     );
 
     assert.deepEqual(result.map(({ id }) => id), [1, 2]);
+  });
+
+  it('ignores a late response from a different task', () => {
+    const currentTask = { id: 11, comments: [] };
+    const lateComment = comment(2, '2026-08-03T12:01:00.000Z');
+
+    const result = appendCommentToMatchingTask(currentTask, lateComment);
+
+    assert.equal(result, currentTask);
+    assert.deepEqual(currentTask.comments, []);
   });
 });
