@@ -64,7 +64,7 @@ export function MemberForm({
         .filter(Boolean);
       const payload = {
         institution: form.institution.trim(),
-        studentCode: form.studentCode.trim() || undefined,
+        studentCode: form.studentCode.trim() || (member ? null : undefined),
         firstNames: form.firstNames.trim(),
         lastNames: form.lastNames.trim(),
         major: form.major.trim(),
@@ -72,7 +72,7 @@ export function MemberForm({
         skills,
         activityStatus: form.activityStatus,
         availabilityStatus: form.availabilityStatus,
-        cycle: form.cycle ? Number(form.cycle) : undefined,
+        cycle: form.cycle ? Number(form.cycle) : member ? null : undefined,
         ...(!member
           ? {
               role: form.role,
@@ -122,7 +122,9 @@ export function MemberForm({
           />
           <FormInput
             label="Código de estudiante"
-            required={form.institution.trim().toUpperCase() === "UNI"}
+            required={
+              !member && form.institution.trim().toUpperCase() === "UNI"
+            }
             value={form.studentCode}
             onChange={(value) => set("studentCode", value)}
           />
@@ -156,6 +158,7 @@ export function MemberForm({
               <label className={labelClass}>
                 Área
                 <select
+                  required={form.role === "directiva_de_area"}
                   value={form.areaId}
                   disabled={form.role === "presidencia"}
                   onChange={(event) => set("areaId", event.target.value)}
