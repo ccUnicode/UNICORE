@@ -888,13 +888,8 @@ export class ProjectsService {
         return;
       }
 
-      const {
-        id,
-        firstNames,
-        lastNames,
-        activityStatus,
-        availabilityStatus,
-      } = membership.member;
+      const { id, firstNames, lastNames, activityStatus, availabilityStatus } =
+        membership.member;
 
       const isEligible =
         activityStatus === MemberActivityStatus.ACTIVE &&
@@ -905,7 +900,7 @@ export class ProjectsService {
         firstNames,
         lastNames,
         isEligible,
-      } as any;
+      } as unknown as Member;
     });
   }
 }
