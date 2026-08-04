@@ -9,6 +9,7 @@ import {
   getJson,
 } from "@/lib/auth-client";
 import ProjectManagement from "../project-management";
+import TaskManagement from "../task-management";
 
 type View =
   | "dashboard"
@@ -258,6 +259,8 @@ export default function DashboardPage() {
         setAuthState("anonymous");
         return;
       }
+
+
 
       try {
         const member = await getJson<Member>("/auth/me", storedToken);
@@ -555,7 +558,14 @@ export default function DashboardPage() {
                 onProjectsChanged={refreshProjects}
               />
             )}
-            {view === "tasks" && <PlaceholderView title="Tareas" />}
+            {view === "tasks" && accessToken && (
+              <TaskManagement
+                projects={projects}
+                accessToken={accessToken}
+                apiUrl={API_URL}
+                currentMember={currentMember}
+              />
+            )}
             {view === "integrations" && <PlaceholderView title="Integraciones" />}
             {view === "audit" && <PlaceholderView title="Auditoría" />}
             {view === "profile" && (

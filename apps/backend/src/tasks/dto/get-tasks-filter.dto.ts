@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, Min } from 'class-validator';
+import { IsEnum, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { TaskPriority } from '../enums/task-priority.enum';
 import { TaskStatus } from '../enums/task-status.enum';
@@ -29,4 +29,8 @@ export class GetTasksFilterDto extends PaginationDto {
   @IsInt()
   @Min(1)
   assigneeId?: number;
+
+  @IsOptional()
+  @IsString()
+  search?: string;
 }
