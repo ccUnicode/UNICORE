@@ -1,6 +1,12 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  appendCommentToMatchingTask,
+  CollaborationMember,
+  formatCollaborationTimestamp,
+  TaskCommentItem,
+} from "./task-collaboration";
 
 type Area = {
   id: number;
@@ -101,8 +107,20 @@ export type Task = {
   phaseId: number | null;
   phase?: ProjectPhase | null;
   assignees?: TaskAssignee[];
+  comments?: TaskCommentItem[];
+  statusHistory?: TaskStatusHistoryItem[];
   createdAt?: string;
   updatedAt?: string;
+};
+
+type TaskStatusHistoryItem = {
+  id: number;
+  taskId: number;
+  previousStatus: TaskStatus;
+  newStatus: TaskStatus;
+  actorId: number;
+  actor: CollaborationMember;
+  createdAt: string;
 };
 
 export type PaginatedResponse<T> = {
@@ -201,7 +219,9 @@ function getMemberAreaIds(member: Member): number[] {
   return [...ids];
 }
 
-function memberName(member: Member): string {
+function memberName(
+  member: Pick<Member, "firstNames" | "lastNames">,
+): string {
   return `${member.firstNames} ${member.lastNames}`.trim();
 }
 
@@ -319,6 +339,11 @@ export default function TaskManagement({
   const [tasksLoading, setTasksLoading] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [commentDrafts, setCommentDrafts] = useState<Record<number, string>>(
+    {},
+  );
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
+  const commentContent = taskDetail ? (commentDrafts[taskDetail.id] ?? "") : "";
 
   // Filters state
   const [statusFilter, setStatusFilter] = useState("");
@@ -625,6 +650,7 @@ export default function TaskManagement({
   // Status transitions
   const handleTransition = async (nextStatus: TaskStatus) => {
     if (!taskDetail || nextStatus === taskDetail.status) return;
+    const taskId = taskDetail.id;
     setLoading(true);
     setError("");
     setNotice("");
@@ -632,7 +658,7 @@ export default function TaskManagement({
       await requestJson<Task>(
         apiUrl,
         accessToken,
-        `/tasks/${taskDetail.id}/status`,
+        `/tasks/${taskId}/status`,
         {
           method: "PATCH",
           body: JSON.stringify({ status: nextStatus }),
@@ -644,9 +670,11 @@ export default function TaskManagement({
       const detail = await requestJson<Task>(
         apiUrl,
         accessToken,
-        `/tasks/${taskDetail.id}`,
+        `/tasks/${taskId}`,
       );
-      setTaskDetail(detail);
+      setTaskDetail((current) =>
+        current?.id === detail.id ? detail : current,
+      );
     } catch (currentError) {
       setError(
         currentError instanceof Error
@@ -655,6 +683,48 @@ export default function TaskManagement({
       );
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleCommentSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!taskDetail || !commentContent.trim()) return;
+    const submittedTaskId = taskDetail.id;
+    const submittedContent = commentContent.trim();
+
+    setCommentSubmitting(true);
+    setError("");
+    setNotice("");
+    try {
+      const createdComment = await requestJson<TaskCommentItem>(
+        apiUrl,
+        accessToken,
+        `/tasks/${submittedTaskId}/comments`,
+        {
+          method: "POST",
+          body: JSON.stringify({ content: submittedContent }),
+        },
+      );
+      setTaskDetail((current) =>
+        appendCommentToMatchingTask(current, createdComment),
+      );
+      setCommentDrafts((current) => {
+        if (current[submittedTaskId]?.trim() !== submittedContent) {
+          return current;
+        }
+        const next = { ...current };
+        delete next[submittedTaskId];
+        return next;
+      });
+      setNotice("Comentario agregado");
+    } catch (currentError) {
+      setError(
+        currentError instanceof Error
+          ? currentError.message
+          : "No se pudo agregar el comentario",
+      );
+    } finally {
+      setCommentSubmitting(false);
     }
   };
 
@@ -1327,6 +1397,76 @@ export default function TaskManagement({
                 </p>
               </div>
 
+              <div className="rounded-md border border-[#1e1f2e] bg-[#0c0d16] p-6 space-y-5">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                    Comentarios
+                  </h3>
+                  <span className="text-xs text-zinc-600">
+                    {taskDetail.comments?.length ?? 0}
+                  </span>
+                </div>
+
+                <div className="space-y-3">
+                  {taskDetail.comments?.length ? (
+                    taskDetail.comments.map((comment) => (
+                      <article
+                        key={comment.id}
+                        className="rounded border border-[#1e1f2e]/60 bg-[#151522]/55 p-4"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-sm font-semibold text-zinc-200">
+                            {memberName(comment.author)}
+                          </span>
+                          <time className="text-[11px] text-zinc-600">
+                            {formatCollaborationTimestamp(comment.createdAt)}
+                          </time>
+                        </div>
+                        <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-zinc-300">
+                          {comment.content}
+                        </p>
+                      </article>
+                    ))
+                  ) : (
+                    <p className="text-sm text-zinc-500">
+                      Aún no hay comentarios en esta tarea.
+                    </p>
+                  )}
+                </div>
+
+                <form
+                  className="space-y-3 border-t border-[#1e1f2e]/50 pt-4"
+                  onSubmit={handleCommentSubmit}
+                >
+                  <label className="block">
+                    <span className="sr-only">Agregar comentario</span>
+                    <textarea
+                      value={commentContent}
+                      onChange={(event) =>
+                        setCommentDrafts((current) => ({
+                          ...current,
+                          [taskDetail.id]: event.target.value,
+                        }))
+                      }
+                      maxLength={2000}
+                      rows={3}
+                      required
+                      placeholder="Escribe una actualización o pregunta..."
+                      className="w-full rounded bg-[#151522] border border-[#1e1f2e]/80 p-3 text-sm text-white placeholder-zinc-500 outline-none focus:border-[#4067c9]"
+                    />
+                  </label>
+                  <div className="flex justify-end">
+                    <button
+                      type="submit"
+                      disabled={commentSubmitting || !commentContent.trim()}
+                      className="rounded bg-[#4067c9] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#5278d5] disabled:opacity-50"
+                    >
+                      {commentSubmitting ? "Publicando..." : "Agregar comentario"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+
               {/* Dropdowns fields card exactly as Figma */}
               <div className="rounded-md border border-[#1e1f2e] bg-[#0c0d16] p-6">
                 <div className="grid gap-4 md:grid-cols-3">
@@ -1414,6 +1554,37 @@ export default function TaskManagement({
                     + Asignar responsables
                   </button>
                 )}
+              </div>
+
+              <div className="rounded-md border border-[#1e1f2e] bg-[#0c0d16] p-6 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                  Historial de estado
+                </h3>
+                <ol className="space-y-4">
+                  {taskDetail.statusHistory?.length ? (
+                    taskDetail.statusHistory.map((entry) => (
+                      <li
+                        key={entry.id}
+                        className="border-l border-[#4067c9]/40 pl-4"
+                      >
+                        <p className="text-xs leading-5 text-zinc-300">
+                          <span className="font-semibold text-zinc-100">
+                            {memberName(entry.actor)}
+                          </span>{" "}
+                          cambió de {STATUS_INFO[entry.previousStatus].label} a{" "}
+                          {STATUS_INFO[entry.newStatus].label}.
+                        </p>
+                        <time className="mt-1 block text-[11px] text-zinc-600">
+                          {formatCollaborationTimestamp(entry.createdAt)}
+                        </time>
+                      </li>
+                    ))
+                  ) : (
+                    <li className="text-xs text-zinc-500">
+                      Aún no hay cambios de estado.
+                    </li>
+                  )}
+                </ol>
               </div>
 
               {/* State pills transition switcher card */}
