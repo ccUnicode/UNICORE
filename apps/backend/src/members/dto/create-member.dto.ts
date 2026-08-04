@@ -60,8 +60,7 @@ class ValidMemberAreaAssignment implements ValidatorConstraintInterface {
     }
 
     return (
-      areaId === undefined ||
-      (Number.isInteger(areaId) && Number(areaId) > 0)
+      areaId === undefined || (Number.isInteger(areaId) && Number(areaId) > 0)
     );
   }
 
