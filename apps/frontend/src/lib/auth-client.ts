@@ -17,13 +17,32 @@ export async function getJson<T>(
   path: string,
   accessToken: string,
 ): Promise<T> {
+  return authorizedJson<T>(path, accessToken);
+}
+
+export async function authorizedJson<T>(
+  path: string,
+  accessToken: string,
+  init: RequestInit = {},
+): Promise<T> {
+  const headers = new Headers(init.headers);
+  headers.set("Authorization", `Bearer ${accessToken}`);
+  if (init.body !== undefined && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   const response = await fetch(`${API_URL}${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+    ...init,
+    headers,
     cache: "no-store",
   });
 
   if (!response.ok) {
     throw new ApiError(await readError(response), response.status);
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
   }
 
   return response.json() as Promise<T>;

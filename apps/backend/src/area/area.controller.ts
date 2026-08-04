@@ -6,6 +6,7 @@ import {
   Patch,
   Param,
   ParseIntPipe,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { AccessScope } from '../common/decorators/access-scope.decorator';
@@ -32,8 +33,14 @@ export class AreaController {
 
   @Get()
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
-  findAll(@CurrentAccessActor() accessActor: RequestAccessActor) {
-    return this.areaService.findAccessible(accessActor);
+  findAll(
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+    @Query('includeArchived') includeArchived?: string,
+  ) {
+    return this.areaService.findAccessible(
+      accessActor,
+      includeArchived === 'true',
+    );
   }
 
   // Route-id access is enforced by AccessScope + RolesGuard; list filtering

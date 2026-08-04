@@ -43,10 +43,29 @@ describe('CreateMemberDto', () => {
     );
   });
 
-  it('rejects Miembro with an areaId', async () => {
+  it('allows Miembro with an areaId', async () => {
+    await expect(
+      validateDto({
+        ...validMember,
+        role: AreaRole.MIEMBRO,
+        areaId: 3,
+      }),
+    ).resolves.toHaveLength(0);
+  });
+
+  it('allows Miembro without an areaId', async () => {
+    await expect(
+      validateDto({
+        ...validMember,
+        role: AreaRole.MIEMBRO,
+      }),
+    ).resolves.toHaveLength(0);
+  });
+
+  it('rejects Presidencia with an areaId', async () => {
     const errors = await validateDto({
       ...validMember,
-      role: AreaRole.MIEMBRO,
+      role: AreaRole.PRESIDENCIA,
       areaId: 3,
     });
 
@@ -57,14 +76,5 @@ describe('CreateMemberDto', () => {
         }),
       ]),
     );
-  });
-
-  it('allows Miembro without an areaId', async () => {
-    await expect(
-      validateDto({
-        ...validMember,
-        role: AreaRole.MIEMBRO,
-      }),
-    ).resolves.toHaveLength(0);
   });
 });

@@ -35,9 +35,9 @@ export class AreaService {
     return this.areaRepository.save(area);
   }
 
-  async findAll(): Promise<Area[]> {
+  async findAll(includeArchived = false): Promise<Area[]> {
     return this.areaRepository.find({
-      where: { isArchived: false },
+      ...(includeArchived ? {} : { where: { isArchived: false } }),
       order: { name: 'ASC' },
     });
   }
@@ -86,9 +86,12 @@ export class AreaService {
     return this.areaRepository.save(area);
   }
 
-  async findAccessible(accessActor: RequestAccessActor): Promise<Area[]> {
+  async findAccessible(
+    accessActor: RequestAccessActor,
+    includeArchived = false,
+  ): Promise<Area[]> {
     if (accessActor.role === AreaRole.PRESIDENCIA) {
-      return this.findAll();
+      return this.findAll(includeArchived);
     }
 
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {

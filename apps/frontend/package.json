@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint src next.config.ts postcss.config.mjs",
-    "test": "tsc -p tsconfig.test.json && node --test .test-dist/app/login/login-validation.test.js .test-dist/app/project-experience.test.js .test-dist/app/task-collaboration.test.js .test-dist/app/task-management.test.js",
+    "test": "tsc -p tsconfig.test.json && node --test .test-dist/app/login/login-validation.test.js .test-dist/app/project-experience.test.js .test-dist/app/people-management-utils.test.js .test-dist/app/task-collaboration.test.js .test-dist/app/task-management.test.js",
     "type-check": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

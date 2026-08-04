@@ -55,7 +55,13 @@ class ValidMemberAreaAssignment implements ValidatorConstraintInterface {
       return Number.isInteger(areaId) && Number(areaId) > 0;
     }
 
-    return areaId === undefined;
+    if (member.role === AreaRole.PRESIDENCIA) {
+      return areaId === undefined;
+    }
+
+    return (
+      areaId === undefined || (Number.isInteger(areaId) && Number(areaId) > 0)
+    );
   }
 
   defaultMessage(args: ValidationArguments): string {
@@ -65,7 +71,11 @@ class ValidMemberAreaAssignment implements ValidatorConstraintInterface {
       return 'areaId is required for directiva_de_area members';
     }
 
-    return 'areaId is only allowed for directiva_de_area members';
+    if (member.role === AreaRole.PRESIDENCIA) {
+      return 'areaId is not allowed for presidencia members';
+    }
+
+    return 'areaId must be a positive integer';
   }
 }
 
