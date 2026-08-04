@@ -713,6 +713,7 @@ describe('ProjectsService', () => {
       id: membership.member.id,
       firstNames: membership.member.firstNames,
       lastNames: membership.member.lastNames,
+      isEligible: true,
     });
     expect(result.memberships[0].member).not.toHaveProperty('activityStatus');
     expect(result.memberships[0].member).not.toHaveProperty(

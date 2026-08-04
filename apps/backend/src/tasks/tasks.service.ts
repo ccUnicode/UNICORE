@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Raw, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Raw, Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { ProjectRole } from '../common/enums/project-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
@@ -17,12 +17,15 @@ import { ProjectMembership } from '../projects/entities/project-membership.entit
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
 import { Project } from '../projects/entities/project.entity';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { CreateTaskCommentDto } from './dto/create-task-comment.dto';
 import { GetTasksFilterDto } from './dto/get-tasks-filter.dto';
 import { SetTaskAssigneesDto } from './dto/set-task-assignees.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { TaskAssignee } from './entities/task-assignee.entity';
+import { TaskComment } from './entities/task-comment.entity';
 import { Task } from './entities/task.entity';
+import { TaskStatusHistory } from './entities/task-status-history.entity';
 import { TaskPriority } from './enums/task-priority.enum';
 import { TaskStatus } from './enums/task-status.enum';
 
@@ -42,6 +45,10 @@ export class TasksService {
     private readonly tasksRepository: Repository<Task>,
     @InjectRepository(TaskAssignee)
     private readonly taskAssigneesRepository: Repository<TaskAssignee>,
+    @InjectRepository(TaskComment)
+    private readonly taskCommentsRepository: Repository<TaskComment>,
+    @InjectRepository(TaskStatusHistory)
+    private readonly taskStatusHistoryRepository: Repository<TaskStatusHistory>,
     @InjectRepository(Project)
     private readonly projectsRepository: Repository<Project>,
     @InjectRepository(ProjectPhase)
@@ -134,7 +141,7 @@ export class TasksService {
     const page = filterDto.page ?? 1;
     const limit = filterDto.limit ?? 10;
 
-    const where: FindOptionsWhere<Task> = {
+    const baseWhere: FindOptionsWhere<Task> = {
       projectId: project.id,
       ...(filterDto.assigneeId !== undefined && {
         id: Raw(
@@ -153,6 +160,16 @@ export class TasksService {
         phaseId: filterDto.phaseId,
       }),
     };
+
+    let where: FindOptionsWhere<Task> | FindOptionsWhere<Task>[] = baseWhere;
+    if (filterDto.search !== undefined && filterDto.search.trim() !== '') {
+      const searchPattern = `%${filterDto.search.trim()}%`;
+      where = [
+        { ...baseWhere, title: ILike(searchPattern) },
+        { ...baseWhere, description: ILike(searchPattern) },
+      ];
+    }
+
     const [data, total] = await this.tasksRepository.findAndCount({
       where,
       relations: ['project', 'phase', 'assignees', 'assignees.member'],
@@ -177,6 +194,12 @@ export class TasksService {
   async findOne(id: number, accessActor: RequestAccessActor): Promise<Task> {
     const task = await this.findTaskOrThrow(id);
     await this.assertProjectAccess(task.project, accessActor, 'read');
+    const [comments, statusHistory] = await Promise.all([
+      this.loadComments(task.id),
+      this.loadStatusHistory(task.id),
+    ]);
+    task.comments = comments;
+    task.statusHistory = statusHistory;
     this.limitAssigneeFields(task);
 
     return task;
@@ -252,6 +275,8 @@ export class TasksService {
       const tasksRepository = entityManager.getRepository(Task);
       const projectMembershipsRepository =
         entityManager.getRepository(ProjectMembership);
+      const taskStatusHistoryRepository =
+        entityManager.getRepository(TaskStatusHistory);
       const task = await this.findTaskForUpdate(id, tasksRepository);
       const project = await this.findProjectOrThrow(
         task.projectId,
@@ -274,11 +299,76 @@ export class TasksService {
         );
       }
 
+      const previousStatus = task.status;
       task.status = updateTaskStatusDto.status;
       await tasksRepository.save(task);
+      await taskStatusHistoryRepository.save(
+        taskStatusHistoryRepository.create({
+          taskId: task.id,
+          previousStatus,
+          newStatus: updateTaskStatusDto.status,
+          actorId: this.getActorMemberId(accessActor),
+        }),
+      );
     });
 
     return this.findOne(id, accessActor);
+  }
+
+  async addComment(
+    id: number,
+    createTaskCommentDto: CreateTaskCommentDto,
+    accessActor: RequestAccessActor,
+  ): Promise<TaskComment> {
+    const task = await this.findTaskForAccessOrThrow(id);
+    await this.assertProjectAccess(task.project, accessActor, 'read');
+    this.assertProjectIsActive(task.project);
+
+    const savedComment = await this.taskCommentsRepository.save(
+      this.taskCommentsRepository.create({
+        taskId: task.id,
+        authorId: this.getActorMemberId(accessActor),
+        content: createTaskCommentDto.content,
+      }),
+    );
+
+    const comment = await this.taskCommentsRepository.findOne({
+      where: { id: savedComment.id },
+      relations: ['author'],
+    });
+
+    if (!comment) {
+      throw new NotFoundException(
+        `Task comment with ID ${savedComment.id} not found`,
+      );
+    }
+
+    this.limitMemberFields(comment, 'author');
+    return comment;
+  }
+
+  async findComments(
+    id: number,
+    accessActor: RequestAccessActor,
+  ): Promise<TaskComment[]> {
+    const task = await this.findTaskForAccessOrThrow(id);
+    await this.assertProjectAccess(task.project, accessActor, 'read');
+
+    const comments = await this.loadComments(task.id);
+    comments.forEach((comment) => this.limitMemberFields(comment, 'author'));
+    return comments;
+  }
+
+  async findStatusHistory(
+    id: number,
+    accessActor: RequestAccessActor,
+  ): Promise<TaskStatusHistory[]> {
+    const task = await this.findTaskForAccessOrThrow(id);
+    await this.assertProjectAccess(task.project, accessActor, 'read');
+
+    const history = await this.loadStatusHistory(task.id);
+    history.forEach((entry) => this.limitMemberFields(entry, 'actor'));
+    return history;
   }
 
   async setAssignees(
@@ -337,6 +427,35 @@ export class TasksService {
     }
 
     return task;
+  }
+
+  private async findTaskForAccessOrThrow(id: number): Promise<Task> {
+    const task = await this.tasksRepository.findOne({
+      where: { id },
+      relations: ['project'],
+    });
+
+    if (!task) {
+      throw new NotFoundException(`Task with ID ${id} not found`);
+    }
+
+    return task;
+  }
+
+  private loadComments(taskId: number): Promise<TaskComment[]> {
+    return this.taskCommentsRepository.find({
+      where: { taskId },
+      relations: ['author'],
+      order: { createdAt: 'ASC', id: 'ASC' },
+    });
+  }
+
+  private loadStatusHistory(taskId: number): Promise<TaskStatusHistory[]> {
+    return this.taskStatusHistoryRepository.find({
+      where: { taskId },
+      relations: ['actor'],
+      order: { createdAt: 'DESC', id: 'DESC' },
+    });
   }
 
   private async findTaskForUpdate(
@@ -506,5 +625,47 @@ export class TasksService {
       const { id, firstNames, lastNames } = assignee.member;
       assignee.member = { id, firstNames, lastNames } as Member;
     });
+    task.comments?.forEach((comment) =>
+      this.limitMemberFields(comment, 'author'),
+    );
+    task.statusHistory?.forEach((entry) =>
+      this.limitMemberFields(entry, 'actor'),
+    );
+  }
+
+  private getActorMemberId(accessActor: RequestAccessActor): number {
+    const memberId = Number(accessActor.memberId);
+    if (!Number.isSafeInteger(memberId) || memberId < 1) {
+      throw new ForbiddenException('Task collaboration requires an actor');
+    }
+    return memberId;
+  }
+
+  private limitMemberFields(
+    resource: TaskComment | TaskStatusHistory,
+    relation: 'author' | 'actor',
+  ): void {
+    const member =
+      relation === 'author'
+        ? (resource as TaskComment).author
+        : (resource as TaskStatusHistory).actor;
+    if (!member) {
+      return;
+    }
+
+    const { id, firstNames, lastNames } = member;
+    if (relation === 'author') {
+      (resource as TaskComment).author = {
+        id,
+        firstNames,
+        lastNames,
+      } as Member;
+    } else {
+      (resource as TaskStatusHistory).actor = {
+        id,
+        firstNames,
+        lastNames,
+      } as Member;
+    }
   }
 }

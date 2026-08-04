@@ -9,6 +9,7 @@ import {
   getJson,
 } from "@/lib/auth-client";
 import ProjectManagement from "../project-management";
+import TaskManagement from "../task-management";
 import {
   AreaDetailManagementView,
   AreasManagementView,
@@ -369,7 +370,14 @@ export default function DashboardPage() {
                 onProjectsChanged={refreshProjects}
               />
             )}
-            {view === "tasks" && <PlaceholderView title="Tareas" />}
+            {view === "tasks" && accessToken && (
+              <TaskManagement
+                projects={projects}
+                accessToken={accessToken}
+                apiUrl={API_URL}
+                currentMember={currentMember}
+              />
+            )}
             {view === "integrations" && (
               <PlaceholderView title="Integraciones" />
             )}

@@ -15,6 +15,7 @@ import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { CreateTaskDto } from './dto/create-task.dto';
+import { CreateTaskCommentDto } from './dto/create-task-comment.dto';
 import { GetTasksFilterDto } from './dto/get-tasks-filter.dto';
 import { SetTaskAssigneesDto } from './dto/set-task-assignees.dto';
 import { UpdateTaskStatusDto } from './dto/update-task-status.dto';
@@ -57,6 +58,34 @@ export class TasksController {
     @CurrentAccessActor() accessActor: RequestAccessActor,
   ) {
     return this.tasksService.findOne(id, accessActor);
+  }
+
+  @Post(':id/comments')
+  @Roles(...TASK_ROLES)
+  addComment(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() createTaskCommentDto: CreateTaskCommentDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.tasksService.addComment(id, createTaskCommentDto, accessActor);
+  }
+
+  @Get(':id/comments')
+  @Roles(...TASK_ROLES)
+  findComments(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.tasksService.findComments(id, accessActor);
+  }
+
+  @Get(':id/status-history')
+  @Roles(...TASK_ROLES)
+  findStatusHistory(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.tasksService.findStatusHistory(id, accessActor);
   }
 
   @Patch(':id/status')

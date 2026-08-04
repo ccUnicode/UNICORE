@@ -37,6 +37,9 @@ describe('TasksController', () => {
     update: jest.fn(),
     updateStatus: jest.fn(),
     setAssignees: jest.fn(),
+    addComment: jest.fn(),
+    findComments: jest.fn(),
+    findStatusHistory: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -133,6 +136,31 @@ describe('TasksController', () => {
     expect(tasksService.setAssignees).toHaveBeenCalledWith(1, dto, accessActor);
   });
 
+  it('adds task comments through the service', async () => {
+    const dto = { content: 'Listo para revisar.' };
+    tasksService.addComment.mockResolvedValue({ id: 5, ...dto });
+
+    await expect(controller.addComment(1, dto, accessActor)).resolves.toEqual({
+      id: 5,
+      ...dto,
+    });
+    expect(tasksService.addComment).toHaveBeenCalledWith(1, dto, accessActor);
+  });
+
+  it('lists task comments and status history through read-only endpoints', async () => {
+    tasksService.findComments.mockResolvedValue([{ id: 1 }]);
+    tasksService.findStatusHistory.mockResolvedValue([{ id: 2 }]);
+
+    await expect(controller.findComments(1, accessActor)).resolves.toEqual([
+      { id: 1 },
+    ]);
+    await expect(controller.findStatusHistory(1, accessActor)).resolves.toEqual(
+      [{ id: 2 }],
+    );
+    expect(tasksService.findComments).toHaveBeenCalledWith(1, accessActor);
+    expect(tasksService.findStatusHistory).toHaveBeenCalledWith(1, accessActor);
+  });
+
   describe('access metadata', () => {
     it('uses RolesGuard at controller level', () => {
       const guards = Reflect.getMetadata(
@@ -150,6 +178,9 @@ describe('TasksController', () => {
       'update',
       'updateStatus',
       'setAssignees',
+      'addComment',
+      'findComments',
+      'findStatusHistory',
     ] as const)('declares authenticated roles for %s', (methodName) => {
       expect(
         Reflect.getMetadata(ROLES_KEY, getControllerMethod(methodName)),

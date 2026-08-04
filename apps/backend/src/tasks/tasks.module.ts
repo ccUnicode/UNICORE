@@ -5,6 +5,8 @@ import { ProjectMembership } from '../projects/entities/project-membership.entit
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
 import { Project } from '../projects/entities/project.entity';
 import { TaskAssignee } from './entities/task-assignee.entity';
+import { TaskComment } from './entities/task-comment.entity';
+import { TaskStatusHistory } from './entities/task-status-history.entity';
 import { Task } from './entities/task.entity';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
@@ -15,6 +17,8 @@ import { TasksService } from './tasks.service';
     TypeOrmModule.forFeature([
       Task,
       TaskAssignee,
+      TaskComment,
+      TaskStatusHistory,
       Project,
       ProjectPhase,
       ProjectMembership,
