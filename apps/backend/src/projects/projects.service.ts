@@ -894,16 +894,18 @@ export class ProjectsService {
         lastNames,
         activityStatus,
         availabilityStatus,
-        major,
       } = membership.member;
+
+      const isEligible =
+        activityStatus === MemberActivityStatus.ACTIVE &&
+        availabilityStatus === MemberAvailabilityStatus.AVAILABLE;
+
       membership.member = {
         id,
         firstNames,
         lastNames,
-        activityStatus,
-        availabilityStatus,
-        major,
-      } as Member;
+        isEligible,
+      } as any;
     });
   }
 }

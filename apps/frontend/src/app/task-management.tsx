@@ -29,6 +29,7 @@ type Member = {
   skills?: Skill[];
   memberships?: AreaMembership[];
   role: string;
+  isEligible?: boolean;
 };
 
 type ProjectStatus =
@@ -461,7 +462,14 @@ export default function TaskManagement({
     );
 
     if (allMembers.length > 0) {
-      return allMembers.filter((m) => projectMemberIds.has(m.id));
+      return allMembers
+        .filter((m) => projectMemberIds.has(m.id))
+        .map((m) => ({
+          ...m,
+          isEligible:
+            m.activityStatus === "active" &&
+            m.availabilityStatus === "available",
+        }));
     }
 
     return (
@@ -471,13 +479,9 @@ export default function TaskManagement({
     );
   }, [activeProjectDetails, selectedProject, allMembers]);
 
-  // Eligible members: active AND available (or assume true if status fields are omitted/undefined)
+  // Eligible members: active AND available
   const eligibleMembers = useMemo(() => {
-    return projectMembers.filter(
-      (m) =>
-        (m.activityStatus === undefined || m.activityStatus === "active") &&
-        (m.availabilityStatus === undefined || m.availabilityStatus === "available")
-    );
+    return projectMembers.filter((m) => m.isEligible !== false);
   }, [projectMembers]);
 
   // Default project selection
