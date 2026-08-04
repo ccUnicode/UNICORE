@@ -323,6 +323,16 @@ export default function TaskManagement({
   const [statusFilter, setStatusFilter] = useState("");
   const [priorityFilter, setPriorityFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [searchQuery]);
 
   // Form values state
   const [formValues, setFormValues] = useState<TaskFormValues>(EMPTY_TASK_FORM);
@@ -481,7 +491,7 @@ export default function TaskManagement({
   // Reset page when project or filters change
   useEffect(() => {
     setPage(1);
-  }, [selectedProjectId, statusFilter, priorityFilter]);
+  }, [selectedProjectId, statusFilter, priorityFilter, debouncedSearch]);
 
   const loadTasks = useCallback(async () => {
     if (selectedProjectId === null) {
@@ -495,6 +505,9 @@ export default function TaskManagement({
       let path = `/tasks?projectId=${selectedProjectId}&page=${page}&limit=10`;
       if (statusFilter) path += `&status=${statusFilter}`;
       if (priorityFilter) path += `&priority=${priorityFilter}`;
+      if (debouncedSearch.trim()) {
+        path += `&search=${encodeURIComponent(debouncedSearch.trim())}`;
+      }
 
       const payload = await requestJson<PaginatedResponse<Task>>(
         apiUrl,
@@ -516,6 +529,7 @@ export default function TaskManagement({
     selectedProjectId,
     statusFilter,
     priorityFilter,
+    debouncedSearch,
     page,
     apiUrl,
     accessToken,
@@ -563,15 +577,8 @@ export default function TaskManagement({
   }, [selectedTaskId, apiUrl, accessToken, selectedProjectId]);
 
   // Search filter
-  const filteredTasks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return tasks;
-    return tasks.filter(
-      (t) =>
-        t.title.toLowerCase().includes(q) ||
-        (t.description && t.description.toLowerCase().includes(q)),
-    );
-  }, [tasks, searchQuery]);
+  // Search filtering is now handled on the backend
+  const filteredTasks = tasks;
 
   const handleCreateClick = () => {
     setFormValues({

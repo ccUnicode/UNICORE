@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, In, Raw, Repository } from 'typeorm';
+import { FindOptionsWhere, ILike, In, Raw, Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { ProjectRole } from '../common/enums/project-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
@@ -134,7 +134,7 @@ export class TasksService {
     const page = filterDto.page ?? 1;
     const limit = filterDto.limit ?? 10;
 
-    const where: FindOptionsWhere<Task> = {
+    const baseWhere: FindOptionsWhere<Task> = {
       projectId: project.id,
       ...(filterDto.assigneeId !== undefined && {
         id: Raw(
@@ -153,6 +153,16 @@ export class TasksService {
         phaseId: filterDto.phaseId,
       }),
     };
+
+    let where: FindOptionsWhere<Task> | FindOptionsWhere<Task>[] = baseWhere;
+    if (filterDto.search !== undefined && filterDto.search.trim() !== "") {
+      const searchPattern = `%${filterDto.search.trim()}%`;
+      where = [
+        { ...baseWhere, title: ILike(searchPattern) },
+        { ...baseWhere, description: ILike(searchPattern) },
+      ];
+    }
+
     const [data, total] = await this.tasksRepository.findAndCount({
       where,
       relations: ['project', 'phase', 'assignees', 'assignees.member'],
