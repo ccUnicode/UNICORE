@@ -155,7 +155,7 @@ export class TasksService {
     };
 
     let where: FindOptionsWhere<Task> | FindOptionsWhere<Task>[] = baseWhere;
-    if (filterDto.search !== undefined && filterDto.search.trim() !== "") {
+    if (filterDto.search !== undefined && filterDto.search.trim() !== '') {
       const searchPattern = `%${filterDto.search.trim()}%`;
       where = [
         { ...baseWhere, title: ILike(searchPattern) },
