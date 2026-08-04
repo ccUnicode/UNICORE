@@ -13,6 +13,8 @@ import { Project } from '../../projects/entities/project.entity';
 import { TaskPriority } from '../enums/task-priority.enum';
 import { TaskStatus } from '../enums/task-status.enum';
 import { TaskAssignee } from './task-assignee.entity';
+import { TaskComment } from './task-comment.entity';
+import { TaskStatusHistory } from './task-status-history.entity';
 
 @Entity('tasks')
 export class Task {
@@ -60,6 +62,12 @@ export class Task {
 
   @OneToMany(() => TaskAssignee, (assignee) => assignee.task)
   assignees: TaskAssignee[];
+
+  @OneToMany(() => TaskComment, (comment) => comment.task)
+  comments: TaskComment[];
+
+  @OneToMany(() => TaskStatusHistory, (history) => history.task)
+  statusHistory: TaskStatusHistory[];
 
   @CreateDateColumn({ name: 'created_at' })
   createdAt: Date;

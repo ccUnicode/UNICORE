@@ -15,6 +15,8 @@
     "src/app/login/login-validation.test.ts",
     "src/app/project-experience.ts",
     "src/app/project-experience.test.ts",
+    "src/app/task-collaboration.ts",
+    "src/app/task-collaboration.test.ts",
     "src/lib/auth-client.ts"
   ]
 }

@@ -14,7 +14,9 @@ import { Project } from '../projects/entities/project.entity';
 import { ProjectStatus } from '../projects/enums/project-status.enum';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { TaskAssignee } from './entities/task-assignee.entity';
+import { TaskComment } from './entities/task-comment.entity';
 import { Task } from './entities/task.entity';
+import { TaskStatusHistory } from './entities/task-status-history.entity';
 import { TaskPriority } from './enums/task-priority.enum';
 import { TaskStatus } from './enums/task-status.enum';
 import { TasksService } from './tasks.service';
@@ -116,6 +118,8 @@ const createTask = (overrides: Partial<Task> = {}): Task => {
     phaseId: null,
     phase: null,
     assignees: [createTaskAssignee()],
+    comments: [],
+    statusHistory: [],
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -147,6 +151,8 @@ describe('TasksService', () => {
     manager: { transaction: jest.Mock };
   };
   let taskAssigneesRepository: Record<string, jest.Mock>;
+  let taskCommentsRepository: Record<string, jest.Mock>;
+  let taskStatusHistoryRepository: Record<string, jest.Mock>;
   let projectsRepository: Record<string, jest.Mock>;
   let projectPhasesRepository: Record<string, jest.Mock>;
   let projectMembershipsRepository: Record<string, jest.Mock>;
@@ -167,6 +173,25 @@ describe('TasksService', () => {
       delete: jest.fn(),
       find: jest.fn(),
     };
+    taskCommentsRepository = {
+      create: jest.fn((comment: Partial<TaskComment>) => ({
+        id: 1,
+        createdAt: new Date(),
+        ...comment,
+      })),
+      save: jest.fn((comment: TaskComment) => Promise.resolve(comment)),
+      findOne: jest.fn(),
+      find: jest.fn(),
+    };
+    taskStatusHistoryRepository = {
+      create: jest.fn((history: Partial<TaskStatusHistory>) => ({
+        id: 1,
+        createdAt: new Date(),
+        ...history,
+      })),
+      save: jest.fn((history: TaskStatusHistory) => Promise.resolve(history)),
+      find: jest.fn(),
+    };
     projectsRepository = {
       findOne: jest.fn(),
     };
@@ -181,6 +206,8 @@ describe('TasksService', () => {
     const getRepository = jest.fn((entity: unknown) => {
       if (entity === Task) return tasksRepository;
       if (entity === TaskAssignee) return taskAssigneesRepository;
+      if (entity === TaskComment) return taskCommentsRepository;
+      if (entity === TaskStatusHistory) return taskStatusHistoryRepository;
       if (entity === Project) return projectsRepository;
       if (entity === ProjectPhase) return projectPhasesRepository;
       return projectMembershipsRepository;
@@ -198,6 +225,14 @@ describe('TasksService', () => {
         {
           provide: getRepositoryToken(TaskAssignee),
           useValue: taskAssigneesRepository,
+        },
+        {
+          provide: getRepositoryToken(TaskComment),
+          useValue: taskCommentsRepository,
+        },
+        {
+          provide: getRepositoryToken(TaskStatusHistory),
+          useValue: taskStatusHistoryRepository,
         },
         { provide: getRepositoryToken(Project), useValue: projectsRepository },
         {
@@ -506,6 +541,13 @@ describe('TasksService', () => {
     expect(tasksRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ status: TaskStatus.IN_PROGRESS }),
     );
+    expect(taskStatusHistoryRepository.save).toHaveBeenCalledTimes(1);
+    expect(taskStatusHistoryRepository.create).toHaveBeenCalledWith({
+      taskId: 1,
+      previousStatus: TaskStatus.TODO,
+      newStatus: TaskStatus.IN_PROGRESS,
+      actorId: 1,
+    });
   });
 
   it('rejects status transitions that skip workflow states', async () => {
@@ -521,6 +563,106 @@ describe('TasksService', () => {
       new BadRequestException('Cannot transition task from todo to done'),
     );
     expect(tasksRepository.save).not.toHaveBeenCalled();
+    expect(taskStatusHistoryRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('adds a comment with the authenticated project participant as author', async () => {
+    const task = createTask();
+    const comment = {
+      id: 1,
+      taskId: 1,
+      authorId: 1,
+      content: 'Necesitamos revisar la validación.',
+      author: createMember(),
+      createdAt: new Date(),
+    } as TaskComment;
+
+    tasksRepository.findOne.mockResolvedValue(task);
+    projectMembershipsRepository.findOne.mockResolvedValue(createMembership());
+    taskCommentsRepository.findOne.mockResolvedValue(comment);
+
+    await expect(
+      service.addComment(
+        1,
+        { content: 'Necesitamos revisar la validación.' },
+        memberActor,
+      ),
+    ).resolves.toEqual(
+      expect.objectContaining({
+        taskId: 1,
+        authorId: 1,
+        content: 'Necesitamos revisar la validación.',
+      }),
+    );
+    expect(taskCommentsRepository.create).toHaveBeenCalledWith({
+      taskId: 1,
+      authorId: 1,
+      content: 'Necesitamos revisar la validación.',
+    });
+    expect(comment.author).toEqual({
+      id: 1,
+      firstNames: 'Ana',
+      lastNames: 'Torres',
+    });
+  });
+
+  it('rejects comment reads outside project participation', async () => {
+    tasksRepository.findOne.mockResolvedValue(createTask());
+    projectMembershipsRepository.findOne.mockResolvedValue(null);
+
+    await expect(service.findComments(1, memberActor)).rejects.toThrow(
+      new ForbiddenException(
+        'Task access is limited to projects where you participate',
+      ),
+    );
+    expect(taskCommentsRepository.find).not.toHaveBeenCalled();
+  });
+
+  it('rejects comment writes outside project participation', async () => {
+    tasksRepository.findOne.mockResolvedValue(createTask());
+    projectMembershipsRepository.findOne.mockResolvedValue(null);
+
+    await expect(
+      service.addComment(1, { content: 'No autorizado' }, memberActor),
+    ).rejects.toThrow(
+      new ForbiddenException(
+        'Task access is limited to projects where you participate',
+      ),
+    );
+    expect(taskCommentsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('lists immutable status history with limited actor data', async () => {
+    const entry = {
+      id: 1,
+      taskId: 1,
+      previousStatus: TaskStatus.TODO,
+      newStatus: TaskStatus.IN_PROGRESS,
+      actorId: 1,
+      actor: createMember(),
+      createdAt: new Date(),
+    } as TaskStatusHistory;
+
+    tasksRepository.findOne.mockResolvedValue(createTask());
+    projectMembershipsRepository.findOne.mockResolvedValue(createMembership());
+    taskStatusHistoryRepository.find.mockResolvedValue([entry]);
+
+    await expect(service.findStatusHistory(1, memberActor)).resolves.toEqual([
+      expect.objectContaining({
+        previousStatus: TaskStatus.TODO,
+        newStatus: TaskStatus.IN_PROGRESS,
+      }),
+    ]);
+    expect(taskStatusHistoryRepository.find).toHaveBeenCalledWith({
+      where: { taskId: 1 },
+      relations: ['actor'],
+      order: { createdAt: 'DESC', id: 'DESC' },
+    });
+    expect(entry.actor).toEqual({
+      id: 1,
+      firstNames: 'Ana',
+      lastNames: 'Torres',
+    });
   });
 
   it('replaces task assignees atomically', async () => {
