@@ -28,6 +28,7 @@ import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
+import { AuditService } from '../audit/audit.service';
 
 interface LegacyCreateMemberInput extends CreateMemberDto {
   status?: MemberAvailabilityStatus;
@@ -49,15 +50,17 @@ export class MembersService {
     @InjectRepository(AreaMembership)
     private readonly areaMembershipsRepository: Repository<AreaMembership>,
     private readonly dataSource: DataSource,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(
     createMemberDto: CreateMemberDto,
     entityManager?: EntityManager,
+    accessActor?: RequestAccessActor,
   ): Promise<Member> {
     if (!entityManager) {
       return this.dataSource.transaction(async (em) =>
-        this.create(createMemberDto, em),
+        this.create(createMemberDto, em, accessActor),
       );
     }
     const { skills, areaId, status, ...restDto } =
@@ -95,6 +98,24 @@ export class MembersService {
       await areaMembershipsRepository.save(membership);
 
       savedMember.memberships = [membership];
+
+      if (accessActor) {
+        await this.auditService.record(
+          accessActor,
+          {
+            action: 'create',
+            entityType: 'Member',
+            entityId: savedMember.id,
+            areaId: areaId ?? null,
+            metadata: {
+              firstNames: savedMember.firstNames,
+              lastNames: savedMember.lastNames,
+            },
+          },
+          entityManager,
+        );
+      }
+
       return savedMember;
     } catch (error) {
       if (isUniqueViolation(error)) {
@@ -113,10 +134,11 @@ export class MembersService {
     id: number,
     updateMemberDto: UpdateMemberDto,
     entityManager?: EntityManager,
+    accessActor?: RequestAccessActor,
   ): Promise<Member> {
     if (!entityManager) {
       return this.dataSource.transaction(async (em) =>
-        this.update(id, updateMemberDto, em),
+        this.update(id, updateMemberDto, em, accessActor),
       );
     }
     const {
@@ -225,6 +247,23 @@ export class MembersService {
       where: { member: { id } },
     });
 
+    if (accessActor) {
+      await this.auditService.record(
+        accessActor,
+        {
+          action: 'update',
+          entityType: 'Member',
+          entityId: savedMember.id,
+          areaId: areaId !== undefined ? areaId : (savedMember.areaId ?? null),
+          metadata: {
+            firstNames: savedMember.firstNames,
+            lastNames: savedMember.lastNames,
+          },
+        },
+        entityManager,
+      );
+    }
+
     return savedMember;
   }
 
@@ -254,7 +293,20 @@ export class MembersService {
     member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
 
-    return this.membersRepository.save(member);
+    const savedMember = await this.membersRepository.save(member);
+
+    await this.auditService.record(accessActor, {
+      action: 'deactivate',
+      entityType: 'Member',
+      entityId: savedMember.id,
+      areaId: savedMember.areaId ?? null,
+      metadata: {
+        firstNames: savedMember.firstNames,
+        lastNames: savedMember.lastNames,
+      },
+    });
+
+    return savedMember;
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {

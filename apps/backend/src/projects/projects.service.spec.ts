@@ -33,6 +33,7 @@ import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
 import { ProjectsService } from './projects.service';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { AuditService } from '../audit/audit.service';
 
 type RepositoryMethodMocks<T extends ObjectLiteral> = Partial<
   Record<Exclude<keyof Repository<T>, 'manager'>, jest.Mock>
@@ -330,6 +331,13 @@ describe('ProjectsService', () => {
         {
           provide: AreaService,
           useValue: mockAreaService,
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            record: jest.fn(),
+            findAll: jest.fn(),
+          },
         },
       ],
     }).compile();

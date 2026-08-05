@@ -71,9 +71,12 @@ describe('AreaController', () => {
       };
       mockAreaService.create.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.create(createAreaDto);
+      const result = await controller.create(createAreaDto, undefined);
       expect(result).toEqual(expectedResult);
-      expect(mockAreaService.create).toHaveBeenCalledWith(createAreaDto);
+      expect(mockAreaService.create).toHaveBeenCalledWith(
+        createAreaDto,
+        undefined,
+      );
     });
   });
 
@@ -124,9 +127,13 @@ describe('AreaController', () => {
       const expectedResult = { id: 1, ...updateAreaDto };
       mockAreaService.update.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.update(1, updateAreaDto);
+      const result = await controller.update(1, updateAreaDto, undefined);
       expect(result).toEqual(expectedResult);
-      expect(mockAreaService.update).toHaveBeenCalledWith(1, updateAreaDto);
+      expect(mockAreaService.update).toHaveBeenCalledWith(
+        1,
+        updateAreaDto,
+        undefined,
+      );
     });
   });
 
@@ -135,9 +142,17 @@ describe('AreaController', () => {
       const expectedResult = { id: 1, name: 'Area 1', isArchived: true };
       mockAreaService.archive.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.archive(1, { confirmName: 'Area 1' });
+      const result = await controller.archive(
+        1,
+        { confirmName: 'Area 1' },
+        undefined,
+      );
       expect(result).toEqual(expectedResult);
-      expect(mockAreaService.archive).toHaveBeenCalledWith(1, 'Area 1');
+      expect(mockAreaService.archive).toHaveBeenCalledWith(
+        1,
+        'Area 1',
+        undefined,
+      );
     });
   });
 

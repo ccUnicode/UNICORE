@@ -12,6 +12,7 @@ import { RepairMemberAreaMemberships1787788800001 } from './migrations/178778880
 import { AddTaskCollaboration1787788800002 } from './migrations/1787788800002-AddTaskCollaboration';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
+import { AuditModule } from './audit/audit.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { TasksModule } from './tasks/tasks.module';
     ProjectsModule,
     AuthModule,
     TasksModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -65,6 +65,13 @@ export class AuthGuard implements CanActivate {
       role: member.role,
       memberId: String(member.id),
       areaId: member.areaId ? String(member.areaId) : undefined,
+      member:
+        member.firstNames && member.lastNames
+          ? {
+              firstNames: member.firstNames,
+              lastNames: member.lastNames,
+            }
+          : undefined,
       projectIds:
         member.role === AreaRole.MIEMBRO
           ? (member.projectMemberships ?? []).map(({ projectId }) =>

@@ -92,10 +92,14 @@ describe('MembersController', () => {
 
     mockMembersService.create.mockResolvedValue(createdMember);
 
-    await expect(controller.create(createMemberDto)).resolves.toEqual(
-      toMemberResponse(createdMember, AreaRole.PRESIDENCIA),
+    await expect(
+      controller.create(createMemberDto, undefined),
+    ).resolves.toEqual(toMemberResponse(createdMember, AreaRole.PRESIDENCIA));
+    expect(mockMembersService.create).toHaveBeenCalledWith(
+      createMemberDto,
+      undefined,
+      undefined,
     );
-    expect(mockMembersService.create).toHaveBeenCalledWith(createMemberDto);
   });
 
   it('lists members through the scoped service method', async () => {

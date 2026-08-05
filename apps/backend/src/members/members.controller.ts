@@ -31,8 +31,13 @@ export class MembersController {
   @Roles(AreaRole.PRESIDENCIA)
   async create(
     @Body() createMemberDto: CreateMemberDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ): Promise<MemberResponse> {
-    const member = await this.membersService.create(createMemberDto);
+    const member = await this.membersService.create(
+      createMemberDto,
+      undefined,
+      accessActor,
+    );
     return toMemberResponse(member, AreaRole.PRESIDENCIA);
   }
 
@@ -50,8 +55,14 @@ export class MembersController {
   async update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateMemberDto: UpdateMemberDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ): Promise<MemberResponse> {
-    const member = await this.membersService.update(id, updateMemberDto);
+    const member = await this.membersService.update(
+      id,
+      updateMemberDto,
+      undefined,
+      accessActor,
+    );
     return toMemberResponse(member, AreaRole.PRESIDENCIA);
   }
 

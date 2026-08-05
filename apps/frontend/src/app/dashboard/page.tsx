@@ -10,6 +10,7 @@ import {
 } from "@/lib/auth-client";
 import ProjectManagement from "../project-management";
 import TaskManagement from "../task-management";
+import AuditManagementView from "../audit-management";
 import {
   AreaDetailManagementView,
   AreasManagementView,
@@ -381,7 +382,9 @@ export default function DashboardPage() {
             {view === "integrations" && (
               <PlaceholderView title="Integraciones" />
             )}
-            {view === "audit" && <PlaceholderView title="Auditoría" />}
+            {view === "audit" && accessToken && (
+              <AuditManagementView accessToken={accessToken} />
+            )}
             {view === "profile" && (
               <ProfileView member={currentMember} onLogout={handleLogout} />
             )}

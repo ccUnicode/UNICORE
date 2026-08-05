@@ -8,6 +8,7 @@ import {
 import { AreaRole } from '../common/enums/area-role.enum';
 import { AreaService } from './area.service';
 import { Area } from './entities/area.entity';
+import { AuditService } from '../audit/audit.service';
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -31,6 +32,11 @@ describe('AreaService', () => {
     findOne: jest.fn(),
   };
 
+  const mockAuditService = {
+    record: jest.fn(),
+    findAll: jest.fn(),
+  };
+
   beforeEach(async () => {
     jest.clearAllMocks();
     const module: TestingModule = await Test.createTestingModule({
@@ -39,6 +45,10 @@ describe('AreaService', () => {
         {
           provide: getRepositoryToken(Area),
           useValue: mockAreaRepository,
+        },
+        {
+          provide: AuditService,
+          useValue: mockAuditService,
         },
       ],
     }).compile();

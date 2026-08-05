@@ -4,9 +4,10 @@ import { AccessControlModule } from '../common/access-control.module';
 import { AreaService } from './area.service';
 import { AreaController } from './area.controller';
 import { Area } from './entities/area.entity';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
-  imports: [AccessControlModule, TypeOrmModule.forFeature([Area])],
+  imports: [AccessControlModule, TypeOrmModule.forFeature([Area]), AuditModule],
   controllers: [AreaController],
   providers: [AreaService],
   exports: [AreaService],

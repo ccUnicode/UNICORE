@@ -40,6 +40,7 @@ import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class ProjectsService {
@@ -59,6 +60,7 @@ export class ProjectsService {
     @InjectRepository(TaskAssignee)
     private readonly taskAssigneesRepository: Repository<TaskAssignee>,
     private readonly areaService: AreaService,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(
@@ -99,6 +101,20 @@ export class ProjectsService {
           entityManager.getRepository(ProjectLink),
         );
         savedProject.labels = labels;
+
+        if (accessActor) {
+          await this.auditService.record(
+            accessActor,
+            {
+              action: 'create',
+              entityType: 'Project',
+              entityId: savedProject.id,
+              areaId: savedProject.areaId,
+              metadata: { name: savedProject.name },
+            },
+            entityManager,
+          );
+        }
 
         return savedProject;
       },
@@ -252,7 +268,7 @@ export class ProjectsService {
         );
       }
 
-      await projectsRepository.save(project);
+      const savedProject = await projectsRepository.save(project);
 
       if (updateProjectDto.links !== undefined) {
         await this.replaceLinks(
@@ -260,6 +276,20 @@ export class ProjectsService {
           updateProjectDto.links,
           entityManager.getRepository(ProjectLink),
           true,
+        );
+      }
+
+      if (accessActor) {
+        await this.auditService.record(
+          accessActor,
+          {
+            action: 'update',
+            entityType: 'Project',
+            entityId: savedProject.id,
+            areaId: savedProject.areaId,
+            metadata: { name: savedProject.name },
+          },
+          entityManager,
         );
       }
     });
@@ -272,7 +302,17 @@ export class ProjectsService {
     this.assertProjectManagementAccess(project, accessActor);
     project.isArchived = true;
 
-    return this.projectsRepository.save(project);
+    const savedProject = await this.projectsRepository.save(project);
+
+    await this.auditService.record(accessActor, {
+      action: 'archive',
+      entityType: 'Project',
+      entityId: savedProject.id,
+      areaId: savedProject.areaId,
+      metadata: { name: savedProject.name },
+    });
+
+    return savedProject;
   }
 
   async findPhases(
@@ -517,10 +557,33 @@ export class ProjectsService {
 
         try {
           const saved = await projectMembershipsRepository.save(membership);
-          return projectMembershipsRepository.findOne({
+          const populated = (await projectMembershipsRepository.findOne({
             where: { id: saved.id },
             relations: ['member'],
-          }) as Promise<ProjectMembership>;
+          })) as ProjectMembership;
+
+          if (accessActor) {
+            await this.auditService.record(
+              accessActor,
+              {
+                action: 'team_assignment',
+                entityType: 'ProjectMembership',
+                entityId: populated.id,
+                areaId: project.areaId,
+                metadata: {
+                  projectId: project.id,
+                  projectName: project.name,
+                  memberId: member.id,
+                  memberNames: `${member.firstNames} ${member.lastNames}`,
+                  role: populated.role,
+                  type: 'add',
+                },
+              },
+              entityManager,
+            );
+          }
+
+          return populated;
         } catch (error) {
           if (isUniqueViolation(error)) {
             throw new ConflictException(
@@ -586,7 +649,32 @@ export class ProjectsService {
       );
     }
 
+    const project = await this.projectsRepository.findOne({
+      where: { id: projectId },
+      select: ['id', 'name', 'areaId'],
+    });
+    const member = await this.membersRepository.findOne({
+      where: { id: memberId },
+      select: ['id', 'firstNames', 'lastNames'],
+    });
+
     await this.projectMembershipsRepository.remove(membership);
+
+    if (accessActor && project && member) {
+      await this.auditService.record(accessActor, {
+        action: 'team_assignment',
+        entityType: 'ProjectMembership',
+        entityId: membership.id,
+        areaId: project.areaId,
+        metadata: {
+          projectId: project.id,
+          projectName: project.name,
+          memberId: member.id,
+          memberNames: `${member.firstNames} ${member.lastNames}`,
+          type: 'remove',
+        },
+      });
+    }
   }
 
   private validateDateRange(dateRange: {

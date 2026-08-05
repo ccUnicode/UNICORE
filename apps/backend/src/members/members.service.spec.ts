@@ -19,6 +19,7 @@ import { Member } from './member.entity';
 import { MembersService } from './members.service';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { toMemberResponse } from './utils/member-response.util';
+import { AuditService } from '../audit/audit.service';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
@@ -155,6 +156,13 @@ describe('MembersService', () => {
         {
           provide: DataSource,
           useValue: mockDataSource,
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            record: jest.fn(),
+            findAll: jest.fn(),
+          },
         },
       ],
     }).compile();

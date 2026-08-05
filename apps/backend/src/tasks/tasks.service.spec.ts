@@ -20,6 +20,7 @@ import { TaskStatusHistory } from './entities/task-status-history.entity';
 import { TaskPriority } from './enums/task-priority.enum';
 import { TaskStatus } from './enums/task-status.enum';
 import { TasksService } from './tasks.service';
+import { AuditService } from '../audit/audit.service';
 
 const createMember = (overrides: Partial<Member> = {}): Member =>
   ({
@@ -242,6 +243,13 @@ describe('TasksService', () => {
         {
           provide: getRepositoryToken(ProjectMembership),
           useValue: projectMembershipsRepository,
+        },
+        {
+          provide: AuditService,
+          useValue: {
+            record: jest.fn(),
+            findAll: jest.fn(),
+          },
         },
       ],
     }).compile();
