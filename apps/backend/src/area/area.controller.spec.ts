@@ -5,6 +5,7 @@ import { ACCESS_SCOPE_KEY } from '../common/decorators/access-scope.decorator';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { AreaController } from './area.controller';
 import { AreaService } from './area.service';
 
@@ -71,7 +72,10 @@ describe('AreaController', () => {
       };
       mockAreaService.create.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.create(createAreaDto, undefined);
+      const result = await controller.create(
+        createAreaDto,
+        undefined as unknown as RequestAccessActor,
+      );
       expect(result).toEqual(expectedResult);
       expect(mockAreaService.create).toHaveBeenCalledWith(
         createAreaDto,
@@ -127,7 +131,11 @@ describe('AreaController', () => {
       const expectedResult = { id: 1, ...updateAreaDto };
       mockAreaService.update.mockResolvedValue(expectedResult as any);
 
-      const result = await controller.update(1, updateAreaDto, undefined);
+      const result = await controller.update(
+        1,
+        updateAreaDto,
+        undefined as unknown as RequestAccessActor,
+      );
       expect(result).toEqual(expectedResult);
       expect(mockAreaService.update).toHaveBeenCalledWith(
         1,
@@ -145,7 +153,7 @@ describe('AreaController', () => {
       const result = await controller.archive(
         1,
         { confirmName: 'Area 1' },
-        undefined,
+        undefined as unknown as RequestAccessActor,
       );
       expect(result).toEqual(expectedResult);
       expect(mockAreaService.archive).toHaveBeenCalledWith(

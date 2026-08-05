@@ -29,7 +29,7 @@ export class AreaController {
   @Roles(AreaRole.PRESIDENCIA)
   create(
     @Body() createAreaDto: CreateAreaDto,
-    @CurrentAccessActor() accessActor: RequestAccessActor,
+    @CurrentAccessActor() accessActor?: RequestAccessActor,
   ) {
     return this.areaService.create(createAreaDto, accessActor);
   }
@@ -60,7 +60,7 @@ export class AreaController {
   update(
     @Param('id', ParseIntPipe) id: number,
     @Body() updateAreaDto: UpdateAreaDto,
-    @CurrentAccessActor() accessActor: RequestAccessActor,
+    @CurrentAccessActor() accessActor?: RequestAccessActor,
   ) {
     return this.areaService.update(id, updateAreaDto, accessActor);
   }
@@ -70,7 +70,7 @@ export class AreaController {
   archive(
     @Param('id', ParseIntPipe) id: number,
     @Body() confirmNameDto: ConfirmNameDto,
-    @CurrentAccessActor() accessActor: RequestAccessActor,
+    @CurrentAccessActor() accessActor?: RequestAccessActor,
   ) {
     return this.areaService.archive(
       id,

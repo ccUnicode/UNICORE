@@ -4,6 +4,7 @@ import { DataSource } from 'typeorm';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 import { Member } from './member.entity';
@@ -93,7 +94,10 @@ describe('MembersController', () => {
     mockMembersService.create.mockResolvedValue(createdMember);
 
     await expect(
-      controller.create(createMemberDto, undefined),
+      controller.create(
+        createMemberDto,
+        undefined as unknown as RequestAccessActor,
+      ),
     ).resolves.toEqual(toMemberResponse(createdMember, AreaRole.PRESIDENCIA));
     expect(mockMembersService.create).toHaveBeenCalledWith(
       createMemberDto,

@@ -31,7 +31,7 @@ export class MembersController {
   @Roles(AreaRole.PRESIDENCIA)
   async create(
     @Body() createMemberDto: CreateMemberDto,
-    @CurrentAccessActor() accessActor: RequestAccessActor,
+    @CurrentAccessActor() accessActor?: RequestAccessActor,
   ): Promise<MemberResponse> {
     const member = await this.membersService.create(
       createMemberDto,
