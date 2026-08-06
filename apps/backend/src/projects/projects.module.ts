@@ -10,6 +10,7 @@ import { Project } from './entities/project.entity';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
       Member,
       TaskAssignee,
     ]),
+    AuditModule,
   ],
   controllers: [ProjectsController],
   providers: [ProjectsService],

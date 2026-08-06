@@ -10,6 +10,7 @@ import { TaskStatusHistory } from './entities/task-status-history.entity';
 import { Task } from './entities/task.entity';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { TasksService } from './tasks.service';
       ProjectPhase,
       ProjectMembership,
     ]),
+    AuditModule,
   ],
   controllers: [TasksController],
   providers: [TasksService],

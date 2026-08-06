@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import {
   BadRequestException,
   ConflictException,
@@ -33,6 +34,7 @@ import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
 import { ProjectsService } from './projects.service';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { AuditService } from '../audit/audit.service';
 
 type RepositoryMethodMocks<T extends ObjectLiteral> = Partial<
   Record<Exclude<keyof Repository<T>, 'manager'>, jest.Mock>
@@ -202,6 +204,7 @@ describe('ProjectsService', () => {
   let projectMembershipsRepository: ProjectMembershipRepositoryMock;
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
+  let auditService: jest.Mocked<AuditService>;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -331,10 +334,18 @@ describe('ProjectsService', () => {
           provide: AreaService,
           useValue: mockAreaService,
         },
+        {
+          provide: AuditService,
+          useValue: {
+            record: jest.fn(),
+            findAll: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<ProjectsService>(ProjectsService);
+    auditService = module.get(AuditService);
   });
 
   it('creates a project with default phases when the area exists', async () => {
@@ -355,6 +366,15 @@ describe('ProjectsService', () => {
       ...project,
       phases,
     });
+    expect(auditService.record).toHaveBeenCalledWith(
+      presidencyActor,
+      expect.objectContaining({
+        action: 'create',
+        entityType: 'Project',
+        entityId: project.id,
+      }),
+      expect.anything(),
+    );
     expect(mockAreaService.findOne).toHaveBeenCalledWith(1);
     expect(projectsRepository.create).toHaveBeenCalledWith({
       name: createProjectDto.name,

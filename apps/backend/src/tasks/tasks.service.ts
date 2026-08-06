@@ -28,6 +28,7 @@ import { Task } from './entities/task.entity';
 import { TaskStatusHistory } from './entities/task-status-history.entity';
 import { TaskPriority } from './enums/task-priority.enum';
 import { TaskStatus } from './enums/task-status.enum';
+import { AuditService } from '../audit/audit.service';
 
 type TaskAccessMode = 'read' | 'manage' | 'status';
 
@@ -55,6 +56,7 @@ export class TasksService {
     private readonly projectPhasesRepository: Repository<ProjectPhase>,
     @InjectRepository(ProjectMembership)
     private readonly projectMembershipsRepository: Repository<ProjectMembership>,
+    private readonly auditService: AuditService,
   ) {}
 
   async create(
@@ -120,6 +122,21 @@ export class TasksService {
         );
 
         await taskAssigneesRepository.save(assignees);
+
+        if (accessActor) {
+          await this.auditService.record(
+            accessActor,
+            {
+              action: 'create',
+              entityType: 'Task',
+              entityId: savedTask.id,
+              areaId: project.areaId,
+              metadata: { title: savedTask.title },
+            },
+            entityManager,
+          );
+        }
+
         return savedTask.id;
       },
     );
@@ -260,7 +277,21 @@ export class TasksService {
         task.phaseId = updateTaskDto.phaseId;
       }
 
-      await tasksRepository.save(task);
+      const savedTask = await tasksRepository.save(task);
+
+      if (accessActor) {
+        await this.auditService.record(
+          accessActor,
+          {
+            action: 'update',
+            entityType: 'Task',
+            entityId: savedTask.id,
+            areaId: project.areaId,
+            metadata: { title: savedTask.title },
+          },
+          entityManager,
+        );
+      }
     });
 
     return this.findOne(id, accessActor);
@@ -302,7 +333,7 @@ export class TasksService {
       const previousStatus = task.status;
       task.status = updateTaskStatusDto.status;
       await tasksRepository.save(task);
-      await taskStatusHistoryRepository.save(
+      const historyEntry = await taskStatusHistoryRepository.save(
         taskStatusHistoryRepository.create({
           taskId: task.id,
           previousStatus,
@@ -310,6 +341,25 @@ export class TasksService {
           actorId: this.getActorMemberId(accessActor),
         }),
       );
+
+      if (accessActor) {
+        await this.auditService.record(
+          accessActor,
+          {
+            action: 'task_status_transition',
+            entityType: 'TaskStatusHistory',
+            entityId: historyEntry.id,
+            areaId: project.areaId,
+            metadata: {
+              taskId: task.id,
+              taskTitle: task.title,
+              previousStatus,
+              newStatus: updateTaskStatusDto.status,
+            },
+          },
+          entityManager,
+        );
+      }
     });
 
     return this.findOne(id, accessActor);
@@ -411,6 +461,24 @@ export class TasksService {
           }),
         ),
       );
+
+      if (accessActor) {
+        await this.auditService.record(
+          accessActor,
+          {
+            action: 'task_assignment',
+            entityType: 'TaskAssignee',
+            entityId: task.id,
+            areaId: project.areaId,
+            metadata: {
+              taskId: task.id,
+              taskTitle: task.title,
+              assigneeMemberIds: setTaskAssigneesDto.memberIds,
+            },
+          },
+          entityManager,
+        );
+      }
     });
 
     return this.findOne(id, accessActor);

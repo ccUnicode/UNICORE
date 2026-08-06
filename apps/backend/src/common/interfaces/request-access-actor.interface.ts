@@ -6,4 +6,8 @@ export interface RequestAccessActor {
   memberId?: string;
   projectIds?: string[];
   status?: string;
+  member?: {
+    firstNames: string;
+    lastNames: string;
+  };
 }

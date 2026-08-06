@@ -60,6 +60,8 @@ describe('AuthGuard', () => {
     const guard = new AuthGuard(reflector, tokenService, membersRepository);
     const member = {
       id: 7,
+      firstNames: 'Ana',
+      lastNames: 'Rojas',
       role: AreaRole.DIRECTIVA_DE_AREA,
       areaId: 3,
       activityStatus: MemberActivityStatus.ACTIVE,
@@ -85,6 +87,10 @@ describe('AuthGuard', () => {
       role: AreaRole.DIRECTIVA_DE_AREA,
       memberId: '7',
       areaId: '3',
+      member: {
+        firstNames: 'Ana',
+        lastNames: 'Rojas',
+      },
     });
     expect(request.authenticatedMember).toBe(member);
     expect(membersRepository.findOne).toHaveBeenCalledWith({
