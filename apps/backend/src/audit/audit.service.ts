@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
@@ -19,6 +19,8 @@ import { PaginatedResponse } from '../common/interfaces/paginated-response.inter
 
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
+
   constructor(
     @InjectRepository(AuditEvent)
     private readonly auditEventsRepository: Repository<AuditEvent>,
@@ -37,41 +39,48 @@ export class AuditService {
     },
     entityManager?: EntityManager,
   ): Promise<void> {
-    const actorId = Number(accessActor.memberId);
-    if (!Number.isSafeInteger(actorId) || actorId < 1) {
-      return; // Skip system/anonymous actions
+    try {
+      const actorId = Number(accessActor.memberId);
+      if (!Number.isSafeInteger(actorId) || actorId < 1) {
+        return; // Skip system/anonymous actions
+      }
+
+      const memberRepo = entityManager
+        ? entityManager.getRepository(Member)
+        : this.membersRepository;
+
+      const auditRepo = entityManager
+        ? entityManager.getRepository(AuditEvent)
+        : this.auditEventsRepository;
+
+      // Retrieve actor name to keep audit log immutable
+      const actorMember = await memberRepo.findOne({
+        where: { id: actorId },
+        select: ['id', 'firstNames', 'lastNames'],
+      });
+
+      const actorName = actorMember
+        ? `${actorMember.firstNames} ${actorMember.lastNames}`
+        : 'Unknown';
+
+      const event = auditRepo.create({
+        actorId,
+        actorName,
+        actorRole: accessActor.role,
+        action: data.action,
+        entityType: data.entityType,
+        entityId: String(data.entityId),
+        areaId: data.areaId ?? null,
+        metadata: data.metadata ? JSON.stringify(data.metadata) : null,
+      });
+
+      await auditRepo.save(event);
+    } catch (error) {
+      this.logger.error(
+        `Failed to record audit event for ${data.entityType}:${data.entityId} (${data.action})`,
+        error instanceof Error ? error.stack : String(error),
+      );
     }
-
-    const memberRepo = entityManager
-      ? entityManager.getRepository(Member)
-      : this.membersRepository;
-
-    const auditRepo = entityManager
-      ? entityManager.getRepository(AuditEvent)
-      : this.auditEventsRepository;
-
-    // Retrieve actor name to keep audit log immutable
-    const actorMember = await memberRepo.findOne({
-      where: { id: actorId },
-      select: ['id', 'firstNames', 'lastNames'],
-    });
-
-    const actorName = actorMember
-      ? `${actorMember.firstNames} ${actorMember.lastNames}`
-      : 'Unknown';
-
-    const event = auditRepo.create({
-      actorId,
-      actorName,
-      actorRole: accessActor.role,
-      action: data.action,
-      entityType: data.entityType,
-      entityId: String(data.entityId),
-      areaId: data.areaId ?? null,
-      metadata: data.metadata ? JSON.stringify(data.metadata) : null,
-    });
-
-    await auditRepo.save(event);
   }
 
   async findAll(
