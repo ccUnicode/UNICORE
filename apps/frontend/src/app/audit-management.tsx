@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { API_URL, getJson } from "@/lib/auth-client";
+import { getJson } from "@/lib/auth-client";
 
 export type AuditEvent = {
   id: number;
@@ -9,12 +9,15 @@ export type AuditEvent = {
   actorName: string;
   actorRole: string;
   action: string;
-  targetType: string;
-  targetId: string;
+  entityType?: string;
+  targetType?: string;
+  entityId?: string;
+  targetId?: string;
   areaId: number | null;
-  metadata: Record<string, unknown> | null;
-  ipAddress: string | null;
-  createdAt: string;
+  metadata: string | Record<string, unknown> | null;
+  ipAddress?: string | null;
+  timestamp?: string;
+  createdAt?: string;
 };
 
 export type AuditResponse = {
@@ -41,7 +44,7 @@ const ACTION_LABELS: Record<string, { label: string; bg: string; text: string }>
   task_assignment: { label: "Asignación Tarea", bg: "bg-violet-100 dark:bg-violet-950/60", text: "text-violet-700 dark:text-violet-300" },
 };
 
-const TARGET_TYPE_LABELS: Record<string, string> = {
+const ENTITY_TYPE_LABELS: Record<string, string> = {
   area: "Área",
   member: "Miembro",
   project: "Proyecto",
@@ -56,10 +59,10 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
   const [selectedEvent, setSelectedEvent] = useState<AuditEvent | null>(null);
 
   // Filters
-  const [targetTypeFilter, setTargetTypeFilter] = useState("");
+  const [entityTypeFilter, setEntityTypeFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
-  const [fromDateFilter, setFromDateFilter] = useState("");
-  const [toDateFilter, setToDateFilter] = useState("");
+  const [dateFromFilter, setDateFromFilter] = useState("");
+  const [dateToFilter, setDateToFilter] = useState("");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
@@ -71,10 +74,10 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
         const queryParams = new URLSearchParams();
         queryParams.set("page", page.toString());
         queryParams.set("limit", "10");
-        if (targetTypeFilter) queryParams.set("targetType", targetTypeFilter);
+        if (entityTypeFilter) queryParams.set("entityType", entityTypeFilter);
         if (actionFilter) queryParams.set("action", actionFilter);
-        if (fromDateFilter) queryParams.set("fromDate", fromDateFilter);
-        if (toDateFilter) queryParams.set("toDate", toDateFilter);
+        if (dateFromFilter) queryParams.set("dateFrom", dateFromFilter);
+        if (dateToFilter) queryParams.set("dateTo", dateToFilter);
 
         const response = await getJson<AuditResponse>(`/audit?${queryParams.toString()}`, accessToken);
         if (!ignore) {
@@ -94,11 +97,13 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
     return () => {
       ignore = true;
     };
-  }, [accessToken, page, targetTypeFilter, actionFilter, fromDateFilter, toDateFilter]);
+  }, [accessToken, page, entityTypeFilter, actionFilter, dateFromFilter, dateToFilter]);
 
-  const formatDate = (dateStr: string) => {
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return "-";
     try {
       const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
       return d.toLocaleString("es-PE", {
         day: "2-digit",
         month: "short",
@@ -109,6 +114,20 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
       });
     } catch {
       return dateStr;
+    }
+  };
+
+  const parseMetadata = (rawMetadata: string | Record<string, unknown> | null): Record<string, unknown> | null => {
+    if (!rawMetadata) return null;
+    if (typeof rawMetadata === "object") return rawMetadata as Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(rawMetadata);
+      if (typeof parsed === "string") {
+        return JSON.parse(parsed);
+      }
+      return parsed;
+    } catch {
+      return { raw: rawMetadata };
     }
   };
 
@@ -148,9 +167,9 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
           <div>
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Entidad Afectada</label>
             <select
-              value={targetTypeFilter}
+              value={entityTypeFilter}
               onChange={(e) => {
-                setTargetTypeFilter(e.target.value);
+                setEntityTypeFilter(e.target.value);
                 setPage(1);
               }}
               className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -188,9 +207,9 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Desde</label>
             <input
               type="date"
-              value={fromDateFilter}
+              value={dateFromFilter}
               onChange={(e) => {
-                setFromDateFilter(e.target.value);
+                setDateFromFilter(e.target.value);
                 setPage(1);
               }}
               className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -201,9 +220,9 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
             <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">Hasta</label>
             <input
               type="date"
-              value={toDateFilter}
+              value={dateToFilter}
               onChange={(e) => {
-                setToDateFilter(e.target.value);
+                setDateToFilter(e.target.value);
                 setPage(1);
               }}
               className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
@@ -249,31 +268,37 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {events.map((ev) => (
-                  <tr key={ev.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-300 font-mono text-xs">
-                      {formatDate(ev.createdAt)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="font-medium text-slate-900 dark:text-slate-100">{ev.actorName || `ID ${ev.actorId}`}</div>
-                      <div className="text-xs text-slate-400 uppercase tracking-wider">{ev.actorRole}</div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {renderActionBadge(ev.action)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium">
-                      <span className="capitalize">{TARGET_TYPE_LABELS[ev.targetType] || ev.targetType}</span> #{ev.targetId}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <button
-                        onClick={() => setSelectedEvent(ev)}
-                        className="px-3 py-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 rounded-lg transition-colors"
-                      >
-                        Ver metadata
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {events.map((ev) => {
+                  const entityType = ev.entityType ?? ev.targetType ?? "desconocido";
+                  const entityId = ev.entityId ?? ev.targetId ?? "";
+                  const timestampStr = ev.timestamp ?? ev.createdAt;
+
+                  return (
+                    <tr key={ev.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
+                      <td className="px-6 py-4 whitespace-nowrap text-slate-600 dark:text-slate-300 font-mono text-xs">
+                        {formatDate(timestampStr)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="font-medium text-slate-900 dark:text-slate-100">{ev.actorName || `ID ${ev.actorId}`}</div>
+                        <div className="text-xs text-slate-400 uppercase tracking-wider">{ev.actorRole}</div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        {renderActionBadge(ev.action)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-slate-700 dark:text-slate-300 font-medium">
+                        <span className="capitalize">{ENTITY_TYPE_LABELS[entityType] || entityType}</span> #{entityId}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <button
+                          onClick={() => setSelectedEvent(ev)}
+                          className="px-3 py-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 dark:text-indigo-400 dark:hover:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 rounded-lg transition-colors"
+                        >
+                          Ver metadata
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -325,15 +350,23 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
             <div className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
               <div><strong className="text-slate-900 dark:text-white">Actor:</strong> {selectedEvent.actorName} ({selectedEvent.actorRole})</div>
               <div><strong className="text-slate-900 dark:text-white">Acción:</strong> {selectedEvent.action}</div>
-              <div><strong className="text-slate-900 dark:text-white">Entidad Target:</strong> {selectedEvent.targetType} #{selectedEvent.targetId}</div>
-              <div><strong className="text-slate-900 dark:text-white">Fecha UTC:</strong> {selectedEvent.createdAt}</div>
+              <div>
+                <strong className="text-slate-900 dark:text-white">Entidad Target:</strong>{" "}
+                {ENTITY_TYPE_LABELS[selectedEvent.entityType ?? selectedEvent.targetType ?? ""] || (selectedEvent.entityType ?? selectedEvent.targetType)} #{selectedEvent.entityId ?? selectedEvent.targetId}
+              </div>
+              <div>
+                <strong className="text-slate-900 dark:text-white">Fecha UTC:</strong> {formatDate(selectedEvent.timestamp ?? selectedEvent.createdAt)}
+              </div>
               {selectedEvent.ipAddress && <div><strong className="text-slate-900 dark:text-white">IP:</strong> {selectedEvent.ipAddress}</div>}
             </div>
 
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Metadata (JSON):</label>
               <pre className="bg-slate-950 text-slate-100 p-4 rounded-xl text-xs overflow-x-auto font-mono max-h-60">
-                {JSON.stringify(selectedEvent.metadata, null, 2)}
+                {(() => {
+                  const parsed = parseMetadata(selectedEvent.metadata);
+                  return parsed ? JSON.stringify(parsed, null, 2) : "Sin metadata";
+                })()}
               </pre>
             </div>
 
