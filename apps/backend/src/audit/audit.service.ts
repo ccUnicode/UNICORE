@@ -106,14 +106,20 @@ export class AuditService {
     }
 
     if (filterDto.dateFrom && filterDto.dateTo) {
-      // Set to beginning of start day and end of end day to cover full range
       const start = new Date(filterDto.dateFrom);
       const end = new Date(filterDto.dateTo);
+      if (filterDto.dateTo.length <= 10) {
+        end.setUTCHours(23, 59, 59, 999);
+      }
       where.timestamp = Between(start, end);
     } else if (filterDto.dateFrom) {
       where.timestamp = MoreThanOrEqual(new Date(filterDto.dateFrom));
     } else if (filterDto.dateTo) {
-      where.timestamp = LessThanOrEqual(new Date(filterDto.dateTo));
+      const end = new Date(filterDto.dateTo);
+      if (filterDto.dateTo.length <= 10) {
+        end.setUTCHours(23, 59, 59, 999);
+      }
+      where.timestamp = LessThanOrEqual(end);
     }
 
     const [data, total] = await this.auditEventsRepository.findAndCount({
