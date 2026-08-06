@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { AreaService } from './area.service';
 import { Area } from './entities/area.entity';
 import { AuditService } from '../audit/audit.service';
@@ -183,18 +184,29 @@ describe('AreaService', () => {
     expect(mockAreaRepository.save).not.toHaveBeenCalled();
   });
 
-  it('archives an area when confirmName exactly matches', async () => {
+  it('archives an area when confirmName exactly matches and records audit event', async () => {
     const area = createArea();
     const archivedArea = createArea({ isArchived: true });
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.PRESIDENCIA,
+      memberId: '1',
+    };
     repository.findOne.mockResolvedValue(area);
     repository.save.mockResolvedValue(archivedArea);
 
-    await expect(service.archive(area.id, area.name)).resolves.toEqual(
-      archivedArea,
-    );
+    await expect(
+      service.archive(area.id, area.name, accessActor),
+    ).resolves.toEqual(archivedArea);
     expect(repository.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: area.id, isArchived: true }),
     );
+    expect(mockAuditService.record).toHaveBeenCalledWith(accessActor, {
+      action: 'archive',
+      entityType: 'Area',
+      entityId: area.id,
+      areaId: area.id,
+      metadata: { name: area.name },
+    });
   });
 
   it('rejects area archival when confirmName does not exactly match', async () => {

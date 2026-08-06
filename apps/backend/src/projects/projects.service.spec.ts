@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import {
   BadRequestException,
   ConflictException,
@@ -203,6 +204,7 @@ describe('ProjectsService', () => {
   let projectMembershipsRepository: ProjectMembershipRepositoryMock;
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
+  let auditService: jest.Mocked<AuditService>;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -343,6 +345,7 @@ describe('ProjectsService', () => {
     }).compile();
 
     service = module.get<ProjectsService>(ProjectsService);
+    auditService = module.get(AuditService);
   });
 
   it('creates a project with default phases when the area exists', async () => {
@@ -363,6 +366,15 @@ describe('ProjectsService', () => {
       ...project,
       phases,
     });
+    expect(auditService.record).toHaveBeenCalledWith(
+      presidencyActor,
+      expect.objectContaining({
+        action: 'create',
+        entityType: 'Project',
+        entityId: project.id,
+      }),
+      expect.anything(),
+    );
     expect(mockAreaService.findOne).toHaveBeenCalledWith(1);
     expect(projectsRepository.create).toHaveBeenCalledWith({
       name: createProjectDto.name,

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -144,6 +145,7 @@ const memberActor: RequestAccessActor = {
 
 describe('TasksService', () => {
   let service: TasksService;
+  let auditService: jest.Mocked<AuditService>;
   let tasksRepository: {
     create: jest.Mock;
     save: jest.Mock;
@@ -255,6 +257,7 @@ describe('TasksService', () => {
     }).compile();
 
     service = module.get(TasksService);
+    auditService = module.get(AuditService);
   });
 
   describe('create', () => {
@@ -279,6 +282,14 @@ describe('TasksService', () => {
       await expect(
         service.create(createTaskDto, presidencyActor),
       ).resolves.toEqual(savedTask);
+      expect(auditService.record).toHaveBeenCalledWith(
+        presidencyActor,
+        expect.objectContaining({
+          action: 'create',
+          entityType: 'Task',
+        }),
+        expect.anything(),
+      );
       expect(tasksRepository.create).toHaveBeenCalledWith({
         projectId: 1,
         phaseId: 10,

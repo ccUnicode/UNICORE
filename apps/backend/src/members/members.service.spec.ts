@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/unbound-method */
 import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
@@ -11,6 +12,7 @@ import {
 } from 'typeorm';
 import { Area } from '../area/entities/area.entity';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
@@ -55,6 +57,7 @@ const createQueryBuilderMock = (members: Member[]) => ({
 
 describe('MembersService', () => {
   let service: MembersService;
+  let auditService: jest.Mocked<AuditService>;
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
   let areasRepository: AreaRepositoryMock;
@@ -168,6 +171,7 @@ describe('MembersService', () => {
     }).compile();
 
     service = module.get<MembersService>(MembersService);
+    auditService = module.get(AuditService);
     persistedSkills = [createSkill(1, 'typescript'), createSkill(2, 'testing')];
     persistedAreaDirectiveMember = {
       id: 10,
@@ -201,14 +205,27 @@ describe('MembersService', () => {
     } as Member;
   });
 
-  it('creates and persists an area directive member', async () => {
+  it('creates and persists an area directive member and records audit event', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.PRESIDENCIA,
+      memberId: '1',
+    };
     areasRepository.exists?.mockResolvedValue(true);
     skillsRepository.find?.mockResolvedValue(persistedSkills);
     membersRepository.create?.mockReturnValue(persistedAreaDirectiveMember);
     membersRepository.save?.mockResolvedValue(persistedAreaDirectiveMember);
 
-    await expect(service.create(areaDirectiveMemberDto)).resolves.toEqual(
-      persistedAreaDirectiveMember,
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).resolves.toEqual(persistedAreaDirectiveMember);
+    expect(auditService.record).toHaveBeenCalledWith(
+      accessActor,
+      expect.objectContaining({
+        action: 'create',
+        entityType: 'Member',
+        entityId: persistedAreaDirectiveMember.id,
+      }),
+      expect.anything(),
     );
     expect(areasRepository.exists).toHaveBeenCalledWith({
       where: { id: 3, isArchived: false },
