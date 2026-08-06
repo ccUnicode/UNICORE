@@ -45,9 +45,13 @@ const ACTION_LABELS: Record<string, { label: string; bg: string; text: string }>
 };
 
 const ENTITY_TYPE_LABELS: Record<string, string> = {
+  Area: "Área",
   area: "Área",
+  Member: "Miembro",
   member: "Miembro",
+  Project: "Proyecto",
   project: "Proyecto",
+  Task: "Tarea",
   task: "Tarea",
 };
 
@@ -175,10 +179,10 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
               className="px-3 py-1.5 text-sm rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
             >
               <option value="">Todas las entidades</option>
-              <option value="area">Área</option>
-              <option value="member">Miembro</option>
-              <option value="project">Proyecto</option>
-              <option value="task">Tarea</option>
+              <option value="Area">Área</option>
+              <option value="Member">Miembro</option>
+              <option value="Project">Proyecto</option>
+              <option value="Task">Tarea</option>
             </select>
           </div>
 

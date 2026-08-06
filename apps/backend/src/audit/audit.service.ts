@@ -4,6 +4,7 @@ import {
   Between,
   EntityManager,
   FindOptionsWhere,
+  ILike,
   LessThanOrEqual,
   MoreThanOrEqual,
   Repository,
@@ -101,7 +102,7 @@ export class AuditService {
     }
 
     if (filterDto.entityType) {
-      where.entityType = filterDto.entityType;
+      where.entityType = ILike(filterDto.entityType);
     }
 
     if (filterDto.dateFrom && filterDto.dateTo) {
