@@ -1,4 +1,9 @@
-import { ForbiddenException, Injectable, Logger } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   Between,
@@ -119,6 +124,9 @@ export class AuditService {
       const end = new Date(filterDto.dateTo);
       if (filterDto.dateTo.length <= 10) {
         end.setUTCHours(23, 59, 59, 999);
+      }
+      if (start > end) {
+        throw new BadRequestException('dateFrom cannot be after dateTo');
       }
       where.timestamp = Between(start, end);
     } else if (filterDto.dateFrom) {

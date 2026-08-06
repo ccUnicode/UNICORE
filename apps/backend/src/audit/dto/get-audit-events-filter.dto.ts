@@ -1,5 +1,11 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsDateString,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 
 export class GetAuditEventsFilterDto extends PaginationDto {
@@ -18,10 +24,10 @@ export class GetAuditEventsFilterDto extends PaginationDto {
   entityType?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   dateFrom?: string;
 
   @IsOptional()
-  @IsString()
+  @IsDateString()
   dateTo?: string;
 }
