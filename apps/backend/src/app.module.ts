@@ -10,6 +10,7 @@ import { ProjectsModule } from './projects/projects.module';
 import { MigrateMemberRolesAndAreas1787788800000 } from './migrations/1787788800000-MigrateMemberRolesAndAreas';
 import { RepairMemberAreaMemberships1787788800001 } from './migrations/1787788800001-RepairMemberAreaMemberships';
 import { AddTaskCollaboration1787788800002 } from './migrations/1787788800002-AddTaskCollaboration';
+import { CreateAuditEventsTable1787788800003 } from './migrations/1787788800003-CreateAuditEventsTable';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AuditModule } from './audit/audit.module';
@@ -40,6 +41,7 @@ import { AuditModule } from './audit/audit.module';
             MigrateMemberRolesAndAreas1787788800000,
             RepairMemberAreaMemberships1787788800001,
             AddTaskCollaboration1787788800002,
+            CreateAuditEventsTable1787788800003,
           ],
           migrationsRun: true,
         };
