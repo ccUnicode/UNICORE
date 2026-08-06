@@ -51,8 +51,14 @@ const ENTITY_TYPE_LABELS: Record<string, string> = {
   member: "Miembro",
   Project: "Proyecto",
   project: "Proyecto",
+  ProjectMembership: "Equipo de Proyecto",
+  projectmembership: "Equipo de Proyecto",
   Task: "Tarea",
   task: "Tarea",
+  TaskStatusHistory: "Estado de Tarea",
+  taskstatushistory: "Estado de Tarea",
+  TaskAssignee: "Asignación de Tarea",
+  taskassignee: "Asignación de Tarea",
 };
 
 export default function AuditManagementView({ accessToken }: AuditManagementProps) {
@@ -182,7 +188,10 @@ export default function AuditManagementView({ accessToken }: AuditManagementProp
               <option value="Area">Área</option>
               <option value="Member">Miembro</option>
               <option value="Project">Proyecto</option>
+              <option value="ProjectMembership">Equipo de Proyecto</option>
               <option value="Task">Tarea</option>
+              <option value="TaskStatusHistory">Estado de Tarea</option>
+              <option value="TaskAssignee">Asignación de Tarea</option>
             </select>
           </div>
 
