@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { AreaMembershipsService } from './area-memberships.service';
 import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -20,6 +21,7 @@ import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { UpdateAreaMembershipDto } from './dto/update-area-membership.dto';
 
+@ApiBearerAuth('bearer')
 @Controller('area-memberships')
 @UseGuards(RolesGuard)
 export class AreaMembershipsController {

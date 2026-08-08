@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { AccessScope } from '../common/decorators/access-scope.decorator';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
@@ -20,6 +21,7 @@ import { AreaService } from './area.service';
 import { CreateAreaDto } from './dto/create-area.dto';
 import { UpdateAreaDto } from './dto/update-area.dto';
 
+@ApiBearerAuth('bearer')
 @Controller('areas')
 @UseGuards(RolesGuard)
 export class AreaController {
