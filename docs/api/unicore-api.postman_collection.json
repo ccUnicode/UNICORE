@@ -1,0 +1,170 @@
+{
+	"info": {
+		"_postman_id": "unicore-api-collection",
+		"name": "UNICORE API v1",
+		"description": "Colección de peticiones REST para probar los endpoints del backend de UNICORE.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Bootstrap Admin",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"uniCode\": \"20260000\",\n  \"names\": \"Admin\",\n  \"surnames\": \"Presidencia\",\n  \"password\": \"PasswordSeguro123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/bootstrap",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "bootstrap"]
+						}
+					}
+				},
+				{
+					"name": "Login",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"uniCode\": \"20260000\",\n  \"password\": \"PasswordSeguro123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "login"]
+						}
+					}
+				},
+				{
+					"name": "Get Profile (Me)",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/auth/me",
+							"host": ["{{baseUrl}}"],
+							"path": ["auth", "me"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Areas",
+			"item": [
+				{
+					"name": "List Areas",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/areas",
+							"host": ["{{baseUrl}}"],
+							"path": ["areas"]
+						}
+					}
+				},
+				{
+					"name": "Create Area",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							},
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Investigación y Desarrollo\",\n  \"description\": \"Área encargada de innovación tecnológica y plataformas.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/areas",
+							"host": ["{{baseUrl}}"],
+							"path": ["areas"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Projects & Tasks",
+			"item": [
+				{
+					"name": "List Projects",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/projects",
+							"host": ["{{baseUrl}}"],
+							"path": ["projects"]
+						}
+					}
+				},
+				{
+					"name": "List Tasks",
+					"request": {
+						"method": "GET",
+						"header": [
+							{
+								"key": "Authorization",
+								"value": "Bearer {{accessToken}}"
+							}
+						],
+						"url": {
+							"raw": "{{baseUrl}}/tasks",
+							"host": ["{{baseUrl}}"],
+							"path": ["tasks"]
+						}
+					}
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:3001"
+		},
+		{
+			"key": "accessToken",
+			"value": ""
+		}
+	]
+}
