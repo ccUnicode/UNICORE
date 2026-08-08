@@ -4,7 +4,7 @@ El frontend de **UNICORE** es una Single Page Application (SPA) / Web Applicatio
 
 ---
 
-## 🛠️ Stack Frontend
+## Stack Frontend
 
 * **Framework**: Next.js 16 (App Router)
 * **Librería UI**: React 19
@@ -14,7 +14,7 @@ El frontend de **UNICORE** es una Single Page Application (SPA) / Web Applicatio
 
 ---
 
-## 📂 Estructura del Proyecto (`apps/frontend/src/`)
+## Estructura del Proyecto (`apps/frontend/src/`)
 
 ```text
 src/
@@ -47,7 +47,7 @@ src/
 
 ---
 
-## 🖥️ Vistas Principales del Sistema
+## Vistas Principales del Sistema
 
 ### 1. Pantalla de Login (`/login`)
 * Permite el ingreso con **Código UNI** y **Contraseña**.
@@ -79,7 +79,7 @@ Dispone de una barra de navegación superior con el perfil del usuario logueado 
 
 ---
 
-## 📡 Cliente de API (`auth-client.ts`)
+## Cliente de API (`auth-client.ts`)
 
 El frontend separa las responsabilidades de sesión y transporte HTTP:
 * `login.tsx` guarda `accessToken` exclusivamente en `window.sessionStorage` bajo la clave `unicore.auth.v1.accessToken`; `dashboard/page.tsx` lo lee y lo elimina al cerrar sesión o recibir una sesión inválida.
@@ -88,7 +88,7 @@ El frontend separa las responsabilidades de sesión y transporte HTTP:
 
 ---
 
-## 🧪 Pruebas Frontend
+## Pruebas Frontend
 
 Las pruebas se ejecutan mediante el cliente de pruebas nativo de Node.js:
 

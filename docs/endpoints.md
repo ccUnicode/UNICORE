@@ -1,6 +1,11 @@
 # Catálogo de Endpoints de la API — UNICORE
 
-Fuente de verdad revisada: controllers, DTOs, enums y guards de `apps/backend/src/`. Salvo las rutas marcadas como públicas, se requiere `Authorization: Bearer <accessToken>`. Los roles de área son `presidencia`, `directiva_de_area` y `miembro`.
+La especificación OpenAPI generada desde controllers, DTOs, enums y decoradores es el contrato técnico principal. Con el backend activo se encuentra en:
+
+- Interfaz Swagger: `http://localhost:3001/api/docs`.
+- Documento JSON: `http://localhost:3001/api/docs-json`.
+
+Este archivo es la referencia humana complementaria: resume permisos, reglas y ejemplos que requieren contexto. Debe revisarse junto con el contrato generado cuando cambie un controller, DTO, enum o guard. Salvo las rutas marcadas como públicas, se requiere `Authorization: Bearer <accessToken>`. Los roles de área son `presidencia`, `directiva_de_area` y `miembro`.
 
 ## Convenciones de respuesta y error
 
