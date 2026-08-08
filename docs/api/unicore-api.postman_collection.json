@@ -1,196 +1,405 @@
 {
-	"info": {
-		"_postman_id": "unicore-api-collection",
-		"name": "UNICORE API v1",
-		"description": "Colección de peticiones REST para probar los endpoints del backend de UNICORE.",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
-	},
-	"item": [
-		{
-			"name": "Auth",
-			"item": [
-				{
-					"name": "Bootstrap Admin",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"bootstrapSecret\": \"{{bootstrapSecret}}\",\n  \"password\": \"PasswordSeguro123!\",\n  \"member\": {\n    \"institution\": \"UNI\",\n    \"studentCode\": \"20260000\",\n    \"firstNames\": \"Admin\",\n    \"lastNames\": \"Presidencia\",\n    \"major\": \"Ingeniería de Sistemas\",\n    \"birthDate\": \"2000-01-01\",\n    \"role\": \"presidencia\",\n    \"skills\": [\"gestión\"]\n  }\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/bootstrap",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "bootstrap"]
-						}
-					}
-				},
-				{
-					"name": "Login",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"studentCode\": \"20260000\",\n  \"password\": \"PasswordSeguro123!\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/auth/login",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "login"]
-						}
-						},
-						"event": [
-							{
-								"listen": "test",
-								"script": {
-									"type": "text/javascript",
-									"exec": [
-										"const payload = pm.response.json();",
-										"if (payload.accessToken) pm.collectionVariables.set('accessToken', payload.accessToken);"
-									]
-								}
-							}
-						]
-					},
-				{
-					"name": "Get Profile (Me)",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/auth/me",
-							"host": ["{{baseUrl}}"],
-							"path": ["auth", "me"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Areas",
-			"item": [
-				{
-					"name": "List Areas",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/areas",
-							"host": ["{{baseUrl}}"],
-							"path": ["areas"]
-						}
-					}
-				},
-				{
-					"name": "Create Area",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							},
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"name\": \"Investigación y Desarrollo\",\n  \"description\": \"Área encargada de innovación tecnológica y plataformas.\"\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/areas",
-							"host": ["{{baseUrl}}"],
-							"path": ["areas"]
-						}
-					}
-				}
-			]
-		},
-		{
-			"name": "Projects & Tasks",
-			"item": [
-				{
-					"name": "List Projects",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/projects",
-							"host": ["{{baseUrl}}"],
-							"path": ["projects"]
-						}
-					}
-				},
-				{
-					"name": "List Tasks",
-					"request": {
-						"method": "GET",
-						"header": [
-							{
-								"key": "Authorization",
-								"value": "Bearer {{accessToken}}"
-							}
-						],
-						"url": {
-							"raw": "{{baseUrl}}/tasks?projectId={{projectId}}",
-							"host": ["{{baseUrl}}"],
-							"path": ["tasks"],
-							"query": [
-								{
-									"key": "projectId",
-									"value": "{{projectId}}"
-								}
-							]
-						}
-					}
-				}
-			]
-		}
-	],
-	"variable": [
-		{
-			"key": "baseUrl",
-			"value": "http://localhost:3001"
-		},
-		{
-			"key": "accessToken",
-			"value": ""
-		},
-		{
-			"key": "bootstrapSecret",
-			"value": "bootstrap_secret_for_development_32_chars_min"
-		},
-		{
-			"key": "projectId",
-			"value": "1"
-		}
-	]
+  "info": {
+    "_postman_id": "unicore-api-collection",
+    "name": "UNICORE API v1",
+    "description": "Flujo ejecutable para validar autenticación, áreas, miembros, proyectos, tareas y auditoría en un ambiente desechable.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "01 - Auth",
+      "item": [
+        {
+          "name": "Bootstrap Admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bootstrapSecret\": \"{{bootstrapSecret}}\",\n  \"password\": \"{{adminPassword}}\",\n  \"member\": {\n    \"institution\": \"UNI\",\n    \"studentCode\": \"{{adminStudentCode}}\",\n    \"firstNames\": \"Admin\",\n    \"lastNames\": \"Presidencia\",\n    \"major\": \"Ingeniería de Sistemas\",\n    \"birthDate\": \"2000-01-01\",\n    \"role\": \"presidencia\",\n    \"skills\": [\"gestión\"]\n  }\n}"
+            },
+            "url": "{{baseUrl}}/auth/bootstrap"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Bootstrap succeeds or is already configured', () => pm.expect([201, 409]).to.include(pm.response.code));",
+                  "if (pm.response.code === 201) {",
+                  "  const payload = pm.response.json();",
+                  "  pm.collectionVariables.set('accessToken', payload.accessToken);",
+                  "  pm.collectionVariables.set('adminMemberId', String(payload.member.id));",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"studentCode\": \"{{adminStudentCode}}\",\n  \"password\": \"{{adminPassword}}\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Login returns 201', () => pm.response.to.have.status(201));",
+                  "const payload = pm.response.json();",
+                  "pm.test('Login returns a Bearer token', () => {",
+                  "  pm.expect(payload.tokenType).to.eql('Bearer');",
+                  "  pm.expect(payload.accessToken).to.be.a('string').and.not.empty;",
+                  "});",
+                  "pm.collectionVariables.set('accessToken', payload.accessToken);",
+                  "pm.collectionVariables.set('adminMemberId', String(payload.member.id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Profile",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Profile returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Profile has memberships', () => pm.expect(pm.response.json().memberships).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject Missing Token",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing token returns 401', () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "02 - Areas and Members",
+      "item": [
+        {
+          "name": "Create Area",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{areaName}}\",\n  \"description\": \"Área creada por la colección de validación.\"\n}"
+            },
+            "url": "{{baseUrl}}/areas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Area creation returns 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('areaId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Areas",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/areas"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Areas return 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Areas response is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"institution\": \"UNI\",\n  \"studentCode\": \"{{memberStudentCode}}\",\n  \"firstNames\": \"Miembro\",\n  \"lastNames\": \"Colección\",\n  \"major\": \"Ingeniería de Sistemas\",\n  \"birthDate\": \"2001-01-01\",\n  \"role\": \"miembro\",\n  \"areaId\": {{areaId}},\n  \"skills\": [\"typescript\"]\n}"
+            },
+            "url": "{{baseUrl}}/members"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Member creation returns 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('memberId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject Invalid Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstNames\": \"Incomplete\"\n}"
+            },
+            "url": "{{baseUrl}}/members"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Invalid member returns 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "03 - Projects and Tasks",
+      "item": [
+        {
+          "name": "Create Project",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{projectName}}\",\n  \"description\": \"Proyecto creado por la colección de validación.\",\n  \"areaId\": {{areaId}},\n  \"labels\": [\"api\"]\n}"
+            },
+            "url": "{{baseUrl}}/projects"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Project creation returns 201', () => pm.response.to.have.status(201));",
+                  "const project = pm.response.json();",
+                  "pm.collectionVariables.set('projectId', String(project.id));",
+                  "if (project.phases && project.phases.length) pm.collectionVariables.set('phaseId', String(project.phases[0].id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Add Project Member",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"memberId\": {{memberId}},\n  \"role\": \"member\"\n}"
+            },
+            "url": "{{baseUrl}}/projects/{{projectId}}/members"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Project membership returns 201', () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Task",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"projectId\": {{projectId}},\n  \"phaseId\": {{phaseId}},\n  \"title\": \"Validar contrato API\",\n  \"priority\": \"medium\",\n  \"assigneeIds\": [{{memberId}}]\n}"
+            },
+            "url": "{{baseUrl}}/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Task creation returns 201', () => pm.response.to.have.status(201));",
+                  "pm.collectionVariables.set('taskId', String(pm.response.json().id));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Tasks",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/tasks?projectId={{projectId}}"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Task list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Task list is paginated', () => {",
+                  "  const payload = pm.response.json();",
+                  "  pm.expect(payload.data).to.be.an('array');",
+                  "  pm.expect(payload.meta).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Reject Tasks Without Project",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/tasks"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Missing projectId returns 400', () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "04 - Audit",
+      "item": [
+        {
+          "name": "List Audit Events",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/audit?entityType=Task&page=1&limit=20"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Audit list returns 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Audit response is paginated', () => {",
+                  "  const payload = pm.response.json();",
+                  "  pm.expect(payload.data).to.be.an('array');",
+                  "  pm.expect(payload.meta).to.be.an('object');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3001" },
+    { "key": "bootstrapSecret", "value": "replace-with-local-bootstrap-secret" },
+    { "key": "adminStudentCode", "value": "20260000" },
+    { "key": "adminPassword", "value": "PasswordSeguro123!" },
+    { "key": "memberStudentCode", "value": "20260001" },
+    { "key": "areaName", "value": "API Collection Area" },
+    { "key": "projectName", "value": "API Collection Project" },
+    { "key": "accessToken", "value": "" },
+    { "key": "adminMemberId", "value": "" },
+    { "key": "areaId", "value": "" },
+    { "key": "memberId", "value": "" },
+    { "key": "projectId", "value": "" },
+    { "key": "phaseId", "value": "" },
+    { "key": "taskId", "value": "" }
+  ]
 }
