@@ -138,6 +138,7 @@ Para información más detallada del sistema, consulta la carpeta [`docs/`](docs
 * 🗄️ [**Base de Datos**](docs/base-de-datos.md): Modelo ER, entidades y migraciones.
 * 🔌 [**Endpoints de API**](docs/endpoints.md): Especificación de contratos REST.
 * 🧪 [**Pruebas (Testing)**](docs/testing.md): Estrategia y ejecución de pruebas.
+* [**Runbook operativo**](docs/runbook.md): Diagnóstico, recuperación y rollback.
 * 🚀 [**Guía de Onboarding**](docs/onboarding.md): Guía paso a paso para nuevos miembros.
 * 📝 [**Deuda Técnica & Roadmap V2**](docs/TECH_DEBT.md): Funcionalidades futuras y refactorizaciones.
 * 📜 [**Guía de Contribución**](CONTRIBUTING.md): Flujo Git, ramas y commits.
