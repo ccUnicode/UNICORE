@@ -1,81 +1,156 @@
-# Documentación de Pruebas (Testing) — UNICORE
+# Estrategia de pruebas de UNICORE
 
-Este documento detalla la estrategia de pruebas automatizadas, los tipos de prueba implementados y los comandos para ejecutarlas en **UNICORE**.
+Este documento explica qué valida cada conjunto de pruebas, cómo ejecutarlo y qué condiciones debe cumplir una contribución antes de integrarse.
 
----
+## Alcance
 
-## 🧪 Estrategia y Cobertura de Pruebas
+UNICORE usa mecanismos distintos por aplicación:
 
-El proyecto cuenta con un entorno de pruebas automatizado dividido en dos niveles:
+- Backend: Jest con pruebas unitarias y de integración de componentes NestJS.
+- Frontend: Node.js Test Runner después de compilar los archivos definidos por `tsconfig.test.json`.
+- Migraciones: Jest contra una instancia real y desechable de PostgreSQL.
+- E2E del backend: Supertest mediante la configuración `test/jest-e2e.json`; se ejecuta de forma explícita y no forma parte de `npm run test`.
 
-1. **Backend (NestJS)**: Pruebas unitarias, de integración y de migraciones con **Jest** (33 Test Suites, 280 pruebas).
-2. **Frontend (Next.js)**: Pruebas unitarias e integración con el **Node.js Test Runner** nativo y `jsdom` (5 Test Suites, 20 pruebas).
+Las cantidades de suites y casos cambian con el código. El resultado actual debe obtenerse de la salida del comando o de GitHub Actions; no se mantiene un número fijo en este documento.
 
----
+## Requisitos
 
-## 🏃 Comandos para Ejecutar Pruebas
+Para las validaciones ordinarias:
 
-### 1. Ejecución Global desde la Raíz del Monorepo
-Para validar todo el proyecto en una sola instrucción:
+- Node.js y npm en las versiones indicadas por el README.
+- Dependencias instaladas con `npm ci` en CI o `npm install` durante desarrollo.
 
-```bash
-# Ejecutar verificación de tipos TypeScript
-npm run type-check
+Para las pruebas de migraciones:
 
-# Ejecutar todas las suites de prueba (Backend + Frontend)
-npm run test
+- PostgreSQL disponible.
+- Una base exclusiva y desechable.
+- `TEST_DATABASE_URL` apuntando a esa base.
+- Permiso para crear, alterar y eliminar objetos dentro de ella.
+
+No ejecutar pruebas de migraciones contra una base compartida, de desarrollo con datos importantes o de producción.
+
+Ejemplo local:
+
+```env
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/unicore_test
 ```
 
-### 2. Pruebas de Backend (`apps/backend`)
+## Comandos desde la raíz
 
 ```bash
-cd apps/backend
+# TypeScript de todos los workspaces
+npm run type-check
 
-# Ejecutar todas las pruebas unitarias e integración
+# Lint de todos los workspaces
+npm run lint
+
+# Pruebas ordinarias de backend y frontend
 npm run test
 
-# Ejecutar pruebas en modo observador (watch mode durante desarrollo)
+# Builds de producción
+npm run build
+
+# Integración de migraciones; requiere TEST_DATABASE_URL
+npm run test:migrations --workspace=apps/backend
+```
+
+El comando raíz `npm run test` no ejecuta `test:migrations` ni `test:e2e`. Esas validaciones deben invocarse por separado cuando correspondan.
+
+## Backend
+
+Desde `apps/backend`:
+
+```bash
+npm run type-check
+npm run lint
+npm run test
 npm run test:watch
-
-# Generar reporte de cobertura de código
 npm run test:cov
-
-# Ejecutar validaciones de migraciones de base de datos
+npm run test:e2e
 npm run test:migrations
 ```
 
-### 3. Pruebas de Frontend (`apps/frontend`)
+### Pruebas unitarias y de integración
+
+`npm run test` usa la configuración Jest declarada en `apps/backend/package.json` y busca archivos `*.spec.ts` dentro de `src/`.
+
+La cobertura actual incluye, entre otros:
+
+- Autenticación, tokens, contraseñas y rate limiting.
+- Guards y alcance por rol.
+- Servicios y controladores de áreas, miembros, proyectos, tareas y auditoría.
+- DTOs y reglas de validación.
+- Comportamiento aislado de migraciones.
+- Configuración de la publicación OpenAPI.
+
+Para ejecutar una prueba focalizada:
 
 ```bash
-cd apps/frontend
-
-# Ejecutar pruebas unitarias de utilidades, formularios y flujos UI
-npm run test
+npm run test -- --runInBand src/auth/auth.service.spec.ts
 ```
 
----
+### Pruebas E2E
 
-## 📊 Tipos de Pruebas Existentes
+`npm run test:e2e` usa `apps/backend/test/jest-e2e.json` y ejecuta los archivos `*.e2e-spec.ts`, excepto la suite específica de migraciones. Estas pruebas levantan la aplicación NestJS dentro del proceso de Jest y deben mantener aislados sus datos.
 
-### Backend (NestJS / Jest)
-* **Guards & Auth**: `auth.guard.spec.ts`, `roles.guard.spec.ts`, `login-rate-limit.service.spec.ts`.
-* **Servicios & Reglas de Negocio**: `members.service.spec.ts`, `projects.service.spec.ts`, `tasks.service.spec.ts`, `area.service.spec.ts`, `audit.service.spec.ts`.
-* **Controladores & Respuestas HTTP**: `projects.controller.spec.ts`, `tasks.controller.spec.ts`, `members.controller.spec.ts`.
-* **DTOs & Validaciones**: `create-project.dto.spec.ts`, `create-task.dto.spec.ts`, `confirm-name.dto.spec.ts`.
-* **Migraciones SQL**: `1787788800000-MigrateMemberRolesAndAreas.spec.ts`, `1787788800002-AddTaskCollaboration.spec.ts`.
+### Pruebas de migraciones
 
-### Frontend (Next.js / Node Test Runner)
-* **Login & Errores HTTP**: `login-validation.test.ts` (verifica validaciones de credenciales y mapeo de estados 401, 429, 500).
-* **Directorio de Personas**: `people-management-utils.test.ts` (verifica que inactivos aparezcan al final y los filtros combinados).
-* **Experiencia en Proyectos**: `project-experience.test.ts` (calcula proyectos activos vs archivados).
-* **Colaboración en Tareas**: `task-collaboration.test.ts` y `task-management.test.tsx` (inserta comentarios cronológicamente e iguala respuestas del servidor).
+`npm run test:migrations` usa `apps/backend/test/jest-migrations.json` y ejecuta `task-collaboration-migration.e2e-spec.ts` contra `TEST_DATABASE_URL`.
 
----
+La suite debe comprobar tanto el avance como la reversión del esquema que cubre. Cuando se agregue una migración nueva, debe añadirse o extenderse una prueba que parta de un estado representativo del esquema anterior.
 
-## ⛔ Criterios Mínimos Antes de Merge (Quality Gates)
+## Frontend
 
-Ningún Pull Request debe integrarse a la rama `main` sin cumplir lo siguiente:
+Desde `apps/frontend`:
 
-1. **Compilación Limpia**: `npm run type-check` debe terminar con código de salida `0`.
-2. **0 Fallos en Pruebas**: Todas las 38 suites de prueba deben pasar al 100%.
-3. **No Regresiones**: Si se agrega un nuevo endpoint o regla de negocio en backend, se debe incluir su archivo `.spec.ts` correspondiente.
+```bash
+npm run type-check
+npm run lint
+npm run test
+npm run build
+```
+
+`npm run test` compila primero el conjunto configurado por `tsconfig.test.json` y después ejecuta Node.js Test Runner sobre los archivos generados en `.test-dist`.
+
+Las pruebas actuales cubren:
+
+- Validación del login y mapeo de errores HTTP.
+- Filtros y ordenamiento de miembros.
+- Clasificación de experiencia en proyectos.
+- Comentarios de tareas.
+- Cambios de estado y comportamiento del tablero de tareas.
+
+Al añadir un archivo de prueba frontend, actualizar el script `test` o la configuración correspondiente para asegurar que realmente se ejecute.
+
+## Validaciones de Pull Request
+
+El workflow `.github/workflows/pull-request-checks.yml` ejecuta:
+
+- Type-check, lint, test y build del backend.
+- Type-check, lint, test y build del frontend.
+- Prueba de integración de migraciones con PostgreSQL de servicio.
+
+Un check verde indica que esos comandos terminaron correctamente, pero no reemplaza la revisión de contratos, permisos, migraciones, documentación ni casos no cubiertos.
+
+## Criterios antes de integrar
+
+- Todos los checks requeridos deben finalizar correctamente.
+- Una nueva regla de negocio debe incluir pruebas del caso exitoso y de sus rechazos relevantes.
+- Un nuevo endpoint debe probar autenticación, autorización, validación y respuesta cuando corresponda.
+- Un cambio de entidad debe incluir una migración revisable y su validación de avance y reversión.
+- Un cambio de contrato debe actualizar OpenAPI, la referencia humana y la colección de API cuando aplique.
+- No deben quedar pruebas omitidas, exclusiones temporales ni comandos que oculten errores.
+
+## Cobertura y limitaciones
+
+El proyecto no define actualmente un porcentaje mínimo de cobertura. `npm run test:cov --workspace=apps/backend` genera el reporte disponible para evaluar áreas sin pruebas.
+
+Limitaciones conocidas:
+
+- El frontend usa un conjunto explícito de archivos de prueba y no descubre automáticamente cualquier `*.test.ts(x)` nuevo.
+- Las pruebas ordinarias no validan por sí solas una actualización desde una copia de un ambiente real.
+- La especificación OpenAPI requiere revisión semántica adicional para describir todas las respuestas y reglas de negocio.
+
+## Mantenimiento
+
+Actualizar este documento cuando cambien scripts, configuraciones Jest, archivos incluidos por el frontend, servicios de CI o requisitos de base de datos. Las fuentes de verdad son los `package.json`, las configuraciones de pruebas y `.github/workflows/pull-request-checks.yml`.
