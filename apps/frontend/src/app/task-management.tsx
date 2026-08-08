@@ -1377,7 +1377,7 @@ export default function TaskManagement({
               <div>
                 <span className="text-zinc-500 text-xs">Fecha límite: </span>
                 <span className="text-zinc-300">
-                  📅 {formatDateSpanish(taskDetail.dueDate)}
+                  {formatDateSpanish(taskDetail.dueDate)}
                 </span>
               </div>
             </div>

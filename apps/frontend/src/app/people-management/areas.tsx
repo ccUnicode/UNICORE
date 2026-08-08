@@ -92,7 +92,7 @@ export function AreasManagementView({
                     value={metric.area.isArchived ? "archived" : "active"}
                   />
                   <span className="rounded bg-yellow-200 px-2 py-1 text-[11px] font-medium text-yellow-900">
-                    ♟ {metric.memberCount} miembros
+                    {metric.memberCount} miembros
                   </span>
                   <span className="rounded bg-violet-200 px-2 py-1 text-[11px] font-medium text-violet-900">
                     ▣ {metric.projectCount} proyectos

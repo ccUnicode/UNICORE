@@ -947,7 +947,7 @@ function ProjectDetail({
                 rel="noreferrer"
                 className="rounded-md bg-white/8 px-4 py-2 text-sm font-bold text-indigo-200 hover:bg-white/12"
               >
-                {link.name} ↗
+                {link.name}
               </a>
             ))}
           </div>

@@ -4,7 +4,7 @@ El backend de **UNICORE** es una API REST construida con NestJS 11 y TypeORM sob
 
 ---
 
-## 🛠️ Stack del Backend
+## Stack del Backend
 
 * **Framework**: NestJS 11
 * **Lenguaje**: TypeScript 5.7
@@ -15,7 +15,7 @@ El backend de **UNICORE** es una API REST construida con NestJS 11 y TypeORM sob
 
 ---
 
-## 📂 Estructura de Carpetas (`apps/backend/src/`)
+## Estructura de Carpetas (`apps/backend/src/`)
 
 ```text
 src/
@@ -68,7 +68,7 @@ src/
 
 ---
 
-## 🔐 Módulos Principales y Seguridad
+## Módulos Principales y Seguridad
 
 ### 1. Módulo Auth (`auth/`)
 Gestiona el acceso al sistema.
@@ -105,7 +105,7 @@ Registra todas las acciones clave del sistema (`audit_events`) especificando fec
 
 ---
 
-## ⚙️ Guards y Decoradores de Permisos
+## Guards y Decoradores de Permisos
 
 NestJS utiliza dos guards en cascada:
 1. **`AuthGuard`**: Extrae el token JWT del encabezado `Authorization: Bearer <token>` y adjunta el `user` a la petición.
@@ -115,7 +115,7 @@ NestJS utiliza dos guards en cascada:
 
 ---
 
-## 🛠️ Comandos Backend
+## Comandos Backend
 
 ```bash
 # Desarrollo

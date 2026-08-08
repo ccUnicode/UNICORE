@@ -4,7 +4,7 @@ Este documento describe la arquitectura técnica general de **UNICORE**, sus cap
 
 ---
 
-## 🏗️ Visión General de la Arquitectura
+## Visión General de la Arquitectura
 
 UNICORE está diseñado como una plataforma distribuida en 3 capas alojadas en un monorepo:
 
@@ -34,7 +34,7 @@ graph TD
 
 ---
 
-## 🧱 Componentes Principales
+## Componentes Principales
 
 ### 1. Capa de Presentación (`apps/frontend`)
 * **Next.js 16 (App Router)**: Renderizado dinámico del lado del cliente/servidor.
@@ -62,7 +62,7 @@ graph TD
 
 ---
 
-## 🔄 Flujos Principales del Sistema
+## Flujos Principales del Sistema
 
 ### 1. Flujo de Autenticación y Carga de Sesión
 ```mermaid
@@ -107,7 +107,7 @@ sequenceDiagram
 
 ---
 
-## 🔒 Consideraciones de Seguridad
+## Consideraciones de Seguridad
 
 1. **Sin Secretos en Repositorio**: Toda clave secreta se inyecta por variables de entorno (`.env`).
 2. **Confirmación explícita donde el contrato la exige**: `PATCH /areas/:id/archive` requiere `{ confirmName }` igual al nombre del área y `PATCH /members/:id/deactivate` requiere el nombre completo exacto del miembro. Los `DELETE` de membresías de área, fases y miembros de proyecto no reciben `confirmName` en sus controladores actuales.

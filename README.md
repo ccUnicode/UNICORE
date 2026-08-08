@@ -4,7 +4,7 @@ UNICORE es la plataforma centralizada de **UNICODE** diseñada para gestionar la
 
 ---
 
-## 🚀 Stack Tecnológico
+## Stack Tecnológico
 
 El proyecto está construido bajo una arquitectura de **Monorepo** con npm workspaces:
 
@@ -16,7 +16,7 @@ El proyecto está construido bajo una arquitectura de **Monorepo** con npm works
 
 ---
 
-## 📁 Estructura del Repositorio
+## Estructura del Repositorio
 
 ```text
 UNICORE/
@@ -44,7 +44,7 @@ UNICORE/
 
 ---
 
-## 📋 Requisitos Previos
+## Requisitos Previos
 
 Antes de comenzar, asegúrate de tener instalado:
 
@@ -54,7 +54,7 @@ Antes de comenzar, asegúrate de tener instalado:
 
 ---
 
-## ⚙️ Instalación y Configuración
+## Instalación y Configuración
 
 ### 1. Clonar el repositorio
 ```bash
@@ -84,7 +84,7 @@ AUTH_BOOTSTRAP_SECRET=otro_secreto_independiente_de_al_menos_32_caracteres
 
 ---
 
-## 🏃‍♂️ Ejecución Local
+## Ejecución Local
 
 ### Ejecutar Backend y Frontend en desarrollo
 
@@ -115,7 +115,7 @@ Acceso en el navegador:
 
 ---
 
-## 🛠️ Comandos Principales
+## Comandos Principales
 
 Ejecuta los siguientes comandos desde la raíz del monorepo:
 
@@ -128,17 +128,17 @@ Ejecuta los siguientes comandos desde la raíz del monorepo:
 
 ---
 
-## 📚 Documentación Técnica
+## Documentación Técnica
 
 Para información más detallada del sistema, consulta la carpeta [`docs/`](docs/):
 
-* 📐 [**Arquitectura del Sistema**](docs/arquitectura.md): Diagrama general, capas y seguridad.
-* ⚙️ [**Backend**](docs/backend.md): Módulos NestJS, servicios y guards.
-* 🖥️ [**Frontend**](docs/frontend.md): Estructura Next.js, estados y vistas.
-* 🗄️ [**Base de Datos**](docs/base-de-datos.md): Modelo ER, entidades y migraciones.
-* 🔌 [**Endpoints de API**](docs/endpoints.md): Especificación de contratos REST.
-* 🧪 [**Pruebas (Testing)**](docs/testing.md): Estrategia y ejecución de pruebas.
+* [**Arquitectura del Sistema**](docs/arquitectura.md): Diagrama general, capas y seguridad.
+* [**Backend**](docs/backend.md): Módulos NestJS, servicios y guards.
+* [**Frontend**](docs/frontend.md): Estructura Next.js, estados y vistas.
+* [**Base de Datos**](docs/base-de-datos.md): Modelo ER, entidades y migraciones.
+* [**Endpoints de API**](docs/endpoints.md): Especificación de contratos REST.
+* [**Pruebas (Testing)**](docs/testing.md): Estrategia y ejecución de pruebas.
 * [**Runbook operativo**](docs/runbook.md): Diagnóstico, recuperación y rollback.
-* 🚀 [**Guía de Onboarding**](docs/onboarding.md): Guía paso a paso para nuevos miembros.
-* 📝 [**Deuda Técnica & Roadmap V2**](docs/TECH_DEBT.md): Funcionalidades futuras y refactorizaciones.
-* 📜 [**Guía de Contribución**](CONTRIBUTING.md): Flujo Git, ramas y commits.
+* [**Guía de Onboarding**](docs/onboarding.md): Guía paso a paso para nuevos miembros.
+* [**Deuda Técnica & Roadmap V2**](docs/TECH_DEBT.md): Funcionalidades futuras y refactorizaciones.
+* [**Guía de Contribución**](CONTRIBUTING.md): Flujo Git, ramas y commits.
