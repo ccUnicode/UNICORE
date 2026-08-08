@@ -8,7 +8,7 @@
 
 ## 💡 Contexto
 
-UNICORE requiere centralizar la gestión de miembros, áreas, proyectos y tareas de UNICODE en una plataforma web mantenible y escalable. Se buscaba una arquitectura que permitiese compartir tipos de datos de TypeScript entre cliente y servidor, facilitando la colaboración entre desarrolladores frontend y backend sin duplicar código.
+UNICORE requiere centralizar la gestión de miembros, áreas, proyectos y tareas de UNICODE en una plataforma web mantenible y escalable. Se eligió un monorepo para mantener ambas aplicaciones y su documentación en un único flujo de instalación y revisión. Actualmente frontend y backend declaran sus contratos TypeScript de forma independiente; no existe todavía un paquete de tipos compartidos.
 
 ---
 
@@ -28,10 +28,11 @@ Se acordó estructurar el proyecto como un **Monorepo** con npm workspaces utili
 ## 🚀 Consecuencias
 
 ### Positivas
-* **Tipado de Extremo a Extremo (End-to-End Type Safety)**: Uso de TypeScript estricto en frontend y backend.
+* **Tipado local en ambas aplicaciones**: frontend y backend usan TypeScript y validan sus propios contratos.
 * **Instalación Simplificada**: Una sola instrucción `npm install` instala las dependencias de todo el repositorio.
 * **Separación de Responsabilidades**: Frontend y backend pueden compilarse, ejecutarse y desplegarse de manera independiente.
 
 ### Desafíos
 * Requiere mantener sincronizadas las variables de entorno de ambos proyectos en desarrollo.
 * La configuración de pruebas se separa entre Jest (backend) y Node Test Runner (frontend).
+* Los DTOs del backend y los tipos del frontend se duplican actualmente. Crear un paquete compartido o generar tipos desde OpenAPI queda como mejora pendiente; mientras tanto, todo cambio de contrato debe actualizar y probar ambos lados.

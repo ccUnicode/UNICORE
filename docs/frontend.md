@@ -65,7 +65,7 @@ Dispone de una barra de navegación superior con el perfil del usuario logueado 
 * **Modal de Creación/Edición**: Formulario para registrar o actualizar atributos principales y etiquetas de competencias.
 
 #### B. Gestión de Proyectos (`project-management.tsx`)
-* **Listado y Filtros**: Proyectos organizados por área, estado (*En planificación*, *Activo*, *Pausado*, *Archivado*).
+* **Listado y Filtros**: Proyectos organizados por área, archivado y estado (`planned`, `active`, `on_hold`, `completed`, `cancelled`).
 * **Fases del Proyecto**: Vista para reordenar, agregar o eliminar fases del proyecto.
 * **Conformación de Equipos**: Modal para agregar miembros al equipo filtrando exclusivamente por disponibilidad y habilidades requeridas.
 
@@ -81,10 +81,10 @@ Dispone de una barra de navegación superior con el perfil del usuario logueado 
 
 ## 📡 Cliente de API (`auth-client.ts`)
 
-El frontend utiliza un cliente HTTP personalizado con soporte de autenticación:
-* Incluye automáticamente el token JWT en las cabeceras (`Authorization: Bearer <token>`).
-* Incluye la cabecera `x-confirm-name` para operaciones de eliminación irreversible.
-* Maneja la sesión persistente en `localStorage` o memoria.
+El frontend separa las responsabilidades de sesión y transporte HTTP:
+* `login.tsx` guarda `accessToken` exclusivamente en `window.sessionStorage` bajo la clave `unicore.auth.v1.accessToken`; `dashboard/page.tsx` lo lee y lo elimina al cerrar sesión o recibir una sesión inválida.
+* `auth-client.ts` no persiste tokens. Sus funciones reciben el token como argumento y `authorizedJson` agrega `Authorization: Bearer <token>` y, cuando corresponde, `Content-Type: application/json`.
+* El cliente no agrega `x-confirm-name`. Las operaciones que exigen confirmación envían `{ "confirmName": "..." }` en el body desde el componente que ejecuta la acción (actualmente archivar un área y desactivar un miembro).
 
 ---
 

@@ -61,7 +61,7 @@ Ejemplos:
 
 ## 📋 Requisitos Antes de Abrir un Pull Request
 
-Todo PR debe estructurarse obligatoriamente con las siguientes 5 secciones ([`.github/PULL_REQUEST_TEMPLATE.md`](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/.github/PULL_REQUEST_TEMPLATE.md)):
+Todo PR debe estructurarse obligatoriamente con las siguientes 5 secciones ([`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)):
 
 1. **`Summary`**: Explicación clara de qué completa el PR y cuál es su objetivo.
 2. **`Related Issue / Requirement`**: Enlace a la issue de Linear (ej. `UNI2-32`), GitHub Issue y lista de requerimientos cubiertos.
@@ -83,7 +83,7 @@ Ejemplo de buen uso:
 ```typescript
 /**
  * Calculates member availability taking into account active project memberships.
- * Members marked as 'disabled' or 'unavailable' cannot be assigned to new teams.
+ * Members marked as 'disabled' or 'not_available' cannot be assigned to new teams.
  *
  * @param memberId - Unique identifier of the member.
  * @returns Object with availability flag and reason if restricted.

@@ -1,59 +1,78 @@
 # Registro de Deuda Técnica y Roadmap V2 — UNICORE
 
-Este documento centraliza los ítems de deuda técnica identificados en la versión actual (V1) y las funcionalidades planificadas para la **Versión 2 (V2)** según el documento completo de requerimientos organizacionales.
+Este documento separa compromisos subóptimos del sistema actual (**deuda técnica**) de capacidades todavía no implementadas (**roadmap funcional**). La prioridad del roadmap no convierte una funcionalidad futura en deuda.
 
----
+## Deuda técnica
 
-## 📌 Estado de Cobertura de Requerimientos
+Cada ítem incluye área, impacto, evidencia actual, consecuencias de no resolverla, solución propuesta y revisión sugerida.
 
-* **Versión 1 (Actual)**: Cobertura del **~75%** de los requerimientos totales. Cubre al 100% la base operativa del sistema (Áreas, Miembros, Membresías multi-área, Proyectos, Equipos, Fases, Tareas Kanban, Comentarios, Auditoría y RBAC).
-* **Versión 2 (Pendiente)**: **~25%** restante orientado a métricas avanzadas, automatizaciones e integraciones externas.
+### [TD-001] TypeORM mantiene `synchronize: true`
 
----
+- **Área:** Backend / base de datos (`apps/backend/src/app.module.ts`).
+- **Impacto estimado:** Alto antes de desplegar en producción.
+- **Evidencia actual:** La conexión configura simultáneamente `synchronize: true` y `migrationsRun: true`.
+- **Consecuencias de no resolverla:** TypeORM puede alterar el esquema fuera del historial revisado de migraciones, producir divergencias entre ambientes y elevar el riesgo de pérdida o incompatibilidad de datos.
+- **Solución propuesta:** Usar `synchronize: false` fuera del desarrollo local, crear una migración por cada cambio de esquema y verificar forward/rollback en CI.
+- **Revisión sugerida:** Antes del primer despliegue compartido o productivo; después, revisar en cada cambio de entidad.
 
-## 📋 Funcionalidades Pendientes para V2 (Priorizadas)
+### [TD-002] Contrato REST documentado manualmente
 
-### 🔴 Prioridad 1: Módulo de Participación (FR-48 a FR-51)
-* **Descripción**: Registrar y consultar la participación de los miembros en la comunidad.
-* **Items**:
-  * **FR-48**: Registro automático de participación por contribución a tareas o proyectos.
-  * **FR-49**: Registro manual de asistencia/participación por actividad (con fecha y evento).
-  * **FR-50 / FR-51**: Vistas de consulta y generación de reportes de participación por período y miembro.
-* **Impacto**: Permitirá evaluar la actividad real de los miembros para asignaciones futuras.
+- **Área:** Backend / documentación (`docs/endpoints.md`, controllers y DTOs).
+- **Impacto estimado:** Medio.
+- **Evidencia actual:** El catálogo y la colección Postman deben sincronizarse manualmente con decoradores, DTOs, enums y guards.
+- **Consecuencias de no resolverla:** Cambios de rutas, permisos o campos pueden dejar clientes y ejemplos desactualizados sin fallar la compilación.
+- **Solución propuesta:** Incorporar OpenAPI con `@nestjs/swagger`, generar la especificación en CI y derivar de ella la referencia y pruebas de contrato.
+- **Revisión sugerida:** En cada PR que cambie un controller o DTO; evaluar automatización al iniciar V2.
 
-### 🟡 Prioridad 2: Milestones, Versiones y Progreso Ponderado (FR-45 a FR-47)
-* **Descripción**: Gestión de versiones de proyectos y cálculo de avance ponderado.
-* **Items**:
-  * **FR-46 / FR-47**: Definir entidades de `Version` / `Milestone` y asociar tareas.
-  * **FR-45**: Algoritmo de porcentaje de avance por peso de prioridad (Baja=1, Media=2, Alta=3, Urgente=5).
-* **Impacto**: Mejorará el seguimiento de entregas por release en proyectos de software.
+### [TD-003] Contratos TypeScript duplicados entre aplicaciones
 
-### 🟡 Prioridad 3: Evidencias en Tareas y Plantillas Reutilizables (FR-37, FR-42, FR-53, FR-60)
-* **Descripción**: Estandarización de creación de proyectos y aseguramiento de entregables.
-* **Items**:
-  * **FR-60**: Permitir adjuntar evidencia (link o archivo) en tareas y configurar si es obligatoria para pasar a *Hecho*.
-  * **FR-37 / FR-42 / FR-53**: Administrar plantillas dinámicas de proyectos, fases e issues por área.
-* **Impacto**: Facilita la creación rápida de proyectos recurrentes.
+- **Área:** Monorepo / frontend / backend.
+- **Impacto estimado:** Medio.
+- **Evidencia actual:** No existe un workspace compartido; el frontend declara tipos propios y el backend expone DTOs independientes.
+- **Consecuencias de no resolverla:** Un cambio puede compilar en ambos workspaces y aun así romperse en ejecución por nombres o enums divergentes.
+- **Solución propuesta:** Generar tipos de cliente desde OpenAPI o introducir un paquete compartido que no acople entidades persistentes al frontend.
+- **Revisión sugerida:** Junto con TD-002 o cuando se agregue el siguiente módulo transversal.
 
-### 🟢 Prioridad 4: Integraciones Externas y Webhooks (FR-63 a FR-69)
-* **Descripción**: Conexión con servicios externos (GitHub/GitLab).
-* **Items**:
-  * **FR-64 / FR-65**: Vincular tareas con ramas, commits o Pull Requests externos mediante URL o ID.
-  * **FR-66 / FR-67**: Actualización automática de estado de tareas vía Webhooks (ej. PR creado -> *En revisión*, PR merged -> *Hecho*).
-* **Impacto**: Automatización para equipos de desarrollo (Baja prioridad inicial).
+### [TD-004] Controller de habilidades no registrado
 
----
+- **Área:** Backend (`apps/backend/src/skills/`).
+- **Impacto estimado:** Bajo/medio.
+- **Evidencia actual:** Existen `SkillsController` y `SkillsService`, pero ningún `SkillsModule` está importado por `AppModule`; por ello `/skills` no se expone.
+- **Consecuencias de no resolverla:** El código aparenta ofrecer un catálogo independiente de habilidades, pero consumidores y documentación no pueden usarlo; aumenta la ambigüedad de mantenimiento.
+- **Solución propuesta:** Decidir si el catálogo debe ser público para usuarios autenticados. Si sí, registrar un módulo y definir RBAC/pruebas; si no, retirar el controller no alcanzable y documentar que las habilidades se administran mediante miembros.
+- **Revisión sugerida:** En el próximo cambio del módulo de miembros/habilidades.
 
-## 🛠️ Deuda Técnica de Código e Infraestructura
+## Roadmap funcional V2
 
-### [TD-001] Desactivación de `synchronize: true` en Producción
-* **Área**: Backend / BD (`app.module.ts`)
-* **Impacto Estimado**: Alto para ambiente productivo.
-* **Descripción**: Actualmente `synchronize: true` está habilitado en TypeORM para desarrollo rápido.
-* **Solución Propuesta**: Configurar `synchronize: false` mediante variable de entorno `NODE_ENV=production` y forzar la ejecución exclusiva de archivos de migración (`migrationsRun: true`).
+Los siguientes ítems son requisitos futuros, no defectos ni compromisos subóptimos de V1.
 
-### [TD-002] Migración a OpenAPI / Swagger
-* **Área**: Backend (`main.ts`)
-* **Impacto Estimado**: Medio.
-* **Descripción**: Los endpoints están documentados manualmente en `docs/endpoints.md`.
-* **Solución Propuesta**: Instalar `@nestjs/swagger` para generar automáticamente la especificación OpenAPI en `/api/docs`.
+### Prioridad 1 — Participación (FR-48 a FR-51)
+
+- Registrar automáticamente participación por contribución a tareas o proyectos.
+- Registrar asistencia o participación manual por actividad, fecha y evento.
+- Consultar y generar reportes por período y miembro.
+- **Valor esperado:** disponer de evidencia de actividad para seguimiento y asignaciones.
+
+### Prioridad 2 — Milestones, versiones y progreso ponderado (FR-45 a FR-47)
+
+- Definir entidades `Version` / `Milestone` y asociar tareas.
+- Calcular avance ponderado por prioridad (`low=1`, `medium=2`, `high=3`, `urgent=5`).
+- **Valor esperado:** seguimiento de entregas y releases con una medida de avance consistente.
+
+### Prioridad 3 — Evidencias y plantillas (FR-37, FR-42, FR-53, FR-60)
+
+- Adjuntar evidencia por enlace o archivo y configurar si es obligatoria antes de pasar una tarea a `done`.
+- Administrar plantillas reutilizables de proyectos, fases e issues por área.
+- **Valor esperado:** estandarizar entregables y acelerar proyectos recurrentes.
+
+### Prioridad 4 — Integraciones y webhooks (FR-63 a FR-69)
+
+- Vincular tareas con ramas, commits o pull requests de GitHub/GitLab.
+- Actualizar estados mediante webhooks, por ejemplo PR abierto → `in_review` y PR fusionado → `done`.
+- **Valor esperado:** reducir actualizaciones manuales para equipos de software.
+
+## Mantenimiento
+
+- Toda nueva deuda debe recibir un identificador `TD-NNN` y completar los seis campos de la plantilla.
+- Una funcionalidad pendiente permanece en Roadmap hasta que una implementación parcial genere un compromiso técnico concreto.
+- Al resolver un ítem, registrar el PR/ADR correspondiente y moverlo a un historial de deuda resuelta en este mismo documento.

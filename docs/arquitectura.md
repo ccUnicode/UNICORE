@@ -38,7 +38,7 @@ graph TD
 
 ### 1. Capa de Presentación (`apps/frontend`)
 * **Next.js 16 (App Router)**: Renderizado dinámico del lado del cliente/servidor.
-* **Cliente de API (`auth-client.ts`)**: Encapsula las llamadas HTTP al backend, gestiona tokens JWT en `localStorage` / headers y maneja el refresco de sesión y errores HTTP.
+* **Cliente de API (`auth-client.ts`)**: Encapsula las llamadas HTTP, recibe el token como argumento, agrega el header `Authorization` y normaliza errores HTTP. La pantalla de login y el dashboard administran la sesión en `sessionStorage`; no existe flujo de refresh token.
 * **Vistas Modulares (`/dashboard`)**:
   * **Personas**: Gestión de miembros, habilidades, áreas y membresías multi-área.
   * **Proyectos**: Gestión de proyectos, fases y conformación de equipos.
@@ -52,8 +52,8 @@ graph TD
   * Hasheo seguro de contraseñas mediante `scrypt`.
   * Servicio de protección anti-fuerza bruta (`LoginRateLimitService`) que limita intentos fallidos por IP y por cuenta.
 * **Sistema de Roles y Seguridad (RBAC)**:
-  * **Roles por Área**: `Presidencia` (acceso global), `Directiva de Área` (administra su área y sus proyectos) y `Miembro` (opera en sus proyectos asignados).
-  * **Roles por Proyecto**: `Representante`, `Subrepresentante` e `Integrante`.
+  * **Roles por Área**: `presidencia` (acceso global), `directiva_de_area` (alcance de su área) y `miembro` (alcance de sus proyectos asignados).
+  * **Roles por Proyecto**: `representative`, `subrepresentative` y `member`.
   * **Guards de NestJS**: `AuthGuard` verifica el token JWT y `RolesGuard` valida los permisos por área/proyecto.
 
 ### 3. Capa de Persistencia (`apps/backend/src/migrations`, TypeORM, PostgreSQL)
@@ -74,12 +74,12 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     Usuario->>Frontend: Ingresa Código UNI y Contraseña
-    Frontend->>Backend: POST /auth/login { uniCode, password }
+    Frontend->>Backend: POST /auth/login { studentCode, password }
     Backend->>Backend: Valida Rate Limiting (IP/Account)
-    Backend->>DB: Consulta Member por uniCode
+    Backend->>DB: Consulta Member UNI por studentCode
     Backend->>Backend: Verifica hash scrypt
-    Backend-->>Frontend: Retorna { accessToken, member, roles }
-    Frontend->>Frontend: Guarda token en localStorage
+    Backend-->>Frontend: Retorna { accessToken, tokenType, member }
+    Frontend->>Frontend: Guarda accessToken en sessionStorage
     Frontend->>Backend: GET /auth/me (Bearer Token)
     Backend-->>Frontend: Retorna datos de perfil y permisos
 ```
@@ -96,11 +96,11 @@ sequenceDiagram
     participant AuditService
     participant DB
 
-    Directiva->>Frontend: Cambia estado de proyecto a 'Archivado'
+    Directiva->>Frontend: Solicita archivar un proyecto
     Frontend->>Backend: PATCH /projects/:id/archive
     Backend->>Backend: RolesGuard verifica permisos de Directiva
-    Backend->>DB: Actualiza status = 'archived'
-    Backend->>AuditService: logEvent({ action, targetEntity, userId })
+    Backend->>DB: Actualiza isArchived = true
+    Backend->>AuditService: record(actor, { action, entityType, entityId, areaId })
     AuditService->>DB: INSERT INTO audit_events (...)
     Backend-->>Frontend: Retorna confirmación de archivado
 ```
@@ -110,5 +110,5 @@ sequenceDiagram
 ## 🔒 Consideraciones de Seguridad
 
 1. **Sin Secretos en Repositorio**: Toda clave secreta se inyecta por variables de entorno (`.env`).
-2. **Confirmación Reforzada de Eliminación**: Para operaciones irreversibles en backend (`DELETE`), se requiere enviar el campo `confirmName` en el body o query matching el nombre exacto de la entidad.
+2. **Confirmación explícita donde el contrato la exige**: `PATCH /areas/:id/archive` requiere `{ confirmName }` igual al nombre del área y `PATCH /members/:id/deactivate` requiere el nombre completo exacto del miembro. Los `DELETE` de membresías de área, fases y miembros de proyecto no reciben `confirmName` en sus controladores actuales.
 3. **Control de Intentos de Inicio de Sesión**: Rate limiter configurable por ventana de tiempo (60s) limitando intentos concurrentes e IP brutes.

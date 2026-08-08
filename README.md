@@ -79,6 +79,7 @@ PORT=3001
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/unicore
 DATABASE_SSL=false
 AUTH_JWT_SECRET=tu_secreto_super_seguro_de_al_menos_32_caracteres
+AUTH_BOOTSTRAP_SECRET=otro_secreto_independiente_de_al_menos_32_caracteres
 ```
 
 ---
@@ -129,14 +130,14 @@ Ejecuta los siguientes comandos desde la raíz del monorepo:
 
 ## 📚 Documentación Técnica
 
-Para información más detallada del sistema, consulta la carpeta [`docs/`](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/):
+Para información más detallada del sistema, consulta la carpeta [`docs/`](docs/):
 
-* 📐 [**Arquitectura del Sistema**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/arquitectura.md): Diagrama general, capas y seguridad.
-* ⚙️ [**Backend**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/backend.md): Módulos NestJS, servicios y guards.
-* 🖥️ [**Frontend**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/frontend.md): Estructura Next.js, estados y vistas.
-* 🗄️ [**Base de Datos**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/base-de-datos.md): Modelo ER, entidades y migraciones.
-* 🔌 [**Endpoints de API**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/endpoints.md): Especificación de contratos REST.
-* 🧪 [**Pruebas (Testing)**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/testing.md): Estrategia y ejecución de pruebas.
-* 🚀 [**Guía de Onboarding**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/onboarding.md): Guía paso a paso para nuevos miembros.
-* 📝 [**Deuda Técnica & Roadmap V2**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/docs/TECH_DEBT.md): Funcionalidades futuras y refactorizaciones.
-* 📜 [**Guía de Contribución**](file:///Users/yanpoll26/Desktop/Development/Repositorios/UNICORE/CONTRIBUTING.md): Flujo Git, ramas y commits.
+* 📐 [**Arquitectura del Sistema**](docs/arquitectura.md): Diagrama general, capas y seguridad.
+* ⚙️ [**Backend**](docs/backend.md): Módulos NestJS, servicios y guards.
+* 🖥️ [**Frontend**](docs/frontend.md): Estructura Next.js, estados y vistas.
+* 🗄️ [**Base de Datos**](docs/base-de-datos.md): Modelo ER, entidades y migraciones.
+* 🔌 [**Endpoints de API**](docs/endpoints.md): Especificación de contratos REST.
+* 🧪 [**Pruebas (Testing)**](docs/testing.md): Estrategia y ejecución de pruebas.
+* 🚀 [**Guía de Onboarding**](docs/onboarding.md): Guía paso a paso para nuevos miembros.
+* 📝 [**Deuda Técnica & Roadmap V2**](docs/TECH_DEBT.md): Funcionalidades futuras y refactorizaciones.
+* 📜 [**Guía de Contribución**](CONTRIBUTING.md): Flujo Git, ramas y commits.

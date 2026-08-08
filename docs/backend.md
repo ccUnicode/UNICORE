@@ -10,7 +10,7 @@ El backend de **UNICORE** es una API REST construida con NestJS 11 y TypeORM sob
 * **Lenguaje**: TypeScript 5.7
 * **ORM**: TypeORM 0.3
 * **Base de datos**: PostgreSQL 16
-* **Autenticación**: JWT (`@nestjs/jwt`) + `scrypt` (Node.js `crypto` nativo)
+* **Autenticación**: JWT HS256 implementado por `AuthTokenService` con `crypto.createHmac` + `scrypt` para contraseñas; el proyecto no depende de `@nestjs/jwt`.
 * **Validaciones**: `class-validator` y `class-transformer`
 
 ---
@@ -73,26 +73,26 @@ src/
 ### 1. Módulo Auth (`auth/`)
 Gestiona el acceso al sistema.
 * **`POST /auth/bootstrap`**: Inicializa la cuenta admin global cuando el sistema está recién instalado.
-* **`POST /auth/login`**: Valida credenciales (`uniCode` y `password`), aplicando Rate Limiting (máximo 5 intentos por cuenta y 20 por IP por minuto). Retorna el token JWT.
+* **`POST /auth/login`**: Valida credenciales (`studentCode` y `password`), aplica rate limiting por cuenta e IP y retorna el token JWT.
 * **`GET /auth/me`**: Retorna el perfil y roles activos del usuario autenticado.
 * **`PUT /auth/members/:memberId/password`**: Permite cambiar la contraseña de un miembro.
 
 ### 2. Módulo Area (`area/` y `area-memberships/`)
 Administra la estructura organizativa de UNICODE.
 * Permite que un miembro pertenezca a más de un área simultáneamente (`area_memberships`).
-* Define roles por área: `presidencia`, `directiva` y `miembro`.
+* Define roles por área: `presidencia`, `directiva_de_area` y `miembro`.
 
 ### 3. Módulo Members (`members/` y `skills/`)
 Gestiona el catálogo de personas.
 * Registro obligatorio con Código UNI, Nombres, Apellidos, Carrera, Fecha de Nacimiento y Competencias (`skills`).
 * Estados de **Actividad**: `active` / `inactive`.
-* Estados de **Disponibilidad**: `available`, `unavailable`, `disabled` (Inhabilitado bloquea acceso manteniendo trazabilidad).
+* Estados de **Disponibilidad**: `available`, `not_available`, `disabled` (Inhabilitado bloquea acceso manteniendo trazabilidad).
 
 ### 4. Módulo Projects (`projects/`)
 Administra los proyectos de la organización.
 * Cada proyecto pertenece a una sola área.
-* Soporta **Fases del Proyecto** (Fases predeterminadas: *Definición de requerimientos*, *Modelado*, *Implementación*, *Despliegue*).
-* Soporta **Equipos por Proyecto** con roles: `representante`, `subrepresentante`, `integrante`.
+* Soporta **Fases del Proyecto** (fases predeterminadas: `Planning`, `Execution`, `Review`, `Launch`).
+* Soporta **Equipos por Proyecto** con roles: `representative`, `subrepresentative`, `member`.
 
 ### 5. Módulo Tasks (`tasks/`)
 Administra el trabajo operativo mediante flujo de estados Kanban: `todo`, `in_progress`, `in_review`, `done`.
@@ -109,7 +109,9 @@ Registra todas las acciones clave del sistema (`audit_events`) especificando fec
 
 NestJS utiliza dos guards en cascada:
 1. **`AuthGuard`**: Extrae el token JWT del encabezado `Authorization: Bearer <token>` y adjunta el `user` a la petición.
-2. **`RolesGuard`**: Evalúa si el usuario autenticado tiene el rol requerido para la acción (ejemplo: `@Roles('presidencia', 'directiva')`).
+2. **`RolesGuard`**: Evalúa si el usuario autenticado tiene el rol requerido y, cuando se configura `@AccessScope`, limita el acceso por área o proyecto (ejemplo: `@Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)`).
+
+> **Nota sobre habilidades:** existen `SkillsController` y `SkillsService` en `src/skills/`, pero ningún módulo registrado en `AppModule` declara ese controller. Por ello `/skills` no forma parte de la API expuesta en el estado actual.
 
 ---
 

@@ -48,6 +48,7 @@ PORT=3001
 DATABASE_URL=postgresql://postgres:tu_password_local@localhost:5432/unicore
 DATABASE_SSL=false
 AUTH_JWT_SECRET=super_secret_jwt_key_for_development_mode_only
+AUTH_BOOTSTRAP_SECRET=bootstrap_secret_for_development_32_chars_min
 ```
 
 ### 4. Iniciar los Servidores en Desarrollo
@@ -72,16 +73,25 @@ npm run dev --workspace=apps/frontend
 La primera vez que levantes el sistema, la base de datos estará vacía. Para crear el primer usuario administrador con rol de **Presidencia**:
 
 1. Abre tu navegador en `http://localhost:3000/login`.
-2. O envía una petición HTTP `POST` a `http://localhost:3001/auth/bootstrap` con el body:
+2. Asegúrate de que `AUTH_BOOTSTRAP_SECRET` tenga al menos 32 caracteres y envía una petición HTTP `POST` a `http://localhost:3001/auth/bootstrap` con el body. En una base completamente vacía se debe enviar un objeto `member` que cumpla `CreateMemberDto`:
    ```json
    {
-     "uniCode": "20260000",
-     "names": "Admin",
-     "surnames": "Presidencia",
-     "password": "PasswordSeguro123!"
+     "bootstrapSecret": "bootstrap_secret_for_development_32_chars_min",
+     "password": "PasswordSeguro123!",
+     "member": {
+       "institution": "UNI",
+       "studentCode": "20260000",
+       "firstNames": "Admin",
+       "lastNames": "Presidencia",
+       "major": "Ingeniería de Sistemas",
+       "birthDate": "2000-01-01",
+       "role": "presidencia",
+       "skills": ["gestión"]
+     }
    }
    ```
-3. Inicia sesión en la interfaz web con el Código UNI y la contraseña creados.
+   Si ya existe un miembro activo de Presidencia sin contraseña, reemplaza `member` por `"memberId": 1`.
+3. Inicia sesión en la interfaz web con `studentCode` y la contraseña creados.
 
 ---
 
