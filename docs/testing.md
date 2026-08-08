@@ -91,11 +91,11 @@ npm run test -- --runInBand src/auth/auth.service.spec.ts
 
 ### Pruebas E2E
 
-`npm run test:e2e` usa `apps/backend/test/jest-e2e.json` y ejecuta los archivos `*.e2e-spec.ts`, excepto la suite específica de migraciones. Estas pruebas levantan la aplicación NestJS dentro del proceso de Jest y deben mantener aislados sus datos.
+`npm run test:e2e` usa `apps/backend/test/jest-e2e.json` y ejecuta todos los archivos `*.e2e-spec.ts`, incluida la suite de migraciones. Por ello requiere `TEST_DATABASE_URL`. Estas pruebas levantan la aplicación NestJS dentro del proceso de Jest y deben mantener aislados sus datos.
 
 ### Pruebas de migraciones
 
-`npm run test:migrations` usa `apps/backend/test/jest-migrations.json` y ejecuta `task-collaboration-migration.e2e-spec.ts` contra `TEST_DATABASE_URL`.
+`npm run test:migrations` usa `apps/backend/test/jest-migrations.json` para ejecutar únicamente `task-collaboration-migration.e2e-spec.ts` contra `TEST_DATABASE_URL`. Este comando permite validar las migraciones de forma focalizada, aunque esa suite también forme parte de `test:e2e`.
 
 La suite debe comprobar tanto el avance como la reversión del esquema que cubre. Cuando se agregue una migración nueva, debe añadirse o extenderse una prueba que parta de un estado representativo del esquema anterior.
 
