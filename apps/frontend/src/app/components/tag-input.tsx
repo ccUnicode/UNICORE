@@ -1,6 +1,6 @@
 "use client";
 
-import { KeyboardEvent, useMemo, useState } from "react";
+import { KeyboardEvent, useMemo, useRef, useState } from "react";
 import {
   canonicalizeTags,
   cleanTag,
@@ -31,6 +31,7 @@ export function TagInput({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [focused, setFocused] = useState(false);
   const [error, setError] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
   const fieldId = normalizeTag(label).replace(/\s+/g, "-");
   const labelId = `${fieldId}-label`;
   const errorId = `${fieldId}-error`;
@@ -43,6 +44,14 @@ export function TagInput({
       ),
     [draft, editingIndex, suggestions, value],
   );
+  const setValidationError = (message: string) => {
+    inputRef.current?.setCustomValidity(message);
+    setError(message);
+  };
+  const clearValidationError = () => {
+    inputRef.current?.setCustomValidity("");
+    setError("");
+  };
 
   const commitMany = (candidates: string[]) => {
     const cleanedCandidates = candidates.map(cleanTag).filter(Boolean);
@@ -52,23 +61,23 @@ export function TagInput({
           .find(Boolean)
       : validateTag("", maxLength);
     if (candidateError) {
-      setError(candidateError);
+      setValidationError(candidateError);
       return;
     }
     const base = value.filter((_, index) => index !== editingIndex);
     const next = canonicalizeTags([...base, ...cleanedCandidates], suggestions);
     if (next.length === base.length) {
-      setError("Esta etiqueta ya fue agregada.");
+      setValidationError("Esta etiqueta ya fue agregada.");
       return;
     }
     if (maxTags !== undefined && next.length > maxTags) {
-      setError(`Puedes agregar hasta ${maxTags} etiquetas.`);
+      setValidationError(`Puedes agregar hasta ${maxTags} etiquetas.`);
       return;
     }
     onChange(next);
     setDraft("");
     setEditingIndex(null);
-    setError("");
+    clearValidationError();
   };
   const commit = (candidate: string) => commitMany([candidate]);
 
@@ -80,7 +89,7 @@ export function TagInput({
     if (event.key === "Escape" && editingIndex !== null) {
       setDraft("");
       setEditingIndex(null);
-      setError("");
+      clearValidationError();
     }
   };
 
@@ -118,7 +127,7 @@ export function TagInput({
                 onClick={() => {
                   setDraft(tag);
                   setEditingIndex(index);
-                  setError("");
+                  clearValidationError();
                 }}
               >
                 {tag}
@@ -142,6 +151,7 @@ export function TagInput({
             </span>
           ))}
           <input
+            ref={inputRef}
             value={draft}
             aria-labelledby={labelId}
             aria-invalid={Boolean(error)}
@@ -150,7 +160,7 @@ export function TagInput({
             className="min-w-40 flex-1 bg-transparent py-1 text-sm text-white outline-none placeholder:text-white/30"
             onChange={(event) => {
               const nextDraft = event.target.value;
-              setError("");
+              clearValidationError();
               if (nextDraft.includes(",")) {
                 const entries = nextDraft.split(",");
                 commitMany(entries.slice(0, -1));
