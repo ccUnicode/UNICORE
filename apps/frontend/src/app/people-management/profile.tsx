@@ -127,7 +127,7 @@ export function MemberProfileManagementView({
               Editar perfil
             </button>
           )}
-          {canDeactivate && member.activityStatus !== "inactive" && (
+          {canDeactivate && member.availabilityStatus !== "disabled" && (
             <button
               type="button"
               className={`${dangerButton} mt-4 w-full bg-transparent py-3`}

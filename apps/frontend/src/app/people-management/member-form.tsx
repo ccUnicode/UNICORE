@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
 import type { ManagedArea, ManagedMember } from "../people-management.types";
-import { Feedback, fieldClass, labelClass, messageFrom, Modal, primaryButton, secondaryButton } from "./shared";
+import { Feedback, fieldClass, labelClass, messageFrom, Modal, primaryButton, secondaryButton, statusLabels } from "./shared";
 
 type MemberFormState = {
   institution: string;
@@ -15,7 +15,6 @@ type MemberFormState = {
   role: string;
   areaId: string;
   skills: string;
-  activityStatus: string;
   availabilityStatus: string;
   cycle: string;
 };
@@ -43,7 +42,6 @@ export function MemberForm({
     role: member?.role ?? "miembro",
     areaId: member?.areaId ? String(member.areaId) : "",
     skills: member?.skills?.map((skill) => skill.name).join(", ") ?? "",
-    activityStatus: member?.activityStatus ?? "active",
     availabilityStatus: member?.availabilityStatus ?? "available",
     cycle: member?.cycle ? String(member.cycle) : "",
   };
@@ -70,7 +68,6 @@ export function MemberForm({
         major: form.major.trim(),
         birthDate: form.birthDate || undefined,
         skills,
-        activityStatus: form.activityStatus,
         availabilityStatus: form.availabilityStatus,
         cycle: form.cycle ? Number(form.cycle) : member ? null : undefined,
         ...(!member
@@ -184,14 +181,10 @@ export function MemberForm({
           />
           <label className={labelClass}>
             Actividad
-            <select
-              value={form.activityStatus}
-              onChange={(event) => set("activityStatus", event.target.value)}
-              className={fieldClass}
-            >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-            </select>
+            <output className={`${fieldClass} cursor-not-allowed opacity-70`}>
+              {statusLabels[member?.activityStatus ?? "inactive"] ?? "Inactivo"}
+              {" · Calculado desde tareas activas"}
+            </output>
           </label>
           <label className={labelClass}>
             Disponibilidad

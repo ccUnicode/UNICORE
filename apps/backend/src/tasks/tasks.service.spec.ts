@@ -9,6 +9,7 @@ import { RequestAccessActor } from '../common/interfaces/request-access-actor.in
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
+import { MemberActivityService } from '../members/member-activity.service';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
 import { Project } from '../projects/entities/project.entity';
@@ -251,6 +252,13 @@ describe('TasksService', () => {
           useValue: {
             record: jest.fn(),
             findAll: jest.fn(),
+          },
+        },
+        {
+          provide: MemberActivityService,
+          useValue: {
+            refreshMembers: jest.fn(),
+            refreshProjectMembers: jest.fn(),
           },
         },
       ],

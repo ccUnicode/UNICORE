@@ -86,7 +86,7 @@ describe('AuthService', () => {
       role: AreaRole.PRESIDENCIA,
       institution: 'UNI',
       studentCode: '20260004',
-      activityStatus: MemberActivityStatus.ACTIVE,
+      activityStatus: MemberActivityStatus.INACTIVE,
       sessionVersion: 0,
     } as Member;
 
@@ -150,14 +150,6 @@ describe('AuthService', () => {
       },
     },
     {
-      label: 'inactive',
-      member: {
-        institution: 'UNI',
-        studentCode: '20260004',
-        activityStatus: MemberActivityStatus.INACTIVE,
-      },
-    },
-    {
       label: 'without a student code',
       member: {
         institution: 'UNI',
@@ -187,13 +179,13 @@ describe('AuthService', () => {
     },
   );
 
-  it('returns a token for valid active credentials without exposing the hash', async () => {
+  it('returns a token for valid inactive credentials without exposing the hash', async () => {
     const member = {
       id: 7,
       institution: 'UNI',
       studentCode: '20260007',
       passwordHash: 'stored-hash',
-      activityStatus: MemberActivityStatus.ACTIVE,
+      activityStatus: MemberActivityStatus.INACTIVE,
       sessionVersion: 5,
     } as Member;
 
