@@ -6,7 +6,7 @@ Fuente de verdad revisada: controllers, DTOs, enums y guards de `apps/backend/sr
 
 - `200`: consulta o actualización exitosa; `201`: creación exitosa; los métodos `void` pueden responder sin cuerpo.
 - `400`: parámetros enteros inválidos o body/query que no cumple el DTO. La `ValidationPipe` transforma valores y elimina propiedades no declaradas.
-- `401`: token ausente, inválido, expirado o revocado; cuenta inactiva/deshabilitada; credenciales o secreto de bootstrap inválidos.
+- `401`: token ausente, inválido, expirado o revocado; cuenta deshabilitada; credenciales o secreto de bootstrap inválidos.
 - `403`: rol o alcance de área/proyecto insuficiente.
 - `404`: recurso relacionado inexistente.
 - `409`: unicidad, estado o regla de negocio en conflicto.
@@ -42,10 +42,10 @@ Fuente de verdad revisada: controllers, DTOs, enums y guards de `apps/backend/sr
 
 | Método y ruta | Auth / roles | Entrada | Respuesta | Errores y reglas de negocio |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST /members` | `presidencia`, `directiva_de_area` | `{ institution?, studentCode?, firstNames, lastNames, major, birthDate, role?, areaId?, skills: string[], activityStatus?, availabilityStatus?, cycle? }` | `MemberResponse` (`201`) | Habilidades se normalizan a minúsculas; valida unicidad institución/código y asignación de rol/área. Directiva solo puede crear el rol `miembro` dentro de su área autenticada. |
+| `POST /members` | `presidencia`, `directiva_de_area` | `{ institution?, studentCode?, firstNames, lastNames, major, birthDate, role?, areaId?, skills: string[], availabilityStatus?, cycle? }` | `MemberResponse` (`201`) | Habilidades se normalizan a minúsculas; valida unicidad institución/código y asignación de rol/área. La actividad se calcula a partir de las tareas del miembro; Directiva solo puede crear el rol `miembro` dentro de su área autenticada. |
 | `GET /members` | `presidencia`, `directiva_de_area` | Query `activityStatus?`, `availabilityStatus?`, `areaId?`, `cycle?`, `skills?` repetible | `MemberResponse[]` | Directiva recibe solo miembros accesibles en su área. |
 | `PATCH /members/:id` | `presidencia` | Body parcial de datos del miembro; `skills` son nombres, no IDs | `MemberResponse` | No modifica el rol directamente; la membresía controla roles. |
-| `PATCH /members/:id/deactivate` | `presidencia`, `directiva_de_area` | `{ confirmName }` | `MemberResponse` con `activityStatus: "inactive"` | El texto debe ser exactamente `firstNames + " " + lastNames`; Directiva queda limitada a su área. |
+| `PATCH /members/:id/deactivate` | `presidencia`, `directiva_de_area` | `{ confirmName }` | `MemberResponse` con `availabilityStatus: "disabled"` | El texto debe ser exactamente `firstNames + " " + lastNames`; Directiva queda limitada a su área y la actividad calculada se conserva. |
 
 ### Habilidades no expuestas
 

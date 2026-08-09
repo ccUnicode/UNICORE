@@ -17,6 +17,8 @@
     "src/app/project-experience.test.ts",
     "src/app/people-management-utils.ts",
     "src/app/people-management-utils.test.ts",
+    "src/app/dashboard/dashboard-route.ts",
+    "src/app/dashboard/dashboard-route.test.ts",
     "src/app/task-collaboration.ts",
     "src/app/task-collaboration.test.ts",
     "src/app/task-management.tsx",
