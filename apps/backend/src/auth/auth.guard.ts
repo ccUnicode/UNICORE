@@ -58,22 +58,38 @@ export class AuthGuard implements CanActivate {
 
     const isDisabled =
       member.availabilityStatus === MemberAvailabilityStatus.DISABLED;
+    const disabledSnapshot = member.disabledAccessSnapshot;
+    if (isDisabled && (!member.disabledAt || !disabledSnapshot)) {
+      throw new UnauthorizedException(
+        'Disabled member access snapshot is unavailable',
+      );
+    }
     if (isDisabled && (request.method ?? 'GET') !== 'GET') {
       throw new ForbiddenException(
         'DISABLED_READ_ONLY: Disabled members cannot modify resources',
       );
     }
 
-    if (member.role === AreaRole.DIRECTIVA_DE_AREA && !member.areaId) {
+    const effectiveRole = isDisabled
+      ? (disabledSnapshot as NonNullable<typeof disabledSnapshot>).role
+      : member.role;
+    const effectiveAreaId = isDisabled
+      ? (disabledSnapshot as NonNullable<typeof disabledSnapshot>).areaId
+      : member.areaId;
+    const effectiveProjectIds = isDisabled
+      ? (disabledSnapshot as NonNullable<typeof disabledSnapshot>).projectIds
+      : (member.projectMemberships ?? []).map(({ projectId }) => projectId);
+
+    if (effectiveRole === AreaRole.DIRECTIVA_DE_AREA && !effectiveAreaId) {
       throw new UnauthorizedException(
         'Authenticated member has no assigned area',
       );
     }
 
     request.accessActor = {
-      role: member.role,
+      role: effectiveRole,
       memberId: String(member.id),
-      areaId: member.areaId ? String(member.areaId) : undefined,
+      areaId: effectiveAreaId ? String(effectiveAreaId) : undefined,
       member:
         member.firstNames && member.lastNames
           ? {
@@ -82,15 +98,13 @@ export class AuthGuard implements CanActivate {
             }
           : undefined,
       projectIds:
-        member.role === AreaRole.MIEMBRO
-          ? (member.projectMemberships ?? []).map(({ projectId }) =>
-              String(projectId),
-            )
+        effectiveRole === AreaRole.MIEMBRO
+          ? effectiveProjectIds.map((projectId) => String(projectId))
           : undefined,
       ...(isDisabled && {
         status: member.availabilityStatus,
         readOnly: true,
-        snapshotAt: member.disabledAt ?? undefined,
+        snapshotAt: member.disabledAt as Date,
       }),
     };
     request.authenticatedMember = member;

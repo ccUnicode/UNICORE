@@ -16,6 +16,12 @@ import { Skill } from '../skills/skill.entity';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 
+export interface DisabledAccessSnapshot {
+  role: AreaRole;
+  areaId: number | null;
+  projectIds: number[];
+}
+
 @Entity({ name: 'members' })
 @Unique(['institution', 'studentCode'])
 export class Member {
@@ -73,6 +79,9 @@ export class Member {
 
   @Column({ name: 'disabled_at', type: 'timestamptz', nullable: true })
   disabledAt?: Date | null;
+
+  @Column({ name: 'disabled_access_snapshot', type: 'jsonb', nullable: true })
+  disabledAccessSnapshot?: DisabledAccessSnapshot | null;
 
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()

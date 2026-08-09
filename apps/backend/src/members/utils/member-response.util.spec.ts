@@ -59,6 +59,7 @@ describe('toMemberResponse', () => {
 
     expect(response).not.toHaveProperty('activityStatus');
     expect(response).not.toHaveProperty('availabilityStatus');
+    expect(response).not.toHaveProperty('disabledAccessSnapshot');
     expect(response).toMatchObject({
       id: member.id,
       firstNames: member.firstNames,

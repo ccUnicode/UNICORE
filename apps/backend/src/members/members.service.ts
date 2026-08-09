@@ -26,7 +26,7 @@ import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
-import { Member } from './member.entity';
+import { DisabledAccessSnapshot, Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
 import { AuditService } from '../audit/audit.service';
 
@@ -72,6 +72,17 @@ export class MembersService {
       entityManager.getRepository(AreaMembership);
 
     const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
+    const disabledAt =
+      resolvedAvailabilityStatus === MemberAvailabilityStatus.DISABLED
+        ? new Date()
+        : null;
+    const disabledAccessSnapshot = disabledAt
+      ? this.buildDisabledAccessSnapshot(
+          createMemberDto.role ?? AreaRole.MIEMBRO,
+          areaId ?? null,
+          [],
+        )
+      : null;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateActiveAreaExists(areaId, areasRepository);
@@ -84,6 +95,7 @@ export class MembersService {
       ...(resolvedAvailabilityStatus !== undefined && {
         availabilityStatus: resolvedAvailabilityStatus,
       }),
+      ...(disabledAt && { disabledAt, disabledAccessSnapshot }),
       skills: resolvedSkills,
     } as DeepPartial<Member>);
 
@@ -164,7 +176,7 @@ export class MembersService {
 
     const member = await membersRepository.findOne({
       where: { id },
-      relations: ['memberships'],
+      relations: ['memberships', 'projectMemberships'],
     });
 
     if (!member) {
@@ -181,8 +193,18 @@ export class MembersService {
     }
     if (resolvedAvailabilityStatus !== undefined) {
       member.availabilityStatus = resolvedAvailabilityStatus;
-      if (resolvedAvailabilityStatus !== MemberAvailabilityStatus.DISABLED) {
+      if (resolvedAvailabilityStatus === MemberAvailabilityStatus.DISABLED) {
+        if (!member.disabledAt || !member.disabledAccessSnapshot) {
+          member.disabledAt = new Date();
+          member.disabledAccessSnapshot = this.buildDisabledAccessSnapshot(
+            member.role,
+            areaId !== undefined ? areaId : member.areaId,
+            (member.projectMemberships ?? []).map(({ projectId }) => projectId),
+          );
+        }
+      } else {
         member.disabledAt = null;
+        member.disabledAccessSnapshot = null;
       }
     }
     if (cycle !== undefined) {
@@ -277,7 +299,7 @@ export class MembersService {
   ): Promise<Member> {
     const member = await this.membersRepository.findOne({
       where: { id },
-      relations: ['memberships'],
+      relations: ['memberships', 'projectMemberships'],
     });
 
     if (!member) {
@@ -296,6 +318,11 @@ export class MembersService {
     member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
     member.disabledAt = new Date();
+    member.disabledAccessSnapshot = this.buildDisabledAccessSnapshot(
+      member.role,
+      member.areaId,
+      (member.projectMemberships ?? []).map(({ projectId }) => projectId),
+    );
 
     const savedMember = await this.membersRepository.save(member);
 
@@ -311,6 +338,18 @@ export class MembersService {
     });
 
     return savedMember;
+  }
+
+  private buildDisabledAccessSnapshot(
+    role: AreaRole,
+    areaId: number | null,
+    projectIds: number[],
+  ): DisabledAccessSnapshot {
+    return {
+      role,
+      areaId,
+      projectIds: [...new Set(projectIds)].sort((left, right) => left - right),
+    };
   }
 
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
