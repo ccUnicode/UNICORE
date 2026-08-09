@@ -15,6 +15,7 @@ import { DeriveMemberActivityFromTasks1787788800004 } from './migrations/1787788
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AuditModule } from './audit/audit.module';
+import { SkillsModule } from './skills/skills.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { AuditModule } from './audit/audit.module';
     AuthModule,
     TasksModule,
     AuditModule,
+    SkillsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

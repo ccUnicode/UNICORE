@@ -6,6 +6,7 @@ import {
   getMemberProjectLabelNames,
   getPortfolioLabelNames,
 } from "./project-experience";
+import { TagInput } from "./components/tag-input";
 
 type Area = {
   id: number;
@@ -98,7 +99,7 @@ type ProjectFormValues = {
   startDate: string;
   endDate: string;
   areaId: string;
-  labels: string;
+  labels: string[];
   status: ProjectStatus;
 };
 
@@ -141,7 +142,7 @@ const EMPTY_PROJECT_FORM: ProjectFormValues = {
   startDate: "",
   endDate: "",
   areaId: "",
-  labels: "",
+  labels: [],
   status: "planned",
 };
 
@@ -160,18 +161,6 @@ function memberAreaIds(member: Member): number[] {
     if (typeof membership.areaId === "number") ids.add(membership.areaId);
   });
   return [...ids];
-}
-
-function parseLabels(labels: string): string[] {
-  return [
-    ...new Map(
-      labels
-        .split(",")
-        .map((label) => label.trim())
-        .filter(Boolean)
-        .map((label) => [normalize(label), label]),
-    ).values(),
-  ];
 }
 
 async function requestJson<T>(
@@ -273,6 +262,10 @@ export default function ProjectManagement({
   const experienceProjects = useMemo(
     () => combineProjectExperience(projects, archivedProjects),
     [archivedProjects, projects],
+  );
+  const labelSuggestions = useMemo(
+    () => getPortfolioLabelNames(experienceProjects),
+    [experienceProjects],
   );
   const labels = useMemo(
     () =>
@@ -455,6 +448,7 @@ export default function ProjectManagement({
               apiUrl={apiUrl}
               accessToken={accessToken}
               loading={loading}
+              labelSuggestions={labelSuggestions}
               onCancel={() => setEditing(false)}
               onSaved={async () => {
                 await runMutation(
@@ -538,6 +532,7 @@ export default function ProjectManagement({
             apiUrl={apiUrl}
             accessToken={accessToken}
             loading={loading}
+            labelSuggestions={labelSuggestions}
             onCancel={() => setShowCreate(false)}
             onSaved={async (project) => {
               await runMutation(
@@ -644,6 +639,7 @@ function ProjectForm({
   apiUrl,
   accessToken,
   loading,
+  labelSuggestions,
   onCancel,
   onSaved,
 }: {
@@ -653,6 +649,7 @@ function ProjectForm({
   apiUrl: string;
   accessToken: string;
   loading: boolean;
+  labelSuggestions: string[];
   onCancel: () => void;
   onSaved: (project: Project) => Promise<void>;
 }) {
@@ -664,7 +661,7 @@ function ProjectForm({
           startDate: project.startDate ?? "",
           endDate: project.endDate ?? "",
           areaId: String(project.areaId ?? project.area?.id ?? ""),
-          labels: project.labels?.map((label) => label.name).join(", ") ?? "",
+          labels: project.labels?.map((label) => label.name) ?? [],
           status: project.status,
         }
       : { ...EMPTY_PROJECT_FORM, areaId: String(areas[0]?.id ?? "") },
@@ -689,7 +686,7 @@ function ProjectForm({
       startDate: values.startDate || (mode === "edit" ? null : undefined),
       endDate: values.endDate || (mode === "edit" ? null : undefined),
       areaId: Number(values.areaId),
-      labels: parseLabels(values.labels),
+      labels: values.labels,
       ...(mode === "edit" ? { status: values.status } : {}),
     };
 
@@ -779,14 +776,16 @@ function ProjectForm({
             </select>
           </Field>
         )}
-        <Field label="Etiquetas (separadas por comas)">
-          <input
-            value={values.labels}
-            onChange={(event) => update("labels", event.target.value)}
-            placeholder="Backend, Comunidad, Eventos"
-            className={inputClass}
-          />
-        </Field>
+        <TagInput
+          label="Etiquetas"
+          maxLength={50}
+          maxTags={20}
+          value={values.labels}
+          suggestions={labelSuggestions}
+          onChange={(labels) =>
+            setValues((current) => ({ ...current, labels }))
+          }
+        />
         <div className="md:col-span-2">
           <Field label="Descripción">
             <textarea
