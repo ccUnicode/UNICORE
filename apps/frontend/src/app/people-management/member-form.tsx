@@ -3,7 +3,16 @@
 import { FormEvent, useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
 import type { ManagedArea, ManagedMember } from "../people-management.types";
-import { Feedback, fieldClass, labelClass, messageFrom, Modal, primaryButton, secondaryButton } from "./shared";
+import {
+  Feedback,
+  fieldClass,
+  labelClass,
+  messageFrom,
+  Modal,
+  primaryButton,
+  secondaryButton,
+  statusLabels,
+} from "./shared";
 
 type MemberFormState = {
   institution: string;
@@ -15,7 +24,6 @@ type MemberFormState = {
   role: string;
   areaId: string;
   skills: string;
-  activityStatus: string;
   availabilityStatus: string;
   cycle: string;
 };
@@ -24,12 +32,16 @@ export function MemberForm({
   member,
   areas,
   accessToken,
+  fixedAreaId,
+  regularMemberOnly = false,
   onClose,
   onSaved,
 }: {
   member?: ManagedMember;
   areas: ManagedArea[];
   accessToken: string;
+  fixedAreaId?: number;
+  regularMemberOnly?: boolean;
   onClose: () => void;
   onSaved: (memberId: number) => Promise<void>;
 }) {
@@ -40,10 +52,13 @@ export function MemberForm({
     lastNames: member?.lastNames ?? "",
     major: member?.major ?? "",
     birthDate: member?.birthDate?.slice(0, 10) ?? "",
-    role: member?.role ?? "miembro",
-    areaId: member?.areaId ? String(member.areaId) : "",
+    role: regularMemberOnly ? "miembro" : (member?.role ?? "miembro"),
+    areaId: fixedAreaId
+      ? String(fixedAreaId)
+      : member?.areaId
+        ? String(member.areaId)
+        : "",
     skills: member?.skills?.map((skill) => skill.name).join(", ") ?? "",
-    activityStatus: member?.activityStatus ?? "active",
     availabilityStatus: member?.availabilityStatus ?? "available",
     cycle: member?.cycle ? String(member.cycle) : "",
   };
@@ -70,7 +85,6 @@ export function MemberForm({
         major: form.major.trim(),
         birthDate: form.birthDate || undefined,
         skills,
-        activityStatus: form.activityStatus,
         availabilityStatus: form.availabilityStatus,
         cycle: form.cycle ? Number(form.cycle) : member ? null : undefined,
         ...(!member
@@ -147,6 +161,7 @@ export function MemberForm({
                 Rol
                 <select
                   value={form.role}
+                  disabled={regularMemberOnly}
                   onChange={(event) => set("role", event.target.value)}
                   className={fieldClass}
                 >
@@ -160,7 +175,7 @@ export function MemberForm({
                 <select
                   required={form.role === "directiva_de_area"}
                   value={form.areaId}
-                  disabled={form.role === "presidencia"}
+                  disabled={form.role === "presidencia" || Boolean(fixedAreaId)}
                   onChange={(event) => set("areaId", event.target.value)}
                   className={fieldClass}
                 >
@@ -184,14 +199,10 @@ export function MemberForm({
           />
           <label className={labelClass}>
             Actividad
-            <select
-              value={form.activityStatus}
-              onChange={(event) => set("activityStatus", event.target.value)}
-              className={fieldClass}
-            >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-            </select>
+            <output className={`${fieldClass} cursor-not-allowed opacity-70`}>
+              {statusLabels[member?.activityStatus ?? "inactive"] ?? "Inactivo"}
+              {" · Calculado desde tareas activas"}
+            </output>
           </label>
           <label className={labelClass}>
             Disponibilidad

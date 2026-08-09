@@ -4,7 +4,6 @@ import { DataSource } from 'typeorm';
 import { ROLES_KEY } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
-import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 import { Member } from './member.entity';
@@ -60,6 +59,7 @@ describe('MembersController', () => {
   });
 
   it('creates members through the service', async () => {
+    const accessActor = { role: AreaRole.PRESIDENCIA };
     const createdMember = {
       id: 1,
       institution: 'UNI',
@@ -94,15 +94,12 @@ describe('MembersController', () => {
     mockMembersService.create.mockResolvedValue(createdMember);
 
     await expect(
-      controller.create(
-        createMemberDto,
-        undefined as unknown as RequestAccessActor,
-      ),
+      controller.create(createMemberDto, accessActor),
     ).resolves.toEqual(toMemberResponse(createdMember, AreaRole.PRESIDENCIA));
     expect(mockMembersService.create).toHaveBeenCalledWith(
       createMemberDto,
       undefined,
-      undefined,
+      accessActor,
     );
   });
 
@@ -156,10 +153,10 @@ describe('MembersController', () => {
       expect(guards).toContain(RolesGuard);
     });
 
-    it('guards member creation for Presidencia only', () => {
+    it('guards member creation for Presidencia and Directiva de Area', () => {
       expect(
         Reflect.getMetadata(ROLES_KEY, getMembersControllerMethod('create')),
-      ).toEqual([AreaRole.PRESIDENCIA]);
+      ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
     });
 
     it('guards member listing for Presidencia and Directiva de Area', () => {

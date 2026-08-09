@@ -4,9 +4,11 @@ import { BRAND_LOGO } from "./brand-logo.config";
 export function BrandLogo({
   width,
   priority = false,
+  transparent = false,
 }: {
   width: number;
   priority?: boolean;
+  transparent?: boolean;
 }) {
   return (
     <div
@@ -18,11 +20,15 @@ export function BrandLogo({
       }}
     >
       <Image
-        src={BRAND_LOGO.src}
+        src={transparent ? BRAND_LOGO.transparentSrc : BRAND_LOGO.src}
         alt={BRAND_LOGO.alt}
         fill
         sizes={`${width}px`}
-        className={`${BRAND_LOGO.fit} object-left`}
+        className={
+          transparent
+            ? "object-cover object-center"
+            : `${BRAND_LOGO.fit} object-left`
+        }
         priority={priority}
       />
     </div>

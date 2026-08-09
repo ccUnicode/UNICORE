@@ -6,6 +6,7 @@ import { AccessControlModule } from '../common/access-control.module';
 import { Skill } from '../skills/skill.entity';
 import { Member } from './member.entity';
 import { MembersController } from './members.controller';
+import { MemberActivityService } from './member-activity.service';
 import { MembersService } from './members.service';
 import { AuditModule } from '../audit/audit.module';
 
@@ -16,7 +17,7 @@ import { AuditModule } from '../audit/audit.module';
     AuditModule,
   ],
   controllers: [MembersController],
-  providers: [MembersService],
-  exports: [MembersService],
+  providers: [MemberActivityService, MembersService],
+  exports: [MemberActivityService, MembersService],
 })
 export class MembersModule {}

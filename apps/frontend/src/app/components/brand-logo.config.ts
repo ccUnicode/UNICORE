@@ -1,5 +1,6 @@
 export const BRAND_LOGO = {
   src: "/unicore-logo.png",
+  transparentSrc: "/unicore/unicore-logo.png",
   alt: "UniCore",
   intrinsicWidth: 261,
   intrinsicHeight: 73,
