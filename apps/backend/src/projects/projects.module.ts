@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AreaModule } from '../area/area.module';
 import { Member } from '../members/member.entity';
+import { MembersModule } from '../members/members.module';
 import { ProjectLabel } from './entities/project-label.entity';
 import { ProjectLink } from './entities/project-link.entity';
 import { ProjectMembership } from './entities/project-membership.entity';
@@ -15,6 +16,7 @@ import { AuditModule } from '../audit/audit.module';
 @Module({
   imports: [
     AreaModule,
+    MembersModule,
     TypeOrmModule.forFeature([
       Project,
       ProjectPhase,
