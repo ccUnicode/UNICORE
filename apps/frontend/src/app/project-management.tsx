@@ -1,11 +1,21 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import {
+  DragEvent as ReactDragEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   combineProjectExperience,
   getMemberProjectLabelNames,
   getPortfolioLabelNames,
 } from "./project-experience";
+import {
+  DropPlacement,
+  moveItemRelative,
+} from "./phase-reordering";
 
 type Area = {
   id: number;
@@ -1317,15 +1327,30 @@ function PhasesPanel({
   onRefresh: (message: string) => Promise<void>;
   onError: (message: string) => void;
 }) {
-  const phases = [...(project.phases ?? [])].sort(
-    (a, b) => a.orderIndex - b.orderIndex,
+  const projectPhases = useMemo(
+    () =>
+      [...(project.phases ?? [])].sort(
+        (a, b) => a.orderIndex - b.orderIndex,
+      ),
+    [project.phases],
   );
+  const [phases, setPhases] = useState(projectPhases);
   const [showAdd, setShowAdd] = useState(false);
   const [newName, setNewName] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [editing, setEditing] = useState<ProjectPhase | null>(null);
   const [editName, setEditName] = useState("");
   const [editDescription, setEditDescription] = useState("");
+  const [draggedPhaseId, setDraggedPhaseId] = useState<number | null>(null);
+  const [dropTarget, setDropTarget] = useState<{
+    phaseId: number;
+    placement: DropPlacement;
+  } | null>(null);
+  const [reorderSaving, setReorderSaving] = useState(false);
+
+  useEffect(() => {
+    setPhases(projectPhases);
+  }, [projectPhases]);
 
   const mutate = async (
     path: string,
@@ -1351,20 +1376,73 @@ function PhasesPanel({
     }
   };
 
-  const reorder = async (index: number, direction: -1 | 1) => {
+  const persistReorder = async (nextPhases: ProjectPhase[]) => {
+    if (nextPhases === phases) return;
+    const previousPhases = phases;
+    setPhases(nextPhases);
+    setReorderSaving(true);
+    onError("");
+    try {
+      await requestJson<void>(
+        apiUrl,
+        accessToken,
+        `/projects/${project.id}/phases/reorder`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            phaseIds: nextPhases.map((phase) => phase.id),
+          }),
+        },
+      );
+      await onRefresh("Orden de fases actualizado.");
+    } catch {
+      setPhases(previousPhases);
+      onError(
+        "No se pudo guardar el nuevo orden. Se restauró el orden anterior.",
+      );
+    } finally {
+      setReorderSaving(false);
+    }
+  };
+
+  const reorder = (index: number, direction: -1 | 1) => {
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= phases.length) return;
-    const phaseIds = phases.map((phase) => phase.id);
-    [phaseIds[index], phaseIds[targetIndex]] = [
-      phaseIds[targetIndex],
-      phaseIds[index],
-    ];
-    await mutate(
-      `/projects/${project.id}/phases/reorder`,
-      "PATCH",
-      { phaseIds },
-      "Orden de fases actualizado.",
+    const nextPhases = moveItemRelative(
+      phases,
+      phases[index].id,
+      phases[targetIndex].id,
+      direction === -1 ? "before" : "after",
     );
+    void persistReorder(nextPhases);
+  };
+
+  const handleDrop = (
+    event: ReactDragEvent<HTMLLIElement>,
+    targetPhaseId: number,
+  ) => {
+    event.preventDefault();
+    const sourceId = Number(event.dataTransfer.getData("text/plain")) || draggedPhaseId;
+    if (
+      !sourceId ||
+      !dropTarget ||
+      dropTarget.phaseId !== targetPhaseId ||
+      reorderSaving ||
+      loading
+    ) {
+      setDraggedPhaseId(null);
+      setDropTarget(null);
+      return;
+    }
+    const nextPhases = moveItemRelative(
+      phases,
+      sourceId,
+      dropTarget.phaseId,
+      dropTarget.placement,
+    );
+    setDraggedPhaseId(null);
+    setDropTarget(null);
+    void persistReorder(nextPhases);
   };
 
   return (
@@ -1373,7 +1451,9 @@ function PhasesPanel({
         <div>
           <h2 className="text-xl font-black">Fases</h2>
           <p className="mt-1 text-xs text-white/45">
-            Estructura persistida del proyecto.
+            {canManage
+              ? "Arrastra una fase o usa los controles para cambiar su posición."
+              : "Estructura persistida del proyecto."}
           </p>
         </div>
         {canManage && (
@@ -1434,9 +1514,58 @@ function PhasesPanel({
         </form>
       )}
 
+      {reorderSaving && (
+        <p role="status" className="mt-4 text-xs text-indigo-200">
+          Guardando el nuevo orden…
+        </p>
+      )}
+
       <ol className="mt-6 space-y-3">
         {phases.map((phase, index) => (
-          <li key={phase.id} className="rounded-md bg-[#171822] p-4">
+          <li
+            key={phase.id}
+            draggable={canManage && !loading && !reorderSaving && !editing}
+            aria-label={`Fase ${index + 1} de ${phases.length}: ${phase.name}${canManage ? ", arrastrable" : ""}`}
+            onDragStart={(event) => {
+              setDraggedPhaseId(phase.id);
+              event.dataTransfer.effectAllowed = "move";
+              event.dataTransfer.setData("text/plain", String(phase.id));
+            }}
+            onDragOver={(event) => {
+              if (!draggedPhaseId || draggedPhaseId === phase.id) {
+                setDropTarget(null);
+                return;
+              }
+              event.preventDefault();
+              event.dataTransfer.dropEffect = "move";
+              const bounds = event.currentTarget.getBoundingClientRect();
+              setDropTarget({
+                phaseId: phase.id,
+                placement:
+                  event.clientY < bounds.top + bounds.height / 2
+                    ? "before"
+                    : "after",
+              });
+            }}
+            onDrop={(event) => handleDrop(event, phase.id)}
+            onDragEnd={() => {
+              setDraggedPhaseId(null);
+              setDropTarget(null);
+            }}
+            className={`relative rounded-md bg-[#171822] p-4 transition ${
+              canManage && !loading && !reorderSaving && !editing
+                ? "cursor-grab active:cursor-grabbing"
+                : ""
+            } ${draggedPhaseId === phase.id ? "opacity-45" : ""}`}
+          >
+            {dropTarget?.phaseId === phase.id && (
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none absolute right-2 left-2 h-1 rounded-full bg-indigo-300 ${
+                  dropTarget.placement === "before" ? "-top-2" : "-bottom-2"
+                }`}
+              />
+            )}
             {editing?.id === phase.id ? (
               <form
                 onSubmit={async (event) => {
@@ -1497,13 +1626,17 @@ function PhasesPanel({
                     <div className="mt-3 flex flex-wrap gap-1">
                       <SmallButton
                         label="↑"
-                        disabled={loading || index === 0}
-                        onClick={() => void reorder(index, -1)}
+                        ariaLabel={`Mover ${phase.name} hacia arriba`}
+                        disabled={loading || reorderSaving || index === 0}
+                        onClick={() => reorder(index, -1)}
                       />
                       <SmallButton
                         label="↓"
-                        disabled={loading || index === phases.length - 1}
-                        onClick={() => void reorder(index, 1)}
+                        ariaLabel={`Mover ${phase.name} hacia abajo`}
+                        disabled={
+                          loading || reorderSaving || index === phases.length - 1
+                        }
+                        onClick={() => reorder(index, 1)}
                       />
                       <SmallButton
                         label="Editar"
@@ -1650,11 +1783,13 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 
 function SmallButton({
   label,
+  ariaLabel,
   onClick,
   disabled,
   danger = false,
 }: {
   label: string;
+  ariaLabel?: string;
   onClick: () => void;
   disabled: boolean;
   danger?: boolean;
@@ -1662,6 +1797,7 @@ function SmallButton({
   return (
     <button
       type="button"
+      aria-label={ariaLabel}
       onClick={onClick}
       disabled={disabled}
       className={`rounded px-2.5 py-1 text-xs font-bold disabled:opacity-30 ${
