@@ -1,8 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
-import type { ManagedArea, ManagedMember } from "../people-management.types";
+import { TagInput } from "../components/tag-input";
+import type {
+  ManagedArea,
+  ManagedMember,
+  ManagedSkill,
+} from "../people-management.types";
 import {
   Feedback,
   fieldClass,
@@ -23,7 +28,7 @@ type MemberFormState = {
   birthDate: string;
   role: string;
   areaId: string;
-  skills: string;
+  skills: string[];
   availabilityStatus: string;
   cycle: string;
 };
@@ -58,25 +63,41 @@ export function MemberForm({
       : member?.areaId
         ? String(member.areaId)
         : "",
-    skills: member?.skills?.map((skill) => skill.name).join(", ") ?? "",
+    skills: member?.skills?.map((skill) => skill.name) ?? [],
     availabilityStatus: member?.availabilityStatus ?? "available",
     cycle: member?.cycle ? String(member.cycle) : "",
   };
   const [form, setForm] = useState(initial);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [skillSuggestions, setSkillSuggestions] = useState<string[]>(
+    member?.skills?.map((skill) => skill.name) ?? [],
+  );
   const activeAreas = areas.filter((area) => !area.isArchived);
   const set = (key: keyof MemberFormState, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
+  useEffect(() => {
+    let ignore = false;
+    authorizedJson<ManagedSkill[]>("/skills", accessToken)
+      .then((skills) => {
+        if (!ignore) setSkillSuggestions(skills.map((skill) => skill.name));
+      })
+      .catch(() => {
+        // Existing values remain available when suggestions cannot be loaded.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [accessToken]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (form.skills.length === 0) {
+      setError("Agrega al menos una skill antes de guardar.");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
-      const skills = form.skills
-        .split(",")
-        .map((skill) => skill.trim())
-        .filter(Boolean);
       const payload = {
         institution: form.institution.trim(),
         studentCode: form.studentCode.trim() || (member ? null : undefined),
@@ -84,7 +105,7 @@ export function MemberForm({
         lastNames: form.lastNames.trim(),
         major: form.major.trim(),
         birthDate: form.birthDate || undefined,
-        skills,
+        skills: form.skills,
         availabilityStatus: form.availabilityStatus,
         cycle: form.cycle ? Number(form.cycle) : member ? null : undefined,
         ...(!member
@@ -219,11 +240,15 @@ export function MemberForm({
             </select>
           </label>
           <div className="sm:col-span-2">
-            <FormInput
-              label="Skills separadas por comas"
+            <TagInput
+              label="Skills"
               required
+              maxLength={80}
               value={form.skills}
-              onChange={(value) => set("skills", value)}
+              suggestions={skillSuggestions}
+              onChange={(skills) =>
+                setForm((current) => ({ ...current, skills }))
+              }
             />
           </div>
         </div>
