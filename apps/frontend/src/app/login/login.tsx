@@ -1,9 +1,10 @@
 "use client";
 
-import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AUTH_TOKEN_STORAGE_KEY, postJson } from "@/lib/auth-client";
+import { BrandLogo } from "../components/brand-logo";
+import { BRAND_LOGO_WIDTHS } from "../components/brand-logo.config";
 import {
   getLoginErrorMessage,
   validateLoginCredentials,
@@ -15,15 +16,8 @@ type LoginResponse = {
 
 function Logo() {
   return (
-    <div className="h-[50px] w-[179px] overflow-hidden bg-[#191822]">
-      <Image
-        src="/unicore-logo.png"
-        alt="UNICORE"
-        width={261}
-        height={73}
-        priority
-        className="h-[50px] w-[179px] object-cover"
-      />
+    <div className="bg-[#191822]">
+      <BrandLogo width={BRAND_LOGO_WIDTHS.login} priority />
     </div>
   );
 }

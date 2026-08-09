@@ -4,6 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { API_URL } from "@/lib/auth-client";
+import { BrandLogo } from "../components/brand-logo";
+import { BRAND_LOGO_WIDTHS } from "../components/brand-logo.config";
 import { fullName } from "./dashboard.model";
 import type { Member, Project } from "./dashboard.types";
 
@@ -19,18 +21,15 @@ const chartDays = [
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div
-      className={`relative overflow-hidden ${compact ? "h-10 w-36" : "h-[73px] w-[202px]"}`}
-    >
-      <Image
-        src="/unicore/unicore-logo.png"
-        alt="UNICORE"
-        fill
-        sizes={compact ? "144px" : "202px"}
-        className="object-cover"
-        priority
-      />
-    </div>
+    <BrandLogo
+      width={
+        compact
+          ? BRAND_LOGO_WIDTHS.compactSidebar
+          : BRAND_LOGO_WIDTHS.sidebar
+      }
+      priority
+      compact={compact}
+    />
   );
 }
 
