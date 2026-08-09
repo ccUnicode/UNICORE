@@ -132,7 +132,7 @@ describe('AuthGuard', () => {
     });
   });
 
-  it('rejects inactive authenticated members', async () => {
+  it('allows inactive authenticated members to access protected routes', async () => {
     const reflector = {
       getAllAndOverride: jest.fn().mockReturnValue(false),
     } as unknown as Reflector;
@@ -153,7 +153,7 @@ describe('AuthGuard', () => {
       guard.canActivate(
         createContext({ headers: { authorization: 'Bearer valid-token' } }),
       ),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).resolves.toBe(true);
   });
 
   it('rejects disabled authenticated members', async () => {

@@ -11,10 +11,12 @@ import { Task } from './entities/task.entity';
 import { TasksController } from './tasks.controller';
 import { TasksService } from './tasks.service';
 import { AuditModule } from '../audit/audit.module';
+import { MembersModule } from '../members/members.module';
 
 @Module({
   imports: [
     AccessControlModule,
+    MembersModule,
     TypeOrmModule.forFeature([
       Task,
       TaskAssignee,

@@ -24,7 +24,6 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
@@ -142,7 +141,6 @@ export class MembersService {
       );
     }
     const {
-      activityStatus,
       availabilityStatus,
       status,
       areaId,
@@ -175,9 +173,6 @@ export class MembersService {
 
     if (skills !== undefined) {
       member.skills = await this.resolveSkills(skills, skillsRepository);
-    }
-    if (activityStatus !== undefined) {
-      member.activityStatus = activityStatus;
     }
     if (resolvedAvailabilityStatus !== undefined) {
       member.availabilityStatus = resolvedAvailabilityStatus;
@@ -290,7 +285,6 @@ export class MembersService {
       );
     }
 
-    member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
 
     const savedMember = await this.membersRepository.save(member);

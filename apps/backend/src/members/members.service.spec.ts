@@ -608,42 +608,13 @@ describe('MembersService', () => {
       );
     });
 
-    it('successfully reactivates a member', async () => {
+    it('updates availability without changing derived activity', async () => {
       const updateDto = {
-        activityStatus: MemberActivityStatus.ACTIVE,
         availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       };
-      const reactivatedMember = {
-        ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.ACTIVE,
-        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(reactivatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        reactivatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activityStatus: MemberActivityStatus.ACTIVE,
-          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-        }),
-      );
-    });
-
-    it('successfully updates a member activity status', async () => {
-      const updateDto = { activityStatus: MemberActivityStatus.INACTIVE };
       const updatedMember = {
         ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       };
 
       membersRepository.findOne?.mockResolvedValue(
@@ -660,7 +631,7 @@ describe('MembersService', () => {
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          activityStatus: MemberActivityStatus.INACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
         }),
       );
     });
@@ -906,7 +877,6 @@ describe('MembersService', () => {
     it('deactivates a member for Presidencia with an exact full name', async () => {
       const deactivatedMember = {
         ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(
@@ -926,7 +896,7 @@ describe('MembersService', () => {
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 10,
-          activityStatus: MemberActivityStatus.INACTIVE,
+          activityStatus: MemberActivityStatus.ACTIVE,
           availabilityStatus: MemberAvailabilityStatus.DISABLED,
         }),
       );
@@ -940,7 +910,6 @@ describe('MembersService', () => {
       };
       const deactivatedMember = {
         ...member,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(member);
