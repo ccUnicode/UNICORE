@@ -8,6 +8,7 @@ import { ProjectRole } from '../common/enums/project-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { Member } from '../members/member.entity';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
@@ -224,6 +225,12 @@ describe('TasksService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
+        {
+          provide: MemberAvailabilityService,
+          useValue: {
+            refreshMembers: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: getRepositoryToken(Task), useValue: tasksRepository },
         {
           provide: getRepositoryToken(TaskAssignee),

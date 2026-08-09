@@ -8,6 +8,7 @@ import { Member } from './member.entity';
 import { MembersController } from './members.controller';
 import { MembersService } from './members.service';
 import { AuditModule } from '../audit/audit.module';
+import { MemberAvailabilityService } from './member-availability.service';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { AuditModule } from '../audit/audit.module';
     AuditModule,
   ],
   controllers: [MembersController],
-  providers: [MembersService],
-  exports: [MembersService],
+  providers: [MembersService, MemberAvailabilityService],
+  exports: [MembersService, MemberAvailabilityService],
 })
 export class MembersModule {}

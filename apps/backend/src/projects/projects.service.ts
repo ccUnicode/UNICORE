@@ -23,6 +23,7 @@ import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
@@ -61,6 +62,7 @@ export class ProjectsService {
     private readonly taskAssigneesRepository: Repository<TaskAssignee>,
     private readonly areaService: AreaService,
     private readonly auditService: AuditService,
+    private readonly memberAvailabilityService: MemberAvailabilityService,
   ) {}
 
   async create(
@@ -270,6 +272,13 @@ export class ProjectsService {
 
       const savedProject = await projectsRepository.save(project);
 
+      if (updateProjectDto.status !== undefined) {
+        await this.memberAvailabilityService.refreshProjectMembers(
+          savedProject.id,
+          entityManager,
+        );
+      }
+
       if (updateProjectDto.links !== undefined) {
         await this.replaceLinks(
           project,
@@ -303,6 +312,7 @@ export class ProjectsService {
     project.isArchived = true;
 
     const savedProject = await this.projectsRepository.save(project);
+    await this.memberAvailabilityService.refreshProjectMembers(savedProject.id);
 
     await this.auditService.record(accessActor, {
       action: 'archive',

@@ -24,6 +24,7 @@ import { AreaMembership } from '../area-memberships/entities/area-membership.ent
 import { Member } from '../members/member.entity';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectLabel } from './entities/project-label.entity';
@@ -302,6 +303,12 @@ describe('ProjectsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ProjectsService,
+        {
+          provide: MemberAvailabilityService,
+          useValue: {
+            refreshProjectMembers: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         {
           provide: getRepositoryToken(Project),
           useValue: projectsRepository,
