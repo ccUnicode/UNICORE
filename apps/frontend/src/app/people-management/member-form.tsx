@@ -3,7 +3,16 @@
 import { FormEvent, useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
 import type { ManagedArea, ManagedMember } from "../people-management.types";
-import { Feedback, fieldClass, labelClass, messageFrom, Modal, primaryButton, secondaryButton, statusLabels } from "./shared";
+import {
+  Feedback,
+  fieldClass,
+  labelClass,
+  messageFrom,
+  Modal,
+  primaryButton,
+  secondaryButton,
+  statusLabels,
+} from "./shared";
 
 type MemberFormState = {
   institution: string;
@@ -23,12 +32,16 @@ export function MemberForm({
   member,
   areas,
   accessToken,
+  fixedAreaId,
+  regularMemberOnly = false,
   onClose,
   onSaved,
 }: {
   member?: ManagedMember;
   areas: ManagedArea[];
   accessToken: string;
+  fixedAreaId?: number;
+  regularMemberOnly?: boolean;
   onClose: () => void;
   onSaved: (memberId: number) => Promise<void>;
 }) {
@@ -39,8 +52,12 @@ export function MemberForm({
     lastNames: member?.lastNames ?? "",
     major: member?.major ?? "",
     birthDate: member?.birthDate?.slice(0, 10) ?? "",
-    role: member?.role ?? "miembro",
-    areaId: member?.areaId ? String(member.areaId) : "",
+    role: regularMemberOnly ? "miembro" : (member?.role ?? "miembro"),
+    areaId: fixedAreaId
+      ? String(fixedAreaId)
+      : member?.areaId
+        ? String(member.areaId)
+        : "",
     skills: member?.skills?.map((skill) => skill.name).join(", ") ?? "",
     availabilityStatus: member?.availabilityStatus ?? "available",
     cycle: member?.cycle ? String(member.cycle) : "",
@@ -144,6 +161,7 @@ export function MemberForm({
                 Rol
                 <select
                   value={form.role}
+                  disabled={regularMemberOnly}
                   onChange={(event) => set("role", event.target.value)}
                   className={fieldClass}
                 >
@@ -157,7 +175,7 @@ export function MemberForm({
                 <select
                   required={form.role === "directiva_de_area"}
                   value={form.areaId}
-                  disabled={form.role === "presidencia"}
+                  disabled={form.role === "presidencia" || Boolean(fixedAreaId)}
                   onChange={(event) => set("areaId", event.target.value)}
                   className={fieldClass}
                 >

@@ -324,6 +324,56 @@ describe('MembersService', () => {
     });
   });
 
+  it('allows Directiva to create a regular member in its own area', async () => {
+    const createDto = {
+      ...areaDirectiveMemberDto,
+      role: AreaRole.MIEMBRO,
+    };
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    areasRepository.exists?.mockResolvedValue(true);
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedAreaDirectiveMember);
+    membersRepository.save?.mockResolvedValue(persistedAreaDirectiveMember);
+
+    await expect(
+      service.create(createDto, undefined, accessActor),
+    ).resolves.toEqual(persistedAreaDirectiveMember);
+    expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
+      member: persistedAreaDirectiveMember,
+      area: { id: 3 },
+      role: AreaRole.MIEMBRO,
+    });
+  });
+
+  it('rejects Directiva member creation in another area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '2',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(areasRepository.exists).not.toHaveBeenCalled();
+    expect(membersRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects privileged role creation by Directiva in its own area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(membersRepository.create).not.toHaveBeenCalled();
+  });
+
   it('supports legacy status input mapping to availabilityStatus when creating a member', async () => {
     const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
     const createDto = {

@@ -29,6 +29,20 @@ function normalize(value: string): string {
   return value.trim().toLocaleLowerCase("es");
 }
 
+export function canCreateMemberInArea(
+  role: string,
+  actorAreaId: number | null | undefined,
+  targetAreaId: number,
+  isArchived = false,
+): boolean {
+  if (isArchived) return false;
+
+  return (
+    role === "presidencia" ||
+    (role === "directiva_de_area" && actorAreaId === targetAreaId)
+  );
+}
+
 export function getProjectLabelsForMember(
   memberId: number,
   projects: ProjectDirectoryItem[],
