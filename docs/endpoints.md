@@ -42,10 +42,11 @@ Fuente de verdad revisada: controllers, DTOs, enums y guards de `apps/backend/sr
 
 | Método y ruta | Auth / roles | Entrada | Respuesta | Errores y reglas de negocio |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST /members` | `presidencia` | `{ institution?, studentCode?, firstNames, lastNames, major, birthDate, role?, areaId?, skills: string[], activityStatus?, availabilityStatus?, cycle? }` | `MemberResponse` (`201`) | Habilidades se normalizan a minúsculas; valida unicidad institución/código y asignación de rol/área. |
+| `POST /members` | `presidencia` | `{ institution?, studentCode?, firstNames, lastNames, major, birthDate, role?, areaId?, skills: string[], activityStatus?, cycle? }` | `MemberResponse` (`201`) | Habilidades se normalizan a minúsculas; valida unicidad institución/código y asignación de rol/área. La disponibilidad se calcula a partir de las asignaciones actuales. |
 | `GET /members` | `presidencia`, `directiva_de_area` | Query `activityStatus?`, `availabilityStatus?`, `areaId?`, `cycle?`, `skills?` repetible | `MemberResponse[]` | Directiva recibe solo miembros accesibles en su área. |
 | `PATCH /members/:id` | `presidencia` | Body parcial de datos del miembro; `skills` son nombres, no IDs | `MemberResponse` | No modifica el rol directamente; la membresía controla roles. |
 | `PATCH /members/:id/deactivate` | `presidencia`, `directiva_de_area` | `{ confirmName }` | `MemberResponse` con `activityStatus: "inactive"` | El texto debe ser exactamente `firstNames + " " + lastNames`; Directiva queda limitada a su área. |
+| `PATCH /members/:id/reactivate` | `presidencia`, `directiva_de_area` | `{ confirmName }` | `MemberResponse` con `availabilityStatus: "available"` | Solo admite miembros deshabilitados; conserva la actividad y Directiva queda limitada a su área. |
 
 ### Habilidades no expuestas
 
