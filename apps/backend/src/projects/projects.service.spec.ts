@@ -206,6 +206,7 @@ describe('ProjectsService', () => {
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
   let auditService: jest.Mocked<AuditService>;
+  let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -353,6 +354,7 @@ describe('ProjectsService', () => {
 
     service = module.get<ProjectsService>(ProjectsService);
     auditService = module.get(AuditService);
+    memberAvailabilityService = module.get(MemberAvailabilityService);
   });
 
   it('creates a project with default phases when the area exists', async () => {
@@ -893,6 +895,15 @@ describe('ProjectsService', () => {
     );
     expect(projectsRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1, isArchived: true }),
+    );
+    expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+    expect(
+      memberAvailabilityService.refreshProjectMembers,
+    ).toHaveBeenCalledWith(1, expect.anything());
+    expect(auditService.record).toHaveBeenCalledWith(
+      presidencyActor,
+      expect.objectContaining({ action: 'archive', entityId: 1 }),
+      expect.anything(),
     );
   });
 

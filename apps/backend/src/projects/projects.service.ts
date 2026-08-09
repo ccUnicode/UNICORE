@@ -307,22 +307,37 @@ export class ProjectsService {
   }
 
   async archive(id: number, accessActor: RequestAccessActor): Promise<Project> {
-    const project = await this.findProjectDetails(id);
-    this.assertProjectManagementAccess(project, accessActor);
-    project.isArchived = true;
+    return this.projectsRepository.manager.transaction(
+      async (entityManager) => {
+        const projectsRepository = entityManager.getRepository(Project);
+        const project = await this.findProjectForUpdate(
+          id,
+          projectsRepository,
+          accessActor,
+        );
+        project.isArchived = true;
 
-    const savedProject = await this.projectsRepository.save(project);
-    await this.memberAvailabilityService.refreshProjectMembers(savedProject.id);
+        const savedProject = await projectsRepository.save(project);
+        await this.memberAvailabilityService.refreshProjectMembers(
+          savedProject.id,
+          entityManager,
+        );
 
-    await this.auditService.record(accessActor, {
-      action: 'archive',
-      entityType: 'Project',
-      entityId: savedProject.id,
-      areaId: savedProject.areaId,
-      metadata: { name: savedProject.name },
-    });
+        await this.auditService.record(
+          accessActor,
+          {
+            action: 'archive',
+            entityType: 'Project',
+            entityId: savedProject.id,
+            areaId: savedProject.areaId,
+            metadata: { name: savedProject.name },
+          },
+          entityManager,
+        );
 
-    return savedProject;
+        return savedProject;
+      },
+    );
   }
 
   async findPhases(
