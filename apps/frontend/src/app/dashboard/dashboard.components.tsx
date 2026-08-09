@@ -28,7 +28,7 @@ export function Logo({ compact = false }: { compact?: boolean }) {
           : BRAND_LOGO_WIDTHS.sidebar
       }
       priority
-      transparent={compact}
+      compact={compact}
     />
   );
 }

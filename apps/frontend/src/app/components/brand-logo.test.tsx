@@ -52,19 +52,22 @@ describe("BrandLogo", () => {
     cleanup();
   });
 
-  it("uses the transparent asset in the compact header", async () => {
+  it("uses the vector mark with its intrinsic ratio in the compact header", async () => {
     const [{ cleanup, render }, { BrandLogo }] = await Promise.all([
       import("@testing-library/react"),
       import("./brand-logo"),
     ]);
-    const view = render(<BrandLogo width={144} transparent />);
+    const view = render(<BrandLogo width={40} compact />);
     const image = view.getByRole("img", { name: "UniCore" });
+    const container = image.parentElement;
 
+    assert.ok(container);
+    assert.equal(container.style.width, "40px");
+    assert.equal(container.style.aspectRatio, "79 / 91");
     const source = new URL(image.getAttribute("src") ?? "", "http://localhost");
-    assert.equal(source.searchParams.get("url"), "/unicore/unicore-logo.png");
-    assert.equal(image.getAttribute("sizes"), "144px");
-    assert.match(image.className, /object-cover/);
-    assert.match(image.className, /object-center/);
+    assert.equal(source.pathname, "/unicore-mark.svg");
+    assert.match(image.className, /object-contain/);
+    assert.equal(image.getAttribute("data-nimg"), "fill");
 
     cleanup();
   });

@@ -1,34 +1,32 @@
 import Image from "next/image";
-import { BRAND_LOGO } from "./brand-logo.config";
+import { BRAND_LOGO, BRAND_MARK } from "./brand-logo.config";
 
 export function BrandLogo({
   width,
   priority = false,
-  transparent = false,
+  compact = false,
 }: {
   width: number;
   priority?: boolean;
-  transparent?: boolean;
+  compact?: boolean;
 }) {
+  const asset = compact ? BRAND_MARK : BRAND_LOGO;
+
   return (
     <div
       className="relative shrink-0"
       style={{
         width,
         maxWidth: "100%",
-        aspectRatio: BRAND_LOGO.aspectRatio,
+        aspectRatio: asset.aspectRatio,
       }}
     >
       <Image
-        src={transparent ? BRAND_LOGO.transparentSrc : BRAND_LOGO.src}
+        src={asset.src}
         alt={BRAND_LOGO.alt}
         fill
         sizes={`${width}px`}
-        className={
-          transparent
-            ? "object-cover object-center"
-            : `${BRAND_LOGO.fit} object-left`
-        }
+        className={`${asset.fit} object-left`}
         priority={priority}
       />
     </div>

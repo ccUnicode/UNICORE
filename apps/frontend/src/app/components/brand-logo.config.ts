@@ -1,6 +1,5 @@
 export const BRAND_LOGO = {
   src: "/unicore-logo.png",
-  transparentSrc: "/unicore/unicore-logo.png",
   alt: "UniCore",
   intrinsicWidth: 261,
   intrinsicHeight: 73,
@@ -8,10 +7,16 @@ export const BRAND_LOGO = {
   fit: "object-contain" as const,
 };
 
+export const BRAND_MARK = {
+  src: "/unicore-mark.svg",
+  aspectRatio: "79 / 91",
+  fit: "object-contain" as const,
+};
+
 export const BRAND_LOGO_WIDTHS = {
   login: 179,
   sidebar: 202,
-  compactSidebar: 144,
+  compactSidebar: 40,
 } as const;
 
 export function expectedLogoHeight(width: number): number {
