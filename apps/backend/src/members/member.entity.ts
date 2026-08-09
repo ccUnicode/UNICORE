@@ -71,6 +71,9 @@ export class Member {
   })
   availabilityStatus: MemberAvailabilityStatus;
 
+  @Column({ name: 'disabled_at', type: 'timestamptz', nullable: true })
+  disabledAt?: Date | null;
+
   @ManyToMany(() => Skill, (skill) => skill.members)
   @JoinTable()
   skills: Skill[];

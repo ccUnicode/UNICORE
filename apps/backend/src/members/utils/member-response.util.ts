@@ -1,6 +1,7 @@
 import { AreaRole } from '../../common/enums/area-role.enum';
 import { MemberResponse } from '../dto/member-response.dto';
 import { Member } from '../member.entity';
+import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
 
 export const canViewInternalMemberFields = (role: AreaRole): boolean =>
   role === AreaRole.PRESIDENCIA || role === AreaRole.DIRECTIVA_DE_AREA;
@@ -33,6 +34,11 @@ export const toMemberResponse = (
       updatedAt: membership.updatedAt,
     })),
   };
+
+  if (member.availabilityStatus === MemberAvailabilityStatus.DISABLED) {
+    response.disabledAt = member.disabledAt ?? null;
+    response.readOnly = true;
+  }
 
   if (canViewInternalMemberFields(role)) {
     response.activityStatus = member.activityStatus;

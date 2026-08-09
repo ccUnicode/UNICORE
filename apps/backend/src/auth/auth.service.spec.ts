@@ -238,7 +238,7 @@ describe('AuthService', () => {
     );
   });
 
-  it('rejects login for active but disabled members', async () => {
+  it('allows login for disabled members in read-only mode', async () => {
     const member = {
       id: 7,
       institution: 'UNI',
@@ -257,7 +257,10 @@ describe('AuthService', () => {
         studentCode: '20260007',
         password: 'a-secure-password',
       }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).resolves.toMatchObject({
+      accessToken: 'signed-token',
+      member: { readOnly: true },
+    });
   });
 
   it('increments the session version when changing a password', async () => {

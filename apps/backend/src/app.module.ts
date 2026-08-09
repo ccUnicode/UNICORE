@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AreaModule } from './area/area.module';
@@ -14,6 +15,8 @@ import { CreateAuditEventsTable1787788800003 } from './migrations/1787788800003-
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AuditModule } from './audit/audit.module';
+import { AddMemberDisabledSnapshotCutoff1787788800006 } from './migrations/1787788800006-AddMemberDisabledSnapshotCutoff';
+import { SnapshotResponseInterceptor } from './common/interceptors/snapshot-response.interceptor';
 
 @Module({
   imports: [
@@ -42,6 +45,7 @@ import { AuditModule } from './audit/audit.module';
             RepairMemberAreaMemberships1787788800001,
             AddTaskCollaboration1787788800002,
             CreateAuditEventsTable1787788800003,
+            AddMemberDisabledSnapshotCutoff1787788800006,
           ],
           migrationsRun: true,
         };
@@ -56,6 +60,9 @@ import { AuditModule } from './audit/audit.module';
     AuditModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    { provide: APP_INTERCEPTOR, useClass: SnapshotResponseInterceptor },
+  ],
 })
 export class AppModule {}

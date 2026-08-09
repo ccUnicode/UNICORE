@@ -635,6 +635,7 @@ describe('MembersService', () => {
         expect.objectContaining({
           activityStatus: MemberActivityStatus.ACTIVE,
           availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+          disabledAt: null,
         }),
       );
     });
@@ -928,6 +929,7 @@ describe('MembersService', () => {
           id: 10,
           activityStatus: MemberActivityStatus.INACTIVE,
           availabilityStatus: MemberAvailabilityStatus.DISABLED,
+          disabledAt: persistedAreaDirectiveMember.disabledAt,
         }),
       );
     });

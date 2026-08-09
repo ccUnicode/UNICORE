@@ -153,8 +153,8 @@ export class AuthService {
       !member ||
       !member.passwordHash ||
       !credentialsAreValid ||
-      member.activityStatus !== MemberActivityStatus.ACTIVE ||
-      member.availabilityStatus === MemberAvailabilityStatus.DISABLED
+      (member.activityStatus !== MemberActivityStatus.ACTIVE &&
+        member.availabilityStatus !== MemberAvailabilityStatus.DISABLED)
     ) {
       throw new UnauthorizedException('Invalid credentials');
     }

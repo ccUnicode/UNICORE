@@ -181,6 +181,9 @@ export class MembersService {
     }
     if (resolvedAvailabilityStatus !== undefined) {
       member.availabilityStatus = resolvedAvailabilityStatus;
+      if (resolvedAvailabilityStatus !== MemberAvailabilityStatus.DISABLED) {
+        member.disabledAt = null;
+      }
     }
     if (cycle !== undefined) {
       member.cycle = cycle === null ? null : cycle;
@@ -292,6 +295,7 @@ export class MembersService {
 
     member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
+    member.disabledAt = new Date();
 
     const savedMember = await this.membersRepository.save(member);
 

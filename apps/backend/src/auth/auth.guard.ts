@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -45,14 +46,22 @@ export class AuthGuard implements CanActivate {
 
     if (
       !member ||
-      member.activityStatus !== MemberActivityStatus.ACTIVE ||
-      member.availabilityStatus === MemberAvailabilityStatus.DISABLED
+      (member.activityStatus !== MemberActivityStatus.ACTIVE &&
+        member.availabilityStatus !== MemberAvailabilityStatus.DISABLED)
     ) {
       throw new UnauthorizedException('Authenticated member is disabled');
     }
 
     if (payload.ver !== (member.sessionVersion ?? 0)) {
       throw new UnauthorizedException('Authentication token has been revoked');
+    }
+
+    const isDisabled =
+      member.availabilityStatus === MemberAvailabilityStatus.DISABLED;
+    if (isDisabled && (request.method ?? 'GET') !== 'GET') {
+      throw new ForbiddenException(
+        'DISABLED_READ_ONLY: Disabled members cannot modify resources',
+      );
     }
 
     if (member.role === AreaRole.DIRECTIVA_DE_AREA && !member.areaId) {
@@ -78,6 +87,11 @@ export class AuthGuard implements CanActivate {
               String(projectId),
             )
           : undefined,
+      ...(isDisabled && {
+        status: member.availabilityStatus,
+        readOnly: true,
+        snapshotAt: member.disabledAt ?? undefined,
+      }),
     };
     request.authenticatedMember = member;
 
