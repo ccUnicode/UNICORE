@@ -30,14 +30,6 @@ import { Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
 import { AuditService } from '../audit/audit.service';
 
-interface LegacyCreateMemberInput extends CreateMemberDto {
-  status?: MemberAvailabilityStatus;
-}
-
-interface LegacyUpdateMemberInput extends UpdateMemberDto {
-  status?: MemberAvailabilityStatus;
-}
-
 @Injectable()
 export class MembersService {
   constructor(
@@ -63,15 +55,18 @@ export class MembersService {
         this.create(createMemberDto, em, accessActor),
       );
     }
-    const { skills, areaId, status, ...restDto } =
-      createMemberDto as LegacyCreateMemberInput;
+    const sanitizedDto = { ...createMemberDto } as CreateMemberDto & {
+      status?: unknown;
+      availabilityStatus?: unknown;
+    };
+    delete sanitizedDto.status;
+    delete sanitizedDto.availabilityStatus;
+    const { skills, areaId, ...restDto } = sanitizedDto;
     const membersRepository = entityManager.getRepository(Member);
     const skillsRepository = entityManager.getRepository(Skill);
     const areasRepository = entityManager.getRepository(Area);
     const areaMembershipsRepository =
       entityManager.getRepository(AreaMembership);
-
-    const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateActiveAreaExists(areaId, areasRepository);
@@ -81,9 +76,6 @@ export class MembersService {
 
     const member = membersRepository.create({
       ...restDto,
-      ...(resolvedAvailabilityStatus !== undefined && {
-        availabilityStatus: resolvedAvailabilityStatus,
-      }),
       skills: resolvedSkills,
     } as DeepPartial<Member>);
 
@@ -141,16 +133,14 @@ export class MembersService {
         this.update(id, updateMemberDto, em, accessActor),
       );
     }
-    const {
-      activityStatus,
-      availabilityStatus,
-      status,
-      areaId,
-      cycle,
-      skills,
-      ...profileUpdates
-    } = updateMemberDto as LegacyUpdateMemberInput;
-    const resolvedAvailabilityStatus = availabilityStatus ?? status;
+    const sanitizedDto = { ...updateMemberDto } as UpdateMemberDto & {
+      status?: unknown;
+      availabilityStatus?: unknown;
+    };
+    delete sanitizedDto.status;
+    delete sanitizedDto.availabilityStatus;
+    const { activityStatus, areaId, cycle, skills, ...profileUpdates } =
+      sanitizedDto;
 
     const membersRepository = entityManager.getRepository(Member);
     const skillsRepository = entityManager.getRepository(Skill);
@@ -178,9 +168,6 @@ export class MembersService {
     }
     if (activityStatus !== undefined) {
       member.activityStatus = activityStatus;
-    }
-    if (resolvedAvailabilityStatus !== undefined) {
-      member.availabilityStatus = resolvedAvailabilityStatus;
     }
     if (cycle !== undefined) {
       member.cycle = cycle === null ? null : cycle;

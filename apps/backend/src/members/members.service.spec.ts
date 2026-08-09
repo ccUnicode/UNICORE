@@ -324,7 +324,7 @@ describe('MembersService', () => {
     });
   });
 
-  it('supports legacy status input mapping to availabilityStatus when creating a member', async () => {
+  it('ignores legacy status input when creating a member', async () => {
     const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
     const createDto = {
       ...externalMemberDto,
@@ -343,7 +343,12 @@ describe('MembersService', () => {
 
     await expect(service.create(createDto)).resolves.toEqual(persistedMember);
     expect(membersRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+      expect.not.objectContaining({
+        status: MemberAvailabilityStatus.DISABLED,
+      }),
+    );
+    expect(membersRepository.create).toHaveBeenCalledWith(
+      expect.not.objectContaining({
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       }),
     );
@@ -526,36 +531,7 @@ describe('MembersService', () => {
       });
     });
 
-    it('successfully updates a member availability status', async () => {
-      const updateDto = {
-        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
-      };
-      const updatedMember = {
-        ...persistedAreaDirectiveMember,
-        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(updatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        updatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
-        }),
-      );
-      expect(areaMembershipsRepository.findOne).not.toHaveBeenCalled();
-    });
-
-    it('supports legacy status update input as availability status', async () => {
+    it('ignores legacy status input when updating a member', async () => {
       const updateDto = { status: MemberAvailabilityStatus.NOT_AVAILABLE };
       const updatedMember = {
         ...persistedAreaDirectiveMember,
@@ -577,7 +553,12 @@ describe('MembersService', () => {
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        }),
+      );
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          status: MemberAvailabilityStatus.NOT_AVAILABLE,
         }),
       );
     });
@@ -680,9 +661,7 @@ describe('MembersService', () => {
     });
 
     it('throws NotFoundException when member to update does not exist', async () => {
-      const updateDto = {
-        availabilityStatus: MemberAvailabilityStatus.DISABLED,
-      };
+      const updateDto = { firstNames: 'Unknown' };
 
       membersRepository.findOne?.mockResolvedValue(null);
 

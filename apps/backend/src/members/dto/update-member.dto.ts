@@ -10,7 +10,6 @@ import {
   Min,
 } from 'class-validator';
 import { MemberActivityStatus } from '../enums/member-activity-status.enum';
-import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
 
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -79,10 +78,6 @@ export class UpdateMemberDto {
   @IsEnum(MemberActivityStatus)
   @IsOptional()
   activityStatus?: MemberActivityStatus;
-
-  @IsEnum(MemberAvailabilityStatus)
-  @IsOptional()
-  availabilityStatus?: MemberAvailabilityStatus;
 
   @Type(() => Number)
   @IsInt()
