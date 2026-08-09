@@ -6,6 +6,7 @@ import {
   ApiError,
   API_URL,
   AUTH_TOKEN_STORAGE_KEY,
+  READ_ONLY_STORAGE_KEY,
   getJson,
 } from "@/lib/auth-client";
 import ProjectManagement from "../project-management";
@@ -33,7 +34,14 @@ import {
   getMemberAreaIds,
   navItems,
 } from "./dashboard.model";
-import { DashboardView, Logo, NavButton, PlaceholderView, ProfileView, SessionLoadingView } from "./dashboard.components";
+import {
+  DashboardView,
+  Logo,
+  NavButton,
+  PlaceholderView,
+  ProfileView,
+  SessionLoadingView,
+} from "./dashboard.components";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -71,6 +79,10 @@ export default function DashboardPage() {
         if (ignore) return;
         setAccessToken(storedToken);
         setCurrentMember(member);
+        window.sessionStorage.setItem(
+          READ_ONLY_STORAGE_KEY,
+          String(Boolean(member.readOnly)),
+        );
         setAuthState("authenticated");
       } catch {
         if (ignore) return;
@@ -159,6 +171,7 @@ export default function DashboardPage() {
     window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     setAccessToken(null);
     setCurrentMember(null);
+    window.sessionStorage.removeItem(READ_ONLY_STORAGE_KEY);
     setAreas([]);
     setMembers([]);
     setProjects([]);
@@ -292,6 +305,12 @@ export default function DashboardPage() {
           </header>
 
           <div className="w-full px-5 py-8 sm:px-10 lg:px-[68px] lg:py-[50px]">
+            {currentMember.readOnly && (
+              <div className="mb-6 rounded-md border border-amber-400/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+                Modo de solo lectura: estás viendo información hasta tu fecha de
+                inhabilitación.
+              </div>
+            )}
             {error && (
               <div className="mb-8 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
                 No se pudo conectar con la API en {API_URL}: {error}
