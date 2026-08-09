@@ -750,6 +750,32 @@ describe('TasksService', () => {
     ]);
   });
 
+  it('keeps existing unavailable assignees when editing a task', async () => {
+    const task = createTask();
+    const existingMembership = createMembership({
+      id: 2,
+      memberId: 2,
+      member: createMember({
+        id: 2,
+        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+      }),
+    });
+
+    tasksRepository.findOne.mockResolvedValue(task);
+    projectsRepository.findOne.mockResolvedValue(task.project);
+    taskAssigneesRepository.find.mockResolvedValue([
+      { taskId: task.id, memberId: 2 } as TaskAssignee,
+    ]);
+    projectMembershipsRepository.find.mockResolvedValue([existingMembership]);
+
+    await expect(
+      service.setAssignees(1, { memberIds: [2] }, presidencyActor),
+    ).resolves.toEqual(expect.objectContaining({ id: 1 }));
+    expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
+      expect.objectContaining({ taskId: 1, memberId: 2 }),
+    ]);
+  });
+
   it('rejects mutations on archived projects', async () => {
     const task = createTask({ project: createProject({ isArchived: true }) });
 

@@ -459,15 +459,15 @@ export class TasksService {
       );
       this.assertProjectIsActive(project);
 
+      const previousAssignees = await taskAssigneesRepository.find({
+        where: { taskId: task.id },
+      });
       const memberships = await this.validateAssignees(
         project.id,
         setTaskAssigneesDto.memberIds,
         projectMembershipsRepository,
+        new Set(previousAssignees.map(({ memberId }) => memberId)),
       );
-
-      const previousAssignees = await taskAssigneesRepository.find({
-        where: { taskId: task.id },
-      });
 
       await taskAssigneesRepository.delete({ taskId: task.id });
       await taskAssigneesRepository.save(
@@ -608,6 +608,7 @@ export class TasksService {
     memberIds: number[],
     projectMembershipsRepository: Repository<ProjectMembership> = this
       .projectMembershipsRepository,
+    availabilityExemptMemberIds: ReadonlySet<number> = new Set(),
   ): Promise<ProjectMembership[]> {
     if (
       memberIds.length === 0 ||
@@ -638,7 +639,8 @@ export class TasksService {
     const ineligibleMembership = memberships.find(
       ({ member }) =>
         member.activityStatus !== MemberActivityStatus.ACTIVE ||
-        member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE,
+        (!availabilityExemptMemberIds.has(member.id) &&
+          member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE),
     );
 
     if (ineligibleMembership) {
