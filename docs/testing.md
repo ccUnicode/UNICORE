@@ -91,7 +91,7 @@ npm run test -- --runInBand src/auth/auth.service.spec.ts
 
 ### Pruebas E2E
 
-`npm run test:e2e` usa `apps/backend/test/jest-e2e.json` y ejecuta todos los archivos `*.e2e-spec.ts`, incluida la suite de migraciones. Por ello requiere `TEST_DATABASE_URL`. Estas pruebas levantan la aplicación NestJS dentro del proceso de Jest y deben mantener aislados sus datos.
+`npm run test:e2e` usa `apps/backend/test/jest-e2e.json` y ejecuta todos los archivos `*.e2e-spec.ts`, incluida la suite de migraciones. Por ello requiere `TEST_DATABASE_URL`. Antes de cargar `AppModule`, el setup asigna esa URL a `DATABASE_URL` para impedir que las E2E usen accidentalmente la base de desarrollo. Estas pruebas levantan la aplicación NestJS dentro del proceso de Jest y deben mantener aislados sus datos.
 
 ### Pruebas de migraciones
 
