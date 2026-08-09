@@ -348,9 +348,9 @@ export default function DashboardPage() {
                 metric={selectedArea}
                 accessToken={accessToken}
                 currentRole={currentMember.role}
+                currentAreaId={currentMember.areaId}
                 onChanged={refreshPeopleData}
                 onBack={() => router.push(getDashboardPath("areas"))}
-                onGoToMembers={() => router.push(getDashboardPath("members"))}
                 onOpenMember={(memberId) => {
                   router.push(getDashboardPath("member-profile", memberId));
                 }}
