@@ -228,6 +228,7 @@ export function MemberForm({
             <TagInput
               label="Skills"
               required
+              maxLength={80}
               value={form.skills}
               suggestions={skillSuggestions}
               onChange={(skills) =>

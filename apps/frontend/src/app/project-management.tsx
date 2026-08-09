@@ -778,6 +778,8 @@ function ProjectForm({
         )}
         <TagInput
           label="Etiquetas"
+          maxLength={50}
+          maxTags={20}
           value={values.labels}
           suggestions={labelSuggestions}
           onChange={(labels) =>

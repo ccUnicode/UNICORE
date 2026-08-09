@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import {
   canonicalizeTags,
+  editingIndexAfterRemoval,
   matchingTagSuggestions,
   normalizeTag,
   validateTag,
@@ -33,9 +34,18 @@ describe("tag utilities", () => {
     );
   });
 
-  it("returns clear validation errors for empty and oversized tags", () => {
-    assert.match(validateTag("   ") ?? "", /Escribe una etiqueta/);
-    assert.match(validateTag("x".repeat(61)) ?? "", /60 caracteres/);
-    assert.equal(validateTag("Node.js"), undefined);
+  it("validates tags against each field's configured length", () => {
+    assert.match(validateTag("   ", 80) ?? "", /Escribe una etiqueta/);
+    assert.equal(validateTag("x".repeat(80), 80), undefined);
+    assert.match(validateTag("x".repeat(81), 80) ?? "", /80 caracteres/);
+    assert.match(validateTag("x".repeat(51), 50) ?? "", /50 caracteres/);
+    assert.equal(validateTag("Node.js", 80), undefined);
+  });
+
+  it("keeps the edited tag index in sync after removing a chip", () => {
+    assert.equal(editingIndexAfterRemoval(3, 1), 2);
+    assert.equal(editingIndexAfterRemoval(3, 3), null);
+    assert.equal(editingIndexAfterRemoval(1, 3), 1);
+    assert.equal(editingIndexAfterRemoval(null, 0), null);
   });
 });

@@ -1,5 +1,3 @@
-export const MAX_TAG_LENGTH = 60;
-
 export function cleanTag(value: string): string {
   return value.trim().replace(/\s+/g, " ");
 }
@@ -35,16 +33,29 @@ export function canonicalizeTags(
   return [...unique.values()];
 }
 
-export function validateTag(value: string): string | undefined {
+export function validateTag(
+  value: string,
+  maxLength: number,
+): string | undefined {
   const cleaned = cleanTag(value);
   if (!cleaned) return "Escribe una etiqueta antes de agregarla.";
-  if (cleaned.length > MAX_TAG_LENGTH) {
-    return `Cada etiqueta puede tener hasta ${MAX_TAG_LENGTH} caracteres.`;
+  if (cleaned.length > maxLength) {
+    return `Cada etiqueta puede tener hasta ${maxLength} caracteres.`;
   }
   if (/[\u0000-\u001f\u007f]/.test(cleaned)) {
     return "La etiqueta contiene caracteres no permitidos.";
   }
   return undefined;
+}
+
+export function editingIndexAfterRemoval(
+  editingIndex: number | null,
+  removedIndex: number,
+): number | null {
+  if (editingIndex === null || removedIndex > editingIndex) {
+    return editingIndex;
+  }
+  return removedIndex === editingIndex ? null : editingIndex - 1;
 }
 
 export function matchingTagSuggestions(

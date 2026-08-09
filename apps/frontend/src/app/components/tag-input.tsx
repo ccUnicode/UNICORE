@@ -4,6 +4,7 @@ import { KeyboardEvent, useMemo, useState } from "react";
 import {
   canonicalizeTags,
   cleanTag,
+  editingIndexAfterRemoval,
   matchingTagSuggestions,
   normalizeTag,
   validateTag,
@@ -14,12 +15,16 @@ export function TagInput({
   value,
   suggestions,
   onChange,
+  maxLength,
+  maxTags,
   required = false,
 }: {
   label: string;
   value: string[];
   suggestions: string[];
   onChange: (value: string[]) => void;
+  maxLength: number;
+  maxTags?: number;
   required?: boolean;
 }) {
   const [draft, setDraft] = useState("");
@@ -42,8 +47,10 @@ export function TagInput({
   const commitMany = (candidates: string[]) => {
     const cleanedCandidates = candidates.map(cleanTag).filter(Boolean);
     const candidateError = cleanedCandidates.length
-      ? cleanedCandidates.map(validateTag).find(Boolean)
-      : validateTag("");
+      ? cleanedCandidates
+          .map((candidate) => validateTag(candidate, maxLength))
+          .find(Boolean)
+      : validateTag("", maxLength);
     if (candidateError) {
       setError(candidateError);
       return;
@@ -52,6 +59,10 @@ export function TagInput({
     const next = canonicalizeTags([...base, ...cleanedCandidates], suggestions);
     if (next.length === base.length) {
       setError("Esta etiqueta ya fue agregada.");
+      return;
+    }
+    if (maxTags !== undefined && next.length > maxTags) {
+      setError(`Puedes agregar hasta ${maxTags} etiquetas.`);
       return;
     }
     onChange(next);
@@ -80,6 +91,7 @@ export function TagInput({
       onBlurCapture={(event) => {
         if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
           setFocused(false);
+          if (draft.trim()) commit(draft);
         }
       }}
     >
@@ -119,8 +131,10 @@ export function TagInput({
                   onChange(value.filter((_, itemIndex) => itemIndex !== index));
                   if (editingIndex === index) {
                     setDraft("");
-                    setEditingIndex(null);
                   }
+                  setEditingIndex(
+                    editingIndexAfterRemoval(editingIndex, index),
+                  );
                 }}
               >
                 ×
