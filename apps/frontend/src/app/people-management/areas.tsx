@@ -255,6 +255,7 @@ export function AreaDetailManagementView({
     currentRole,
     currentAreaId,
     metric.area.id,
+    Boolean(metric.area.isArchived),
   );
   return (
     <div>
