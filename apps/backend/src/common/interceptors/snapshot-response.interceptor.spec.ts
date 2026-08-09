@@ -56,4 +56,23 @@ describe('SnapshotResponseInterceptor', () => {
       ),
     ).resolves.toBe(response);
   });
+
+  it('filters records that use timestamp instead of createdAt', async () => {
+    const next: CallHandler = {
+      handle: () =>
+        of([
+          { id: 1, timestamp: '2026-07-31T00:00:00.000Z' },
+          { id: 2, timestamp: '2026-08-02T00:00:00.000Z' },
+        ]),
+    };
+
+    await expect(
+      lastValueFrom(
+        interceptor.intercept(
+          contextFor(new Date('2026-08-01T00:00:00.000Z')),
+          next,
+        ),
+      ),
+    ).resolves.toEqual([{ id: 1, timestamp: '2026-07-31T00:00:00.000Z' }]);
+  });
 });

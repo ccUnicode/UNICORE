@@ -34,7 +34,8 @@ export class SnapshotResponseInterceptor implements NestInterceptor {
     const record = value as Record<string, unknown>;
     if (
       this.isAfter(record.createdAt, cutoff) ||
-      this.isAfter(record.updatedAt, cutoff)
+      this.isAfter(record.updatedAt, cutoff) ||
+      this.isAfter(record.timestamp, cutoff)
     ) {
       return undefined;
     }
