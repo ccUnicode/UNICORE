@@ -97,15 +97,23 @@ Acciones:
 
 1. Conservar el error SQL y el nombre de la migración.
 2. Detener nuevos intentos automáticos si el error puede modificar datos repetidamente.
-3. Ejecutar la validación de migraciones en un ambiente desechable:
+3. Identificar la migración que falló y ejecutar su prueba dirigida, si existe:
+
+   ```bash
+   npm run test --workspace=apps/backend -- --runInBand src/migrations/<archivo>.spec.ts
+   ```
+
+4. Si falla `AddTaskCollaboration1787788800002`, ejecutar además su integración real con PostgreSQL en una base desechable:
 
    ```bash
    npm run test:migrations --workspace=apps/backend
    ```
 
-4. Comparar el esquema con la versión anterior y revisar el método `down` de la migración.
-5. Restaurar una copia de seguridad si hubo una modificación parcial no recuperable.
-6. No editar manualmente la tabla de migraciones sin aprobación del responsable técnico.
+   Este comando solo valida esa migración. Para cualquier otra, crear o ejecutar una prueba de integración equivalente antes de aplicar la corrección.
+
+5. Comparar el esquema con la versión anterior y revisar el método `down` de la migración.
+6. Restaurar una copia de seguridad si hubo una modificación parcial no recuperable.
+7. No editar manualmente la tabla de migraciones sin aprobación del responsable técnico.
 
 ### El login devuelve `401`
 
