@@ -33,7 +33,14 @@ import {
   getMemberAreaIds,
   navItems,
 } from "./dashboard.model";
-import { DashboardView, Logo, NavButton, PlaceholderView, ProfileView, SessionLoadingView } from "./dashboard.components";
+import {
+  DashboardView,
+  Logo,
+  NavButton,
+  PlaceholderView,
+  ProfileView,
+  SessionLoadingView,
+} from "./dashboard.components";
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -326,9 +333,9 @@ export default function DashboardPage() {
                 metric={selectedArea}
                 accessToken={accessToken}
                 currentRole={currentMember.role}
+                currentAreaId={currentMember.areaId}
                 onChanged={refreshPeopleData}
                 onBack={() => setView("areas")}
-                onGoToMembers={() => setView("members")}
                 onOpenMember={(memberId) => {
                   setSelectedMemberId(memberId);
                   setView("member-profile");
