@@ -14,14 +14,18 @@ export class SnapshotResponseInterceptor implements NestInterceptor {
       .switchToHttp()
       .getRequest<AccessControlledRequest>();
     const cutoff = request.accessActor?.snapshotAt;
-    if (!cutoff || request.path === '/auth/me') return next.handle();
+    if (!cutoff) return next.handle();
 
     return next
       .handle()
-      .pipe(map((value: unknown) => this.filter(value, cutoff)));
+      .pipe(
+        map((value: unknown) =>
+          this.filter(value, cutoff, request.path === '/auth/me'),
+        ),
+      );
   }
 
-  private filter(value: unknown, cutoff: Date): unknown {
+  private filter(value: unknown, cutoff: Date, preserveRoot = false): unknown {
     if (Array.isArray(value)) {
       return value
         .map((item) => this.filter(item, cutoff))
@@ -33,9 +37,10 @@ export class SnapshotResponseInterceptor implements NestInterceptor {
 
     const record = value as Record<string, unknown>;
     if (
-      this.isAfter(record.createdAt, cutoff) ||
-      this.isAfter(record.updatedAt, cutoff) ||
-      this.isAfter(record.timestamp, cutoff)
+      !preserveRoot &&
+      (this.isAfter(record.createdAt, cutoff) ||
+        this.isAfter(record.updatedAt, cutoff) ||
+        this.isAfter(record.timestamp, cutoff))
     ) {
       return undefined;
     }

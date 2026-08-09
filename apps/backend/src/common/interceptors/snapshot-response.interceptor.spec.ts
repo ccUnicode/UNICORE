@@ -44,8 +44,15 @@ describe('SnapshotResponseInterceptor', () => {
     ]);
   });
 
-  it('does not filter the authenticated member response', async () => {
-    const response = { id: 1, updatedAt: '2026-08-03T00:00:00.000Z' };
+  it('keeps the authenticated member root while filtering later relations', async () => {
+    const response = {
+      id: 1,
+      updatedAt: '2026-08-03T00:00:00.000Z',
+      memberships: [
+        { id: 1, createdAt: '2026-07-01T00:00:00.000Z' },
+        { id: 2, createdAt: '2026-08-03T00:00:00.000Z' },
+      ],
+    };
     const next: CallHandler = { handle: () => of(response) };
     await expect(
       lastValueFrom(
@@ -54,7 +61,11 @@ describe('SnapshotResponseInterceptor', () => {
           next,
         ),
       ),
-    ).resolves.toBe(response);
+    ).resolves.toEqual({
+      id: 1,
+      updatedAt: '2026-08-03T00:00:00.000Z',
+      memberships: [{ id: 1, createdAt: '2026-07-01T00:00:00.000Z' }],
+    });
   });
 
   it('filters records that use timestamp instead of createdAt', async () => {

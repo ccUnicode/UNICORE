@@ -10,6 +10,23 @@ export const toMemberResponse = (
   member: Member,
   role: AreaRole,
 ): MemberResponse => {
+  const disabledSnapshot = member.disabledAccessSnapshot;
+  const isDisabled =
+    member.availabilityStatus === MemberAvailabilityStatus.DISABLED;
+  const effectiveRole =
+    isDisabled && disabledSnapshot ? disabledSnapshot.role : member.role;
+  const effectiveAreaId =
+    isDisabled && disabledSnapshot ? disabledSnapshot.areaId : member.areaId;
+  const disabledAt = member.disabledAt;
+  const visibleMemberships =
+    isDisabled && disabledAt
+      ? (member.memberships ?? []).filter(
+          (membership) =>
+            membership.areaId === effectiveAreaId &&
+            membership.createdAt <= disabledAt &&
+            membership.updatedAt <= disabledAt,
+        )
+      : (member.memberships ?? []);
   const response: MemberResponse = {
     id: member.id,
     institution: member.institution,
@@ -22,9 +39,9 @@ export const toMemberResponse = (
     skills: member.skills,
     createdAt: member.createdAt,
     updatedAt: member.updatedAt,
-    role: member.role,
-    areaId: member.areaId,
-    memberships: (member.memberships ?? []).map((membership) => ({
+    role: effectiveRole,
+    areaId: effectiveAreaId,
+    memberships: visibleMemberships.map((membership) => ({
       id: membership.id,
       role: membership.role,
       memberId: membership.memberId,
@@ -35,7 +52,7 @@ export const toMemberResponse = (
     })),
   };
 
-  if (member.availabilityStatus === MemberAvailabilityStatus.DISABLED) {
+  if (isDisabled) {
     response.disabledAt = member.disabledAt ?? null;
     response.readOnly = true;
   }

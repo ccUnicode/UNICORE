@@ -46,6 +46,8 @@ export class AddMemberDisabledSnapshotCutoff1787788800006 implements MigrationIn
             SELECT membership.role
             FROM area_memberships AS membership
             WHERE membership.member_id = member.id
+              AND membership.created_at <= member.disabled_at
+              AND membership.updated_at <= member.disabled_at
             ORDER BY
               CASE membership.role
                 WHEN 'presidencia' THEN 1
@@ -61,6 +63,8 @@ export class AddMemberDisabledSnapshotCutoff1787788800006 implements MigrationIn
           SELECT membership.area_id
           FROM area_memberships AS membership
           WHERE membership.member_id = member.id
+            AND membership.created_at <= member.disabled_at
+            AND membership.updated_at <= member.disabled_at
           ORDER BY
             CASE membership.role
               WHEN 'presidencia' THEN 1
@@ -75,6 +79,8 @@ export class AddMemberDisabledSnapshotCutoff1787788800006 implements MigrationIn
             SELECT jsonb_agg(membership.project_id ORDER BY membership.project_id)
             FROM project_memberships AS membership
             WHERE membership.member_id = member.id
+              AND membership.created_at <= member.disabled_at
+              AND membership.updated_at <= member.disabled_at
           ),
           '[]'::jsonb
         )

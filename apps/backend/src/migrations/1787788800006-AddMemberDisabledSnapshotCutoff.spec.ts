@@ -19,6 +19,12 @@ describe('AddMemberDisabledSnapshotCutoff1787788800006', () => {
       expect.stringContaining('disabled_access_snapshot = jsonb_build_object'),
     );
     expect(queryRunner.query).toHaveBeenCalledWith(
+      expect.stringContaining('membership.created_at <= member.disabled_at'),
+    );
+    expect(queryRunner.query).toHaveBeenCalledWith(
+      expect.stringContaining('membership.updated_at <= member.disabled_at'),
+    );
+    expect(queryRunner.query).toHaveBeenCalledWith(
       expect.stringContaining('chk_members_disabled_snapshot'),
     );
   });

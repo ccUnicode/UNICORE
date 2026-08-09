@@ -462,6 +462,54 @@ describe('TasksService', () => {
     );
   });
 
+  it('uses frozen project access and applies the cutoff before pagination', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const disabledActor: RequestAccessActor = {
+      ...memberActor,
+      readOnly: true,
+      snapshotAt,
+      projectIds: ['1'],
+    };
+    projectsRepository.findOne.mockResolvedValue(createProject());
+    tasksRepository.findAndCount.mockResolvedValue([[], 0]);
+
+    await service.findAll({ projectId: 1 }, disabledActor);
+
+    expect(projectMembershipsRepository.findOne).not.toHaveBeenCalled();
+    const [{ where }] = tasksRepository.findAndCount.mock.calls[0] as [
+      {
+        where: {
+          createdAt: FindOperator<Date>;
+          updatedAt: FindOperator<Date>;
+        };
+      },
+    ];
+    expect(where.createdAt.type).toBe('lessThanOrEqual');
+    expect(where.createdAt.value).toEqual(snapshotAt);
+    expect(where.updatedAt.type).toBe('lessThanOrEqual');
+    expect(where.updatedAt.value).toEqual(snapshotAt);
+  });
+
+  it('rejects projects added after the disabled access snapshot', async () => {
+    const disabledActor: RequestAccessActor = {
+      ...memberActor,
+      readOnly: true,
+      snapshotAt: new Date('2026-08-01T10:00:00.000Z'),
+      projectIds: [],
+    };
+    projectsRepository.findOne.mockResolvedValue(createProject());
+    projectMembershipsRepository.findOne.mockResolvedValue(createMembership());
+
+    await expect(
+      service.findAll({ projectId: 1 }, disabledActor),
+    ).rejects.toThrow(
+      new ForbiddenException(
+        'Task access is limited to projects in your disabled access snapshot',
+      ),
+    );
+    expect(projectMembershipsRepository.findOne).not.toHaveBeenCalled();
+  });
+
   it('keeps every task assignee when filtering by one assignee', async () => {
     const task = createTask({
       assignees: [
