@@ -58,6 +58,8 @@ export class MembersService {
     entityManager?: EntityManager,
     accessActor?: RequestAccessActor,
   ): Promise<Member> {
+    this.assertMemberCreationAccess(createMemberDto, accessActor);
+
     if (!entityManager) {
       return this.dataSource.transaction(async (em) =>
         this.create(createMemberDto, em, accessActor),
@@ -462,6 +464,29 @@ export class MembersService {
 
     throw new ForbiddenException(
       'Member deactivation is limited to members in your own area',
+    );
+  }
+
+  private assertMemberCreationAccess(
+    createMemberDto: CreateMemberDto,
+    accessActor?: RequestAccessActor,
+  ): void {
+    if (!accessActor || accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const actorAreaId = parseAreaId(accessActor.areaId);
+      if (
+        createMemberDto.areaId === actorAreaId &&
+        createMemberDto.role === AreaRole.MIEMBRO
+      ) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException(
+      'Member creation is limited to regular members in your own area',
     );
   }
 }
