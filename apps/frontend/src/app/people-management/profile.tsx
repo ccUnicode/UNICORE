@@ -29,6 +29,7 @@ export function MemberProfileManagementView({
 }) {
   const [editing, setEditing] = useState(false);
   const [deactivating, setDeactivating] = useState(false);
+  const [reactivating, setReactivating] = useState(false);
   const [membership, setMembership] = useState<
     ManagedAreaMembership | "create" | null
   >(null);
@@ -127,13 +128,22 @@ export function MemberProfileManagementView({
               Editar perfil
             </button>
           )}
-          {canDeactivate && member.activityStatus !== "inactive" && (
+          {canDeactivate && member.availabilityStatus !== "disabled" && (
             <button
               type="button"
               className={`${dangerButton} mt-4 w-full bg-transparent py-3`}
               onClick={() => setDeactivating(true)}
             >
               Desactivar miembro
+            </button>
+          )}
+          {canDeactivate && member.availabilityStatus === "disabled" && (
+            <button
+              type="button"
+              className="mt-4 w-full rounded border border-white/20 bg-transparent py-3 text-xs text-white/70 hover:border-white/40 hover:text-white"
+              onClick={() => setReactivating(true)}
+            >
+              Reactivar miembro
             </button>
           )}
         </aside>
@@ -291,6 +301,21 @@ export function MemberProfileManagementView({
           onClose={() => setDeactivating(false)}
           onDone={async () => {
             setDeactivating(false);
+            await onChanged();
+          }}
+        />
+      )}
+      {reactivating && (
+        <ExactNameAction
+          title="Reactivar miembro"
+          name={memberName(member)}
+          description="El miembro volverá a estar disponible. Su actividad continuará calculándose a partir de sus tareas."
+          actionLabel="Reactivar miembro"
+          accessToken={accessToken}
+          path={`/members/${member.id}/reactivate`}
+          onClose={() => setReactivating(false)}
+          onDone={async () => {
+            setReactivating(false);
             await onChanged();
           }}
         />

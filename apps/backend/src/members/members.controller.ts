@@ -80,4 +80,19 @@ export class MembersController {
     );
     return toMemberResponse(member, accessActor.role);
   }
+
+  @Patch(':id/reactivate')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  async reactivate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() confirmNameDto: ConfirmNameDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ): Promise<MemberResponse> {
+    const member = await this.membersService.reactivate(
+      id,
+      confirmNameDto.confirmName,
+      accessActor,
+    );
+    return toMemberResponse(member, accessActor.role);
+  }
 }

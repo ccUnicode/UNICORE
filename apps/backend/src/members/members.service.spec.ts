@@ -589,37 +589,6 @@ describe('MembersService', () => {
       );
     });
 
-    it('successfully reactivates a member', async () => {
-      const updateDto = {
-        activityStatus: MemberActivityStatus.ACTIVE,
-        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-      };
-      const reactivatedMember = {
-        ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.ACTIVE,
-        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(reactivatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        reactivatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activityStatus: MemberActivityStatus.ACTIVE,
-          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-        }),
-      );
-    });
-
     it('successfully updates a member activity status', async () => {
       const updateDto = { activityStatus: MemberActivityStatus.INACTIVE };
       const updatedMember = {
@@ -968,6 +937,50 @@ describe('MembersService', () => {
           role: AreaRole.PRESIDENCIA,
         }),
       ).rejects.toThrow(new NotFoundException('Member with ID 99 not found'));
+      expect(membersRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reactivate', () => {
+    it('reactivates a disabled member without manually changing activity', async () => {
+      const disabledMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      };
+      membersRepository.findOne?.mockResolvedValue(disabledMember);
+      membersRepository.save?.mockImplementation((member: Member) =>
+        Promise.resolve(member),
+      );
+
+      await expect(
+        service.reactivate(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          activityStatus: MemberActivityStatus.INACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        }),
+      );
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          activityStatus: MemberActivityStatus.INACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        }),
+      );
+    });
+
+    it('rejects reactivation for a member that is not disabled', async () => {
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+
+      await expect(
+        service.reactivate(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).rejects.toThrow('Only disabled members can be reactivated');
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
   });

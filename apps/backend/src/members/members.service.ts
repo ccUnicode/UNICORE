@@ -296,6 +296,50 @@ export class MembersService {
     return savedMember;
   }
 
+  async reactivate(
+    id: number,
+    confirmName: string,
+    accessActor: RequestAccessActor,
+  ): Promise<Member> {
+    const member = await this.membersRepository.findOne({
+      where: { id },
+      relations: ['memberships'],
+    });
+
+    if (!member) {
+      throw new NotFoundException(`Member with ID ${id} not found`);
+    }
+
+    this.assertMemberDeactivationAccess(member, accessActor);
+
+    const exactName = `${member.firstNames} ${member.lastNames}`;
+    if (confirmName !== exactName) {
+      throw new BadRequestException(
+        'confirmName must exactly match the member full name',
+      );
+    }
+
+    if (member.availabilityStatus !== MemberAvailabilityStatus.DISABLED) {
+      throw new BadRequestException('Only disabled members can be reactivated');
+    }
+
+    member.availabilityStatus = MemberAvailabilityStatus.AVAILABLE;
+    const savedMember = await this.membersRepository.save(member);
+
+    await this.auditService.record(accessActor, {
+      action: 'reactivate',
+      entityType: 'Member',
+      entityId: savedMember.id,
+      areaId: savedMember.areaId ?? null,
+      metadata: {
+        firstNames: savedMember.firstNames,
+        lastNames: savedMember.lastNames,
+      },
+    });
+
+    return savedMember;
+  }
+
   findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
     const activityStatus = filterDto?.activityStatus;
     const availabilityStatus = filterDto?.availabilityStatus;
