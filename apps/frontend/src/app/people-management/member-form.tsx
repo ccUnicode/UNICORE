@@ -3,7 +3,16 @@
 import { FormEvent, useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
 import type { ManagedArea, ManagedMember } from "../people-management.types";
-import { Feedback, fieldClass, labelClass, messageFrom, Modal, primaryButton, secondaryButton } from "./shared";
+import {
+  Feedback,
+  fieldClass,
+  labelClass,
+  messageFrom,
+  Modal,
+  primaryButton,
+  secondaryButton,
+  statusLabels,
+} from "./shared";
 
 type MemberFormState = {
   institution: string;
@@ -16,7 +25,6 @@ type MemberFormState = {
   areaId: string;
   skills: string;
   activityStatus: string;
-  availabilityStatus: string;
   cycle: string;
 };
 
@@ -44,7 +52,6 @@ export function MemberForm({
     areaId: member?.areaId ? String(member.areaId) : "",
     skills: member?.skills?.map((skill) => skill.name).join(", ") ?? "",
     activityStatus: member?.activityStatus ?? "active",
-    availabilityStatus: member?.availabilityStatus ?? "available",
     cycle: member?.cycle ? String(member.cycle) : "",
   };
   const [form, setForm] = useState(initial);
@@ -71,7 +78,6 @@ export function MemberForm({
         birthDate: form.birthDate || undefined,
         skills,
         activityStatus: form.activityStatus,
-        availabilityStatus: form.availabilityStatus,
         cycle: form.cycle ? Number(form.cycle) : member ? null : undefined,
         ...(!member
           ? {
@@ -195,17 +201,11 @@ export function MemberForm({
           </label>
           <label className={labelClass}>
             Disponibilidad
-            <select
-              value={form.availabilityStatus}
-              onChange={(event) =>
-                set("availabilityStatus", event.target.value)
-              }
-              className={fieldClass}
-            >
-              <option value="available">Disponible</option>
-              <option value="not_available">No disponible</option>
-              <option value="disabled">Inhabilitado</option>
-            </select>
+            <output className={`${fieldClass} cursor-not-allowed opacity-70`}>
+              {statusLabels[member?.availabilityStatus ?? "available"] ??
+                "Disponible"}
+              {" · Calculado desde asignaciones vigentes"}
+            </output>
           </label>
           <div className="sm:col-span-2">
             <FormInput
