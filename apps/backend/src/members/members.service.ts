@@ -142,7 +142,6 @@ export class MembersService {
       );
     }
     const {
-      activityStatus,
       availabilityStatus,
       status,
       areaId,
@@ -175,9 +174,6 @@ export class MembersService {
 
     if (skills !== undefined) {
       member.skills = await this.resolveSkills(skills, skillsRepository);
-    }
-    if (activityStatus !== undefined) {
-      member.activityStatus = activityStatus;
     }
     if (resolvedAvailabilityStatus !== undefined) {
       member.availabilityStatus = resolvedAvailabilityStatus;
