@@ -32,6 +32,7 @@ import {
   getAreasPath,
   getMemberAreaIds,
   navItems,
+  resolveAreaNavigation,
 } from "./dashboard.model";
 import { DashboardView, Logo, NavButton, PlaceholderView, ProfileView, SessionLoadingView } from "./dashboard.components";
 
@@ -117,7 +118,13 @@ export default function DashboardPage() {
         if (ignore) return;
 
         setAreas(loadedAreas);
-        setSelectedAreaId((current) => current ?? loadedAreas[0]?.id ?? null);
+        const navResolution = resolveAreaNavigation(
+          loadedAreas,
+          authenticatedRole,
+        );
+        setSelectedAreaId(
+          (current) => current ?? navResolution.targetAreaId ?? loadedAreas[0]?.id ?? null,
+        );
         setMembers(loadedMembers);
         setSelectedMemberId(
           (current) => current ?? loadedMembers[0]?.id ?? null,
@@ -173,6 +180,25 @@ export default function DashboardPage() {
     setProjects(loadedProjects);
   };
 
+  const handleNavigateToNavItem = (itemId: View): void => {
+    if (itemId === "areas") {
+      const navResolution = resolveAreaNavigation(
+        areas,
+        currentMemberRole,
+        selectedAreaId,
+      );
+      if (
+        navResolution.targetView === "area-detail" &&
+        navResolution.targetAreaId
+      ) {
+        setSelectedAreaId(navResolution.targetAreaId);
+        setView("area-detail");
+        return;
+      }
+    }
+    setView(itemId);
+  };
+
   const refreshPeopleData = async (): Promise<void> => {
     if (!accessToken || !currentMemberRole || currentMemberRole === "miembro")
       return;
@@ -184,10 +210,15 @@ export default function DashboardPage() {
     setAreas(loadedAreas);
     setMembers(loadedMembers);
     setProjects(loadedProjects);
+    const navResolution = resolveAreaNavigation(
+      loadedAreas,
+      currentMemberRole,
+      selectedAreaId,
+    );
     setSelectedAreaId((current) =>
       loadedAreas.some((area) => area.id === current)
         ? current
-        : (loadedAreas[0]?.id ?? null),
+        : (navResolution.targetAreaId ?? loadedAreas[0]?.id ?? null),
     );
     setSelectedMemberId((current) =>
       loadedMembers.some((member) => member.id === current)
@@ -245,10 +276,10 @@ export default function DashboardPage() {
             {visibleNavItems.map((item) => (
               <NavButton
                 key={item.id}
-                active={view === item.id}
+                active={view === item.id || (item.id === "areas" && view === "area-detail")}
                 icon={item.icon}
                 label={item.label}
-                onClick={() => setView(item.id)}
+                onClick={() => handleNavigateToNavItem(item.id)}
               />
             ))}
           </nav>
@@ -272,8 +303,8 @@ export default function DashboardPage() {
             <Logo compact />
             <select
               aria-label="Cambiar vista"
-              value={view}
-              onChange={(event) => setView(event.target.value as View)}
+              value={view === "area-detail" ? "areas" : view}
+              onChange={(event) => handleNavigateToNavItem(event.target.value as View)}
               className="rounded-md border border-white/10 bg-[#20212c] px-3 py-2 text-sm text-white"
             >
               {visibleNavItems.map((item) => (
@@ -326,6 +357,10 @@ export default function DashboardPage() {
                 metric={selectedArea}
                 accessToken={accessToken}
                 currentRole={currentMember.role}
+                showBackLink={
+                  currentMember.role === "presidencia" ||
+                  areas.filter((a) => !a.isArchived).length > 1
+                }
                 onChanged={refreshPeopleData}
                 onBack={() => setView("areas")}
                 onGoToMembers={() => setView("members")}

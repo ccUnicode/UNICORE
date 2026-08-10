@@ -187,7 +187,9 @@ export function AreasManagementView({
       </div>
       {filtered.length === 0 && (
         <div className="rounded-md border border-dashed border-white/15 px-6 py-14 text-center text-white/45">
-          No hay áreas para estos filtros.
+          {!canEdit && metrics.filter((m) => !m.area.isArchived).length === 0
+            ? "No tienes ninguna área activa asignada."
+            : "No hay áreas para estos filtros."}
         </div>
       )}
       {editing && (
@@ -228,6 +230,7 @@ export function AreaDetailManagementView({
   onOpenMember,
   onGoToMembers,
   onChanged,
+  showBackLink = true,
 }: {
   metric: AreaMetric;
   accessToken: string;
@@ -236,19 +239,22 @@ export function AreaDetailManagementView({
   onOpenMember: (memberId: number) => void;
   onGoToMembers: () => void;
   onChanged: () => Promise<void>;
+  showBackLink?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const canEdit = currentRole === "presidencia";
   return (
     <div>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-6 text-sm text-white/65 hover:text-white"
-      >
-        ← Áreas / {metric.area.name}
-      </button>
+      {showBackLink && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-6 text-sm text-white/65 hover:text-white"
+        >
+          ← Áreas / {metric.area.name}
+        </button>
+      )}
       <PageHeading
         title={metric.area.name}
         subtitle={metric.area.description ?? "Detalle del área y sus miembros."}
