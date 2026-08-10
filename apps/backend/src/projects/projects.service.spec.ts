@@ -22,6 +22,7 @@ import { ProjectRole } from '../common/enums/project-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Member } from '../members/member.entity';
+import { MemberActivityService } from '../members/member-activity.service';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
@@ -339,6 +340,13 @@ describe('ProjectsService', () => {
           useValue: {
             record: jest.fn(),
             findAll: jest.fn(),
+          },
+        },
+        {
+          provide: MemberActivityService,
+          useValue: {
+            refreshMembers: jest.fn(),
+            refreshProjectMembers: jest.fn(),
           },
         },
       ],

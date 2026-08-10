@@ -23,6 +23,7 @@ import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
+import { MemberActivityService } from '../members/member-activity.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
@@ -61,6 +62,7 @@ export class ProjectsService {
     private readonly taskAssigneesRepository: Repository<TaskAssignee>,
     private readonly areaService: AreaService,
     private readonly auditService: AuditService,
+    private readonly memberActivityService: MemberActivityService,
   ) {}
 
   async create(
@@ -270,6 +272,13 @@ export class ProjectsService {
 
       const savedProject = await projectsRepository.save(project);
 
+      if (updateProjectDto.status !== undefined) {
+        await this.memberActivityService.refreshProjectMembers(
+          savedProject.id,
+          entityManager,
+        );
+      }
+
       if (updateProjectDto.links !== undefined) {
         await this.replaceLinks(
           project,
@@ -298,21 +307,35 @@ export class ProjectsService {
   }
 
   async archive(id: number, accessActor: RequestAccessActor): Promise<Project> {
-    const project = await this.findProjectDetails(id);
-    this.assertProjectManagementAccess(project, accessActor);
-    project.isArchived = true;
+    await this.projectsRepository.manager.transaction(async (entityManager) => {
+      const projectsRepository = entityManager.getRepository(Project);
+      const project = await this.findProjectForUpdate(
+        id,
+        projectsRepository,
+        accessActor,
+      );
+      project.isArchived = true;
 
-    const savedProject = await this.projectsRepository.save(project);
+      const savedProject = await projectsRepository.save(project);
+      await this.memberActivityService.refreshProjectMembers(
+        savedProject.id,
+        entityManager,
+      );
 
-    await this.auditService.record(accessActor, {
-      action: 'archive',
-      entityType: 'Project',
-      entityId: savedProject.id,
-      areaId: savedProject.areaId,
-      metadata: { name: savedProject.name },
+      await this.auditService.record(
+        accessActor,
+        {
+          action: 'archive',
+          entityType: 'Project',
+          entityId: savedProject.id,
+          areaId: savedProject.areaId,
+          metadata: { name: savedProject.name },
+        },
+        entityManager,
+      );
     });
 
-    return savedProject;
+    return this.findOne(id, accessActor);
   }
 
   async findPhases(
@@ -700,6 +723,10 @@ export class ProjectsService {
   ): FindOptionsWhere<Project> {
     const where: FindOptionsWhere<Project> = {
       isArchived: filterDto.archived ?? false,
+      ...(accessActor?.snapshotAt && {
+        createdAt: LessThanOrEqual(accessActor.snapshotAt),
+        updatedAt: LessThanOrEqual(accessActor.snapshotAt),
+      }),
     };
 
     if (filterDto.status) {
@@ -976,11 +1003,10 @@ export class ProjectsService {
         return;
       }
 
-      const { id, firstNames, lastNames, activityStatus, availabilityStatus } =
+      const { id, firstNames, lastNames, availabilityStatus } =
         membership.member;
 
       const isEligible =
-        activityStatus === MemberActivityStatus.ACTIVE &&
         availabilityStatus === MemberAvailabilityStatus.AVAILABLE;
 
       membership.member = {

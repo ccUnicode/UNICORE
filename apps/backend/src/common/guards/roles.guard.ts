@@ -13,7 +13,6 @@ import { AreaRole } from '../enums/area-role.enum';
 import { ACCESS_SCOPE_KEY } from '../decorators/access-scope.decorator';
 import { ROLES_KEY } from '../decorators/roles.decorator';
 import { Member } from '../../members/member.entity';
-import { MemberAvailabilityStatus } from '../../members/enums/member-availability-status.enum';
 
 @Injectable()
 export class RolesGuard implements CanActivate {
@@ -41,12 +40,7 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Missing authenticated access actor');
     }
 
-    if (
-      accessActor.status === MemberAvailabilityStatus.DISABLED ||
-      (await this.isMemberDisabled(Number(accessActor.memberId)))
-    ) {
-      throw new ForbiddenException('Your account is disabled');
-    }
+    await this.assertMemberExists(Number(accessActor.memberId));
 
     if (accessActor.role === AreaRole.PRESIDENCIA) {
       return true;
@@ -155,21 +149,21 @@ export class RolesGuard implements CanActivate {
     return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 
-  private async isMemberDisabled(memberId: number): Promise<boolean> {
+  private async assertMemberExists(memberId: number): Promise<void> {
     if (Number.isNaN(memberId)) {
-      return true;
+      throw new ForbiddenException('Missing authenticated member');
     }
     try {
       const member = await this.dataSource.getRepository(Member).findOne({
         where: { id: memberId },
-        select: ['availabilityStatus'],
+        select: ['id'],
       });
       if (!member) {
-        return true;
+        throw new ForbiddenException('Authenticated member not found');
       }
-      return member.availabilityStatus === MemberAvailabilityStatus.DISABLED;
-    } catch {
-      return true;
+    } catch (error) {
+      if (error instanceof ForbiddenException) throw error;
+      throw new ForbiddenException('Unable to verify authenticated member');
     }
   }
 }

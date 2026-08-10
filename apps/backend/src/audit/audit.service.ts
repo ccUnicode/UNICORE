@@ -119,23 +119,31 @@ export class AuditService {
       where.entityType = ILike(filterDto.entityType);
     }
 
-    if (filterDto.dateFrom && filterDto.dateTo) {
-      const start = new Date(filterDto.dateFrom);
-      const end = new Date(filterDto.dateTo);
-      if (filterDto.dateTo.length <= 10) {
-        end.setUTCHours(23, 59, 59, 999);
-      }
+    const start = filterDto.dateFrom ? new Date(filterDto.dateFrom) : undefined;
+    let end = filterDto.dateTo ? new Date(filterDto.dateTo) : undefined;
+
+    if (end && filterDto.dateTo && filterDto.dateTo.length <= 10) {
+      end.setUTCHours(23, 59, 59, 999);
+    }
+    if (start && end && start > end) {
+      throw new BadRequestException('dateFrom cannot be after dateTo');
+    }
+
+    if (accessActor.snapshotAt && (!end || accessActor.snapshotAt < end)) {
+      end = accessActor.snapshotAt;
+    }
+
+    if (start && end) {
       if (start > end) {
-        throw new BadRequestException('dateFrom cannot be after dateTo');
+        return {
+          data: [],
+          meta: { total: 0, page, limit, lastPage: 0 },
+        };
       }
       where.timestamp = Between(start, end);
-    } else if (filterDto.dateFrom) {
-      where.timestamp = MoreThanOrEqual(new Date(filterDto.dateFrom));
-    } else if (filterDto.dateTo) {
-      const end = new Date(filterDto.dateTo);
-      if (filterDto.dateTo.length <= 10) {
-        end.setUTCHours(23, 59, 59, 999);
-      }
+    } else if (start) {
+      where.timestamp = MoreThanOrEqual(start);
+    } else if (end) {
       where.timestamp = LessThanOrEqual(end);
     }
 
