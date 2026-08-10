@@ -324,6 +324,56 @@ describe('MembersService', () => {
     });
   });
 
+  it('allows Directiva to create a regular member in its own area', async () => {
+    const createDto = {
+      ...areaDirectiveMemberDto,
+      role: AreaRole.MIEMBRO,
+    };
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    areasRepository.exists?.mockResolvedValue(true);
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedAreaDirectiveMember);
+    membersRepository.save?.mockResolvedValue(persistedAreaDirectiveMember);
+
+    await expect(
+      service.create(createDto, undefined, accessActor),
+    ).resolves.toEqual(persistedAreaDirectiveMember);
+    expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
+      member: persistedAreaDirectiveMember,
+      area: { id: 3 },
+      role: AreaRole.MIEMBRO,
+    });
+  });
+
+  it('rejects Directiva member creation in another area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '2',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(areasRepository.exists).not.toHaveBeenCalled();
+    expect(membersRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects privileged role creation by Directiva in its own area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(membersRepository.create).not.toHaveBeenCalled();
+  });
+
   it('supports legacy status input mapping to availabilityStatus when creating a member', async () => {
     const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
     const createDto = {
@@ -639,9 +689,8 @@ describe('MembersService', () => {
       );
     });
 
-    it('successfully reactivates a member', async () => {
+    it('updates availability without changing derived activity', async () => {
       const updateDto = {
-        activityStatus: MemberActivityStatus.ACTIVE,
         availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       };
       const reactivatedMember = {
@@ -695,32 +744,6 @@ describe('MembersService', () => {
             areaId: persistedAreaDirectiveMember.areaId,
             projectIds: [3, 8],
           },
-        }),
-      );
-    });
-
-    it('successfully updates a member activity status', async () => {
-      const updateDto = { activityStatus: MemberActivityStatus.INACTIVE };
-      const updatedMember = {
-        ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(updatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        updatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships', 'projectMemberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activityStatus: MemberActivityStatus.INACTIVE,
         }),
       );
     });
@@ -966,7 +989,6 @@ describe('MembersService', () => {
     it('deactivates a member for Presidencia with an exact full name', async () => {
       const deactivatedMember = {
         ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(
@@ -986,7 +1008,7 @@ describe('MembersService', () => {
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 10,
-          activityStatus: MemberActivityStatus.INACTIVE,
+          activityStatus: MemberActivityStatus.ACTIVE,
           availabilityStatus: MemberAvailabilityStatus.DISABLED,
           disabledAt: persistedAreaDirectiveMember.disabledAt,
           disabledAccessSnapshot: {
@@ -1006,7 +1028,6 @@ describe('MembersService', () => {
       };
       const deactivatedMember = {
         ...member,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(member);

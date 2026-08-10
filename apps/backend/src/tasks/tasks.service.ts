@@ -17,8 +17,8 @@ import { AreaRole } from '../common/enums/area-role.enum';
 import { ProjectRole } from '../common/enums/project-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
-import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberActivityService } from '../members/member-activity.service';
 import { Member } from '../members/member.entity';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
@@ -64,6 +64,7 @@ export class TasksService {
     @InjectRepository(ProjectMembership)
     private readonly projectMembershipsRepository: Repository<ProjectMembership>,
     private readonly auditService: AuditService,
+    private readonly memberActivityService: MemberActivityService,
   ) {}
 
   async create(
@@ -129,6 +130,10 @@ export class TasksService {
         );
 
         await taskAssigneesRepository.save(assignees);
+        await this.memberActivityService.refreshMembers(
+          memberships.map((membership) => membership.memberId),
+          entityManager,
+        );
 
         if (accessActor) {
           await this.auditService.record(
@@ -319,6 +324,7 @@ export class TasksService {
         entityManager.getRepository(ProjectMembership);
       const taskStatusHistoryRepository =
         entityManager.getRepository(TaskStatusHistory);
+      const taskAssigneesRepository = entityManager.getRepository(TaskAssignee);
       const task = await this.findTaskForUpdate(id, tasksRepository);
       const project = await this.findProjectOrThrow(
         task.projectId,
@@ -351,6 +357,13 @@ export class TasksService {
           newStatus: updateTaskStatusDto.status,
           actorId: this.getActorMemberId(accessActor),
         }),
+      );
+      const assignees = await taskAssigneesRepository.find({
+        where: { taskId: task.id },
+      });
+      await this.memberActivityService.refreshMembers(
+        assignees.map((assignee) => assignee.memberId),
+        entityManager,
       );
 
       if (accessActor) {
@@ -474,6 +487,10 @@ export class TasksService {
         projectMembershipsRepository,
       );
 
+      const previousAssignees = await taskAssigneesRepository.find({
+        where: { taskId: task.id },
+      });
+
       await taskAssigneesRepository.delete({ taskId: task.id });
       await taskAssigneesRepository.save(
         memberships.map((membership) =>
@@ -483,6 +500,13 @@ export class TasksService {
             projectMembershipId: membership.id,
           }),
         ),
+      );
+      await this.memberActivityService.refreshMembers(
+        [
+          ...previousAssignees.map((assignee) => assignee.memberId),
+          ...memberships.map((membership) => membership.memberId),
+        ],
+        entityManager,
       );
 
       if (accessActor) {
@@ -665,7 +689,6 @@ export class TasksService {
 
     const ineligibleMembership = memberships.find(
       ({ member }) =>
-        member.activityStatus !== MemberActivityStatus.ACTIVE ||
         member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE,
     );
 

@@ -24,7 +24,6 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
 import { DisabledAccessSnapshot, Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
@@ -58,6 +57,8 @@ export class MembersService {
     entityManager?: EntityManager,
     accessActor?: RequestAccessActor,
   ): Promise<Member> {
+    this.assertMemberCreationAccess(createMemberDto, accessActor);
+
     if (!entityManager) {
       return this.dataSource.transaction(async (em) =>
         this.create(createMemberDto, em, accessActor),
@@ -154,7 +155,6 @@ export class MembersService {
       );
     }
     const {
-      activityStatus,
       availabilityStatus,
       status,
       areaId,
@@ -187,9 +187,6 @@ export class MembersService {
 
     if (skills !== undefined) {
       member.skills = await this.resolveSkills(skills, skillsRepository);
-    }
-    if (activityStatus !== undefined) {
-      member.activityStatus = activityStatus;
     }
     if (resolvedAvailabilityStatus !== undefined) {
       member.availabilityStatus = resolvedAvailabilityStatus;
@@ -315,7 +312,6 @@ export class MembersService {
       );
     }
 
-    member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
     member.disabledAt = new Date();
     member.disabledAccessSnapshot = this.buildDisabledAccessSnapshot(
@@ -505,6 +501,29 @@ export class MembersService {
 
     throw new ForbiddenException(
       'Member deactivation is limited to members in your own area',
+    );
+  }
+
+  private assertMemberCreationAccess(
+    createMemberDto: CreateMemberDto,
+    accessActor?: RequestAccessActor,
+  ): void {
+    if (!accessActor || accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const actorAreaId = parseAreaId(accessActor.areaId);
+      if (
+        createMemberDto.areaId === actorAreaId &&
+        createMemberDto.role === AreaRole.MIEMBRO
+      ) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException(
+      'Member creation is limited to regular members in your own area',
     );
   }
 }

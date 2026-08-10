@@ -11,7 +11,6 @@ import { Repository } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { AccessControlledRequest } from '../common/interfaces/access-controlled-request.interface';
-import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { AuthTokenService } from './auth-token.service';
@@ -44,11 +43,7 @@ export class AuthGuard implements CanActivate {
       relations: { projectMemberships: true, memberships: true },
     });
 
-    if (
-      !member ||
-      (member.activityStatus !== MemberActivityStatus.ACTIVE &&
-        member.availabilityStatus !== MemberAvailabilityStatus.DISABLED)
-    ) {
+    if (!member) {
       throw new UnauthorizedException('Authenticated member is disabled');
     }
 

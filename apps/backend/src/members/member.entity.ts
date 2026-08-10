@@ -65,7 +65,7 @@ export class Member {
     name: 'activity_status',
     type: 'enum',
     enum: MemberActivityStatus,
-    default: MemberActivityStatus.ACTIVE,
+    default: MemberActivityStatus.INACTIVE,
   })
   activityStatus: MemberActivityStatus;
 

@@ -1,10 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canCreateMemberInArea,
   filterAndSortMembers,
   getProjectLabelsForMember,
   type MemberDirectoryFilters,
 } from "./people-management-utils";
+
+test("allows member creation only for Presidencia or the area's Directiva", () => {
+  assert.equal(canCreateMemberInArea("presidencia", null, 10), true);
+  assert.equal(canCreateMemberInArea("directiva_de_area", 10, 10), true);
+  assert.equal(canCreateMemberInArea("directiva_de_area", 20, 10), false);
+  assert.equal(canCreateMemberInArea("miembro", 10, 10), false);
+  assert.equal(canCreateMemberInArea("presidencia", null, 10, true), false);
+  assert.equal(
+    canCreateMemberInArea("directiva_de_area", 10, 10, true),
+    false,
+  );
+});
 
 const members = [
   {

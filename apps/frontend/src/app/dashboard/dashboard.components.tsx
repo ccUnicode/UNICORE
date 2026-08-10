@@ -1,8 +1,11 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { API_URL } from "@/lib/auth-client";
+import { BrandLogo } from "../components/brand-logo";
+import { BRAND_LOGO_WIDTHS } from "../components/brand-logo.config";
 import { fullName } from "./dashboard.model";
 import type { Member, Project } from "./dashboard.types";
 
@@ -18,18 +21,15 @@ const chartDays = [
 
 export function Logo({ compact = false }: { compact?: boolean }) {
   return (
-    <div
-      className={`relative overflow-hidden ${compact ? "h-10 w-36" : "h-[73px] w-[202px]"}`}
-    >
-      <Image
-        src="/unicore/unicore-logo.png"
-        alt="UNICORE"
-        fill
-        sizes={compact ? "144px" : "202px"}
-        className="object-cover"
-        priority
-      />
-    </div>
+    <BrandLogo
+      width={
+        compact
+          ? BRAND_LOGO_WIDTHS.compactSidebar
+          : BRAND_LOGO_WIDTHS.sidebar
+      }
+      priority
+      compact={compact}
+    />
   );
 }
 
@@ -43,19 +43,19 @@ export function SessionLoadingView() {
 
 export function NavButton({
   active,
+  href,
   icon,
   label,
-  onClick,
 }: {
   active: boolean;
+  href: string;
   icon: string;
   label: string;
-  onClick: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <Link
+      href={href}
+      aria-current={active ? "page" : undefined}
       className={`flex h-10 w-full items-center gap-5 rounded-md px-3 text-left text-[20px] font-medium outline-none transition ${
         active
           ? "bg-[#252633] text-white"
@@ -71,7 +71,7 @@ export function NavButton({
         aria-hidden
       />
       <span>{label}</span>
-    </button>
+    </Link>
   );
 }
 
@@ -312,6 +312,30 @@ export function PlaceholderView({ title }: { title: string }) {
           Dashboard, Áreas, Miembros y Proyectos.
         </p>
       </Panel>
+    </div>
+  );
+}
+
+export function RouteStateView({
+  title,
+  description,
+  href = "/dashboard",
+  action = "Volver al dashboard",
+}: {
+  title: string;
+  description: string;
+  href?: string;
+  action?: string;
+}) {
+  return (
+    <div>
+      <SectionTitle title={title} subtitle={description} />
+      <Link
+        href={href}
+        className="inline-flex rounded-md bg-[#4067c9] px-4 py-2.5 text-sm font-semibold hover:bg-[#5278d5]"
+      >
+        {action}
+      </Link>
     </div>
   );
 }

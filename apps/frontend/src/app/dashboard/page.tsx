@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   ApiError,
@@ -35,25 +35,36 @@ import {
   navItems,
 } from "./dashboard.model";
 import {
+  canAccessDashboardRoute,
+  getDashboardPath,
+  getRouteNavView,
+  parseDashboardPath,
+} from "./dashboard-route";
+import {
   DashboardView,
   Logo,
   NavButton,
   PlaceholderView,
   ProfileView,
+  RouteStateView,
   SessionLoadingView,
 } from "./dashboard.components";
 
 export default function DashboardPage() {
   const router = useRouter();
+  const params = useParams<{ segments?: string[] }>();
+  const pathname = params.segments?.length
+    ? `/dashboard/${params.segments.join("/")}`
+    : "/dashboard";
+  const route = parseDashboardPath(pathname);
+  const view = route.view;
+  const activeNavView = getRouteNavView(route);
   const [authState, setAuthState] = useState<AuthState>("initializing");
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [currentMember, setCurrentMember] = useState<Member | null>(null);
-  const [view, setView] = useState<View>("dashboard");
   const [areas, setAreas] = useState<Area[]>([]);
   const [members, setMembers] = useState<Member[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [selectedAreaId, setSelectedAreaId] = useState<number | null>(null);
-  const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState("");
   const currentMemberRole = currentMember?.role;
@@ -129,11 +140,7 @@ export default function DashboardPage() {
         if (ignore) return;
 
         setAreas(loadedAreas);
-        setSelectedAreaId((current) => current ?? loadedAreas[0]?.id ?? null);
         setMembers(loadedMembers);
-        setSelectedMemberId(
-          (current) => current ?? loadedMembers[0]?.id ?? null,
-        );
         setProjects(loadedProjects);
         setLoadState("ready");
       } catch (currentError) {
@@ -197,16 +204,6 @@ export default function DashboardPage() {
     setAreas(loadedAreas);
     setMembers(loadedMembers);
     setProjects(loadedProjects);
-    setSelectedAreaId((current) =>
-      loadedAreas.some((area) => area.id === current)
-        ? current
-        : (loadedAreas[0]?.id ?? null),
-    );
-    setSelectedMemberId((current) =>
-      loadedMembers.some((member) => member.id === current)
-        ? current
-        : (loadedMembers[0]?.id ?? null),
-    );
   };
 
   const areaMetrics = useMemo(
@@ -232,11 +229,14 @@ export default function DashboardPage() {
   );
 
   const selectedArea =
-    areaMetrics.find((metric) => metric.area.id === selectedAreaId) ??
-    areaMetrics[0];
+    route.view === "area-detail"
+      ? areaMetrics.find((metric) => metric.area.id === route.resourceId)
+      : undefined;
 
   const selectedMember =
-    members.find((member) => member.id === selectedMemberId) ?? members[0];
+    route.view === "member-profile"
+      ? members.find((member) => member.id === route.resourceId)
+      : undefined;
 
   const activeMembers = members.filter(
     (member) => member.activityStatus !== "inactive",
@@ -249,6 +249,8 @@ export default function DashboardPage() {
     return <SessionLoadingView />;
   }
 
+  const routeAuthorized = canAccessDashboardRoute(route, currentMember.role);
+
   return (
     <main className="min-h-screen bg-[#060610] text-white">
       <div className="flex min-h-screen">
@@ -258,10 +260,10 @@ export default function DashboardPage() {
             {visibleNavItems.map((item) => (
               <NavButton
                 key={item.id}
-                active={view === item.id}
+                active={activeNavView === item.id}
+                href={getDashboardPath(item.id)}
                 icon={item.icon}
                 label={item.label}
-                onClick={() => setView(item.id)}
               />
             ))}
           </nav>
@@ -285,8 +287,10 @@ export default function DashboardPage() {
             <Logo compact />
             <select
               aria-label="Cambiar vista"
-              value={view}
-              onChange={(event) => setView(event.target.value as View)}
+              value={activeNavView ?? "dashboard"}
+              onChange={(event) =>
+                router.push(getDashboardPath(event.target.value as View))
+              }
               className="rounded-md border border-white/10 bg-[#20212c] px-3 py-2 text-sm text-white"
             >
               {visibleNavItems.map((item) => (
@@ -317,7 +321,19 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {view === "dashboard" && (
+            {view === "not-found" && (
+              <RouteStateView
+                title="Página no encontrada"
+                description="La dirección solicitada no corresponde a una vista disponible de UNICORE."
+              />
+            )}
+            {view !== "not-found" && !routeAuthorized && (
+              <RouteStateView
+                title="Acceso restringido"
+                description="Tu rol no tiene permisos para abrir esta vista."
+              />
+            )}
+            {view === "dashboard" && routeAuthorized && (
               <DashboardView
                 areaCount={areas.filter((area) => !area.isArchived).length}
                 memberCount={members.length}
@@ -328,33 +344,42 @@ export default function DashboardPage() {
                 authRole={currentMember.role}
               />
             )}
-            {view === "areas" && (
+            {view === "areas" && routeAuthorized && (
               <AreasManagementView
                 metrics={areaMetrics}
                 accessToken={accessToken}
                 currentRole={currentMember.role}
                 onChanged={refreshPeopleData}
                 onSelectArea={(areaId) => {
-                  setSelectedAreaId(areaId);
-                  setView("area-detail");
+                  router.push(getDashboardPath("area-detail", areaId));
                 }}
               />
             )}
-            {view === "area-detail" && selectedArea && (
+            {view === "area-detail" && routeAuthorized && selectedArea && (
               <AreaDetailManagementView
                 metric={selectedArea}
                 accessToken={accessToken}
                 currentRole={currentMember.role}
+                currentAreaId={currentMember.areaId}
                 onChanged={refreshPeopleData}
-                onBack={() => setView("areas")}
-                onGoToMembers={() => setView("members")}
+                onBack={() => router.push(getDashboardPath("areas"))}
                 onOpenMember={(memberId) => {
-                  setSelectedMemberId(memberId);
-                  setView("member-profile");
+                  router.push(getDashboardPath("member-profile", memberId));
                 }}
               />
             )}
-            {view === "members" && (
+            {view === "area-detail" &&
+              routeAuthorized &&
+              loadState === "ready" &&
+              !selectedArea && (
+                <RouteStateView
+                  title="Área no encontrada"
+                  description="El área solicitada no existe o ya no está disponible para tu cuenta."
+                  href={getDashboardPath("areas")}
+                  action="Volver a áreas"
+                />
+              )}
+            {view === "members" && routeAuthorized && (
               <MembersManagementView
                 members={members}
                 areas={areas}
@@ -363,12 +388,11 @@ export default function DashboardPage() {
                 currentRole={currentMember.role}
                 onChanged={refreshPeopleData}
                 onOpenMember={(memberId) => {
-                  setSelectedMemberId(memberId);
-                  setView("member-profile");
+                  router.push(getDashboardPath("member-profile", memberId));
                 }}
               />
             )}
-            {view === "member-profile" && selectedMember && (
+            {view === "member-profile" && routeAuthorized && selectedMember && (
               <MemberProfileManagementView
                 member={selectedMember}
                 areas={areas}
@@ -376,10 +400,21 @@ export default function DashboardPage() {
                 accessToken={accessToken}
                 currentRole={currentMember.role}
                 onChanged={refreshPeopleData}
-                onBack={() => setView("members")}
+                onBack={() => router.push(getDashboardPath("members"))}
               />
             )}
-            {view === "projects" && accessToken && (
+            {view === "member-profile" &&
+              routeAuthorized &&
+              loadState === "ready" &&
+              !selectedMember && (
+                <RouteStateView
+                  title="Miembro no encontrado"
+                  description="El perfil solicitado no existe o no está disponible para tu cuenta."
+                  href={getDashboardPath("members")}
+                  action="Volver a miembros"
+                />
+              )}
+            {view === "projects" && routeAuthorized && accessToken && (
               <ProjectManagement
                 projects={projects}
                 areas={areas}
@@ -390,7 +425,7 @@ export default function DashboardPage() {
                 onProjectsChanged={refreshProjects}
               />
             )}
-            {view === "tasks" && accessToken && (
+            {view === "tasks" && routeAuthorized && accessToken && (
               <TaskManagement
                 projects={projects}
                 accessToken={accessToken}
@@ -398,13 +433,13 @@ export default function DashboardPage() {
                 currentMember={currentMember}
               />
             )}
-            {view === "integrations" && (
+            {view === "integrations" && routeAuthorized && (
               <PlaceholderView title="Integraciones" />
             )}
-            {view === "audit" && accessToken && (
+            {view === "audit" && routeAuthorized && accessToken && (
               <AuditManagementView accessToken={accessToken} />
             )}
-            {view === "profile" && (
+            {view === "profile" && routeAuthorized && (
               <ProfileView member={currentMember} onLogout={handleLogout} />
             )}
           </div>
