@@ -1383,23 +1383,33 @@ function PhasesPanel({
     setReorderSaving(true);
     onError("");
     try {
-      await requestJson<void>(
-        apiUrl,
-        accessToken,
-        `/projects/${project.id}/phases/reorder`,
-        {
-          method: "PATCH",
-          body: JSON.stringify({
-            phaseIds: nextPhases.map((phase) => phase.id),
-          }),
-        },
-      );
-      await onRefresh("Orden de fases actualizado.");
-    } catch {
-      setPhases(previousPhases);
-      onError(
-        "No se pudo guardar el nuevo orden. Se restauró el orden anterior.",
-      );
+      try {
+        await requestJson<void>(
+          apiUrl,
+          accessToken,
+          `/projects/${project.id}/phases/reorder`,
+          {
+            method: "PATCH",
+            body: JSON.stringify({
+              phaseIds: nextPhases.map((phase) => phase.id),
+            }),
+          },
+        );
+      } catch {
+        setPhases(previousPhases);
+        onError(
+          "No se pudo guardar el nuevo orden. Se restauró el orden anterior.",
+        );
+        return;
+      }
+
+      try {
+        await onRefresh("Orden de fases actualizado.");
+      } catch {
+        onError(
+          "El nuevo orden se guardó, pero no se pudo actualizar la vista.",
+        );
+      }
     } finally {
       setReorderSaving(false);
     }
