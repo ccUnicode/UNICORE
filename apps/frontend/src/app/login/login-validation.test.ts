@@ -73,6 +73,24 @@ describe("getLoginErrorMessage", () => {
     });
   }
 
+  it("maps MEMBER_INACTIVE status 403 to an inactive account message", () => {
+    assert.equal(
+      getLoginErrorMessage(
+        new ApiError("MEMBER_INACTIVE: Account inactive", 403),
+      ),
+      "Tu cuenta está inactiva porque no registras tareas o actividad activa asignada. Contacta a la Directiva o Presidencia para reactivarte.",
+    );
+  });
+
+  it("maps DISABLED_READ_ONLY status 403 to a disabled read-only message", () => {
+    assert.equal(
+      getLoginErrorMessage(
+        new ApiError("DISABLED_READ_ONLY: Read-only access only", 403),
+      ),
+      "Tu cuenta está inhabilitada y solo tiene acceso de lectura. No puedes realizar modificaciones.",
+    );
+  });
+
   it("maps network failures to a connection message", () => {
     assert.equal(
       getLoginErrorMessage(new TypeError("Failed to fetch")),

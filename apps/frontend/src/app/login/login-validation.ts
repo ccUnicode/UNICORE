@@ -29,6 +29,19 @@ export function getLoginErrorMessage(error: unknown): string {
       return "Revisa los datos ingresados e inténtalo nuevamente.";
     }
     if (error.status === 403) {
+      const messageLower = error.message.toLowerCase();
+      if (
+        messageLower.includes("member_inactive") ||
+        messageLower.includes("inactiva")
+      ) {
+        return "Tu cuenta está inactiva porque no registras tareas o actividad activa asignada. Contacta a la Directiva o Presidencia para reactivarte.";
+      }
+      if (
+        messageLower.includes("disabled_read_only") ||
+        messageLower.includes("inhabilitad")
+      ) {
+        return "Tu cuenta está inhabilitada y solo tiene acceso de lectura. No puedes realizar modificaciones.";
+      }
       return "Tu cuenta no tiene acceso habilitado a UNICORE.";
     }
     if (error.status >= 500) {

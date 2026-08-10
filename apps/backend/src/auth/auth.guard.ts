@@ -60,9 +60,12 @@ export class AuthGuard implements CanActivate {
       );
     }
     if (isDisabled && (request.method ?? 'GET') !== 'GET') {
-      throw new ForbiddenException(
-        'DISABLED_READ_ONLY: Disabled members cannot modify resources',
-      );
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'DISABLED_READ_ONLY',
+        error: 'Forbidden',
+        message: 'DISABLED_READ_ONLY: Disabled members cannot modify resources',
+      });
     }
 
     const effectiveRole = isDisabled

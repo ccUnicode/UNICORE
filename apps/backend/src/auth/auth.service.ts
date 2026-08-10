@@ -11,6 +11,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, timingSafeEqual } from 'crypto';
 import { Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
+import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { MembersService } from '../members/members.service';
@@ -153,6 +154,16 @@ export class AuthService {
     }
 
     delete member.passwordHash;
+
+    if (member.activityStatus === MemberActivityStatus.INACTIVE) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'MEMBER_INACTIVE',
+        error: 'Forbidden',
+        message:
+          'MEMBER_INACTIVE: Tu cuenta no registra actividad activa basada en tareas asignadas. Contacta a Directiva o Presidencia para reactivarte.',
+      });
+    }
 
     return this.createAuthResponse(member);
   }
