@@ -5,13 +5,21 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { FindOptionsWhere, ILike, In, Raw, Repository } from 'typeorm';
+import {
+  FindOptionsWhere,
+  ILike,
+  In,
+  LessThanOrEqual,
+  Raw,
+  Repository,
+} from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { ProjectRole } from '../common/enums/project-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
-import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
+import { MemberActivityService } from '../members/member-activity.service';
 import { Member } from '../members/member.entity';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
@@ -57,6 +65,8 @@ export class TasksService {
     @InjectRepository(ProjectMembership)
     private readonly projectMembershipsRepository: Repository<ProjectMembership>,
     private readonly auditService: AuditService,
+    private readonly memberAvailabilityService: MemberAvailabilityService,
+    private readonly memberActivityService: MemberActivityService,
   ) {}
 
   async create(
@@ -122,6 +132,14 @@ export class TasksService {
         );
 
         await taskAssigneesRepository.save(assignees);
+        await this.memberActivityService.refreshMembers(
+          memberships.map((membership) => membership.memberId),
+          entityManager,
+        );
+        await this.memberAvailabilityService.refreshMembers(
+          memberships.map((membership) => membership.memberId),
+          entityManager,
+        );
 
         if (accessActor) {
           await this.auditService.record(
@@ -148,7 +166,12 @@ export class TasksService {
     filterDto: GetTasksFilterDto,
     accessActor: RequestAccessActor,
   ): Promise<PaginatedResponse<Task>> {
-    const project = await this.findProjectOrThrow(filterDto.projectId);
+    const project = await this.findProjectOrThrow(
+      filterDto.projectId,
+      this.projectsRepository,
+      false,
+      accessActor.snapshotAt,
+    );
     await this.assertProjectAccess(project, accessActor, 'read');
 
     if (filterDto.phaseId !== undefined) {
@@ -160,6 +183,10 @@ export class TasksService {
 
     const baseWhere: FindOptionsWhere<Task> = {
       projectId: project.id,
+      ...(accessActor.snapshotAt && {
+        createdAt: LessThanOrEqual(accessActor.snapshotAt),
+        updatedAt: LessThanOrEqual(accessActor.snapshotAt),
+      }),
       ...(filterDto.assigneeId !== undefined && {
         id: Raw(
           (taskIdAlias) =>
@@ -209,11 +236,11 @@ export class TasksService {
   }
 
   async findOne(id: number, accessActor: RequestAccessActor): Promise<Task> {
-    const task = await this.findTaskOrThrow(id);
+    const task = await this.findTaskOrThrow(id, accessActor.snapshotAt);
     await this.assertProjectAccess(task.project, accessActor, 'read');
     const [comments, statusHistory] = await Promise.all([
-      this.loadComments(task.id),
-      this.loadStatusHistory(task.id),
+      this.loadComments(task.id, accessActor.snapshotAt),
+      this.loadStatusHistory(task.id, accessActor.snapshotAt),
     ]);
     task.comments = comments;
     task.statusHistory = statusHistory;
@@ -308,6 +335,7 @@ export class TasksService {
         entityManager.getRepository(ProjectMembership);
       const taskStatusHistoryRepository =
         entityManager.getRepository(TaskStatusHistory);
+      const taskAssigneesRepository = entityManager.getRepository(TaskAssignee);
       const task = await this.findTaskForUpdate(id, tasksRepository);
       const project = await this.findProjectOrThrow(
         task.projectId,
@@ -341,6 +369,17 @@ export class TasksService {
           actorId: this.getActorMemberId(accessActor),
         }),
       );
+      const assignees = await taskAssigneesRepository.find({
+        where: { taskId: task.id },
+      });
+      await this.memberActivityService.refreshMembers(
+        assignees.map((assignee) => assignee.memberId),
+        entityManager,
+      );
+      await this.memberAvailabilityService.refreshMembers(
+        assignees.map((assignee) => assignee.memberId),
+        entityManager,
+      );
 
       if (accessActor) {
         await this.auditService.record(
@@ -370,7 +409,10 @@ export class TasksService {
     createTaskCommentDto: CreateTaskCommentDto,
     accessActor: RequestAccessActor,
   ): Promise<TaskComment> {
-    const task = await this.findTaskForAccessOrThrow(id);
+    const task = await this.findTaskForAccessOrThrow(
+      id,
+      accessActor.snapshotAt,
+    );
     await this.assertProjectAccess(task.project, accessActor, 'read');
     this.assertProjectIsActive(task.project);
 
@@ -401,10 +443,13 @@ export class TasksService {
     id: number,
     accessActor: RequestAccessActor,
   ): Promise<TaskComment[]> {
-    const task = await this.findTaskForAccessOrThrow(id);
+    const task = await this.findTaskForAccessOrThrow(
+      id,
+      accessActor.snapshotAt,
+    );
     await this.assertProjectAccess(task.project, accessActor, 'read');
 
-    const comments = await this.loadComments(task.id);
+    const comments = await this.loadComments(task.id, accessActor.snapshotAt);
     comments.forEach((comment) => this.limitMemberFields(comment, 'author'));
     return comments;
   }
@@ -413,10 +458,16 @@ export class TasksService {
     id: number,
     accessActor: RequestAccessActor,
   ): Promise<TaskStatusHistory[]> {
-    const task = await this.findTaskForAccessOrThrow(id);
+    const task = await this.findTaskForAccessOrThrow(
+      id,
+      accessActor.snapshotAt,
+    );
     await this.assertProjectAccess(task.project, accessActor, 'read');
 
-    const history = await this.loadStatusHistory(task.id);
+    const history = await this.loadStatusHistory(
+      task.id,
+      accessActor.snapshotAt,
+    );
     history.forEach((entry) => this.limitMemberFields(entry, 'actor'));
     return history;
   }
@@ -445,10 +496,15 @@ export class TasksService {
       );
       this.assertProjectIsActive(project);
 
+      const previousAssignees = await taskAssigneesRepository.find({
+        where: { taskId: task.id },
+      });
+
       const memberships = await this.validateAssignees(
         project.id,
         setTaskAssigneesDto.memberIds,
         projectMembershipsRepository,
+        new Set(previousAssignees.map(({ memberId }) => memberId)),
       );
 
       await taskAssigneesRepository.delete({ taskId: task.id });
@@ -460,6 +516,20 @@ export class TasksService {
             projectMembershipId: membership.id,
           }),
         ),
+      );
+      await this.memberActivityService.refreshMembers(
+        [
+          ...previousAssignees.map((assignee) => assignee.memberId),
+          ...memberships.map((membership) => membership.memberId),
+        ],
+        entityManager,
+      );
+      await this.memberAvailabilityService.refreshMembers(
+        [
+          ...previousAssignees.map((assignee) => assignee.memberId),
+          ...memberships.map((membership) => membership.memberId),
+        ],
+        entityManager,
       );
 
       if (accessActor) {
@@ -484,9 +554,15 @@ export class TasksService {
     return this.findOne(id, accessActor);
   }
 
-  private async findTaskOrThrow(id: number): Promise<Task> {
+  private async findTaskOrThrow(id: number, snapshotAt?: Date): Promise<Task> {
     const task = await this.tasksRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        ...(snapshotAt && {
+          createdAt: LessThanOrEqual(snapshotAt),
+          updatedAt: LessThanOrEqual(snapshotAt),
+        }),
+      },
       relations: ['project', 'phase', 'assignees', 'assignees.member'],
     });
 
@@ -497,9 +573,18 @@ export class TasksService {
     return task;
   }
 
-  private async findTaskForAccessOrThrow(id: number): Promise<Task> {
+  private async findTaskForAccessOrThrow(
+    id: number,
+    snapshotAt?: Date,
+  ): Promise<Task> {
     const task = await this.tasksRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        ...(snapshotAt && {
+          createdAt: LessThanOrEqual(snapshotAt),
+          updatedAt: LessThanOrEqual(snapshotAt),
+        }),
+      },
       relations: ['project'],
     });
 
@@ -510,17 +595,32 @@ export class TasksService {
     return task;
   }
 
-  private loadComments(taskId: number): Promise<TaskComment[]> {
+  private loadComments(
+    taskId: number,
+    snapshotAt?: Date,
+  ): Promise<TaskComment[]> {
     return this.taskCommentsRepository.find({
-      where: { taskId },
+      where: {
+        taskId,
+        ...(snapshotAt && {
+          createdAt: LessThanOrEqual(snapshotAt),
+          updatedAt: LessThanOrEqual(snapshotAt),
+        }),
+      },
       relations: ['author'],
       order: { createdAt: 'ASC', id: 'ASC' },
     });
   }
 
-  private loadStatusHistory(taskId: number): Promise<TaskStatusHistory[]> {
+  private loadStatusHistory(
+    taskId: number,
+    snapshotAt?: Date,
+  ): Promise<TaskStatusHistory[]> {
     return this.taskStatusHistoryRepository.find({
-      where: { taskId },
+      where: {
+        taskId,
+        ...(snapshotAt && { createdAt: LessThanOrEqual(snapshotAt) }),
+      },
       relations: ['actor'],
       order: { createdAt: 'DESC', id: 'DESC' },
     });
@@ -546,9 +646,16 @@ export class TasksService {
     id: number,
     projectsRepository: Repository<Project> = this.projectsRepository,
     lock = false,
+    snapshotAt?: Date,
   ): Promise<Project> {
     const project = await projectsRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        ...(snapshotAt && {
+          createdAt: LessThanOrEqual(snapshotAt),
+          updatedAt: LessThanOrEqual(snapshotAt),
+        }),
+      },
       ...(lock && { lock: { mode: 'pessimistic_write' as const } }),
     });
 
@@ -583,6 +690,7 @@ export class TasksService {
     memberIds: number[],
     projectMembershipsRepository: Repository<ProjectMembership> = this
       .projectMembershipsRepository,
+    availabilityExemptMemberIds: ReadonlySet<number> = new Set(),
   ): Promise<ProjectMembership[]> {
     if (
       memberIds.length === 0 ||
@@ -612,7 +720,7 @@ export class TasksService {
 
     const ineligibleMembership = memberships.find(
       ({ member }) =>
-        member.activityStatus !== MemberActivityStatus.ACTIVE ||
+        !availabilityExemptMemberIds.has(member.id) &&
         member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE,
     );
 
@@ -634,8 +742,29 @@ export class TasksService {
     projectMembershipsRepository: Repository<ProjectMembership> = this
       .projectMembershipsRepository,
   ): Promise<void> {
+    if (
+      accessActor.readOnly &&
+      accessActor.snapshotAt &&
+      (project.createdAt > accessActor.snapshotAt ||
+        project.updatedAt > accessActor.snapshotAt)
+    ) {
+      throw new ForbiddenException(
+        'Task access is limited to projects visible in your disabled access snapshot',
+      );
+    }
+
     if (accessActor.role === AreaRole.PRESIDENCIA) {
       return;
+    }
+
+    if (accessActor.readOnly && accessActor.role === AreaRole.MIEMBRO) {
+      if (accessActor.projectIds?.includes(String(project.id))) {
+        return;
+      }
+
+      throw new ForbiddenException(
+        'Task access is limited to projects in your disabled access snapshot',
+      );
     }
 
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {

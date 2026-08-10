@@ -8,7 +8,9 @@ import { ProjectRole } from '../common/enums/project-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { Member } from '../members/member.entity';
+import { MemberActivityService } from '../members/member-activity.service';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
 import { Project } from '../projects/entities/project.entity';
@@ -224,6 +226,12 @@ describe('TasksService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
+        {
+          provide: MemberAvailabilityService,
+          useValue: {
+            refreshMembers: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: getRepositoryToken(Task), useValue: tasksRepository },
         {
           provide: getRepositoryToken(TaskAssignee),
@@ -251,6 +259,13 @@ describe('TasksService', () => {
           useValue: {
             record: jest.fn(),
             findAll: jest.fn(),
+          },
+        },
+        {
+          provide: MemberActivityService,
+          useValue: {
+            refreshMembers: jest.fn(),
+            refreshProjectMembers: jest.fn(),
           },
         },
       ],
@@ -442,7 +457,12 @@ describe('TasksService', () => {
     const task = createTask();
     const membership = createMembership();
 
-    projectsRepository.findOne.mockResolvedValue(createProject());
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T10:00:00.000Z'),
+      }),
+    );
     projectMembershipsRepository.findOne.mockResolvedValue(membership);
     tasksRepository.findAndCount.mockResolvedValue([[task], 1]);
 
@@ -460,6 +480,100 @@ describe('TasksService', () => {
         take: 10,
       }),
     );
+  });
+
+  it('uses frozen project access and applies the cutoff before pagination', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const disabledActor: RequestAccessActor = {
+      ...memberActor,
+      readOnly: true,
+      snapshotAt,
+      projectIds: ['1'],
+    };
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T10:00:00.000Z'),
+      }),
+    );
+    tasksRepository.findAndCount.mockResolvedValue([[], 0]);
+
+    await service.findAll({ projectId: 1 }, disabledActor);
+
+    expect(projectMembershipsRepository.findOne).not.toHaveBeenCalled();
+    const [{ where: projectWhere }] = projectsRepository.findOne.mock
+      .calls[0] as [
+      {
+        where: {
+          createdAt: FindOperator<Date>;
+          updatedAt: FindOperator<Date>;
+        };
+      },
+    ];
+    expect(projectWhere.createdAt.value).toEqual(snapshotAt);
+    expect(projectWhere.updatedAt.value).toEqual(snapshotAt);
+    const [{ where }] = tasksRepository.findAndCount.mock.calls[0] as [
+      {
+        where: {
+          createdAt: FindOperator<Date>;
+          updatedAt: FindOperator<Date>;
+        };
+      },
+    ];
+    expect(where.createdAt.type).toBe('lessThanOrEqual');
+    expect(where.createdAt.value).toEqual(snapshotAt);
+    expect(where.updatedAt.type).toBe('lessThanOrEqual');
+    expect(where.updatedAt.value).toEqual(snapshotAt);
+  });
+
+  it('rejects a project moved into a disabled Directiva area after the snapshot', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const disabledAreaLeader: RequestAccessActor = {
+      ...areaLeaderActor,
+      readOnly: true,
+      snapshotAt,
+    };
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        areaId: 1,
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-08-02T10:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.findAll({ projectId: 1 }, disabledAreaLeader),
+    ).rejects.toThrow(
+      new ForbiddenException(
+        'Task access is limited to projects visible in your disabled access snapshot',
+      ),
+    );
+    expect(tasksRepository.findAndCount).not.toHaveBeenCalled();
+  });
+
+  it('rejects projects added after the disabled access snapshot', async () => {
+    const disabledActor: RequestAccessActor = {
+      ...memberActor,
+      readOnly: true,
+      snapshotAt: new Date('2026-08-01T10:00:00.000Z'),
+      projectIds: [],
+    };
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T10:00:00.000Z'),
+      }),
+    );
+    projectMembershipsRepository.findOne.mockResolvedValue(createMembership());
+
+    await expect(
+      service.findAll({ projectId: 1 }, disabledActor),
+    ).rejects.toThrow(
+      new ForbiddenException(
+        'Task access is limited to projects in your disabled access snapshot',
+      ),
+    );
+    expect(projectMembershipsRepository.findOne).not.toHaveBeenCalled();
   });
 
   it('keeps every task assignee when filtering by one assignee', async () => {
@@ -740,6 +854,32 @@ describe('TasksService', () => {
         memberId: 3,
         projectMembershipId: 3,
       }),
+    ]);
+  });
+
+  it('keeps existing unavailable assignees when editing a task', async () => {
+    const task = createTask();
+    const existingMembership = createMembership({
+      id: 2,
+      memberId: 2,
+      member: createMember({
+        id: 2,
+        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+      }),
+    });
+
+    tasksRepository.findOne.mockResolvedValue(task);
+    projectsRepository.findOne.mockResolvedValue(task.project);
+    taskAssigneesRepository.find.mockResolvedValue([
+      { taskId: task.id, memberId: 2 } as TaskAssignee,
+    ]);
+    projectMembershipsRepository.find.mockResolvedValue([existingMembership]);
+
+    await expect(
+      service.setAssignees(1, { memberIds: [2] }, presidencyActor),
+    ).resolves.toEqual(expect.objectContaining({ id: 1 }));
+    expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
+      expect.objectContaining({ taskId: 1, memberId: 2 }),
     ]);
   });
 

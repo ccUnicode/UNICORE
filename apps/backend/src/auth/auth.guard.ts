@@ -3,6 +3,7 @@ import {
   ExecutionContext,
   Injectable,
   UnauthorizedException,
+  ForbiddenException,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -10,7 +11,6 @@ import { Repository } from 'typeorm';
 import { IS_PUBLIC_KEY } from '../common/decorators/public.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { AccessControlledRequest } from '../common/interfaces/access-controlled-request.interface';
-import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { Member } from '../members/member.entity';
 import { AuthTokenService } from './auth-token.service';
@@ -43,11 +43,7 @@ export class AuthGuard implements CanActivate {
       relations: { projectMemberships: true, memberships: true },
     });
 
-    if (
-      !member ||
-      member.activityStatus !== MemberActivityStatus.ACTIVE ||
-      member.availabilityStatus === MemberAvailabilityStatus.DISABLED
-    ) {
+    if (!member) {
       throw new UnauthorizedException('Authenticated member is disabled');
     }
 
@@ -55,16 +51,40 @@ export class AuthGuard implements CanActivate {
       throw new UnauthorizedException('Authentication token has been revoked');
     }
 
-    if (member.role === AreaRole.DIRECTIVA_DE_AREA && !member.areaId) {
+    const isDisabled =
+      member.availabilityStatus === MemberAvailabilityStatus.DISABLED;
+    const disabledSnapshot = member.disabledAccessSnapshot;
+    if (isDisabled && (!member.disabledAt || !disabledSnapshot)) {
+      throw new UnauthorizedException(
+        'Disabled member access snapshot is unavailable',
+      );
+    }
+    if (isDisabled && (request.method ?? 'GET') !== 'GET') {
+      throw new ForbiddenException(
+        'DISABLED_READ_ONLY: Disabled members cannot modify resources',
+      );
+    }
+
+    const effectiveRole = isDisabled
+      ? (disabledSnapshot as NonNullable<typeof disabledSnapshot>).role
+      : member.role;
+    const effectiveAreaId = isDisabled
+      ? (disabledSnapshot as NonNullable<typeof disabledSnapshot>).areaId
+      : member.areaId;
+    const effectiveProjectIds = isDisabled
+      ? (disabledSnapshot as NonNullable<typeof disabledSnapshot>).projectIds
+      : (member.projectMemberships ?? []).map(({ projectId }) => projectId);
+
+    if (effectiveRole === AreaRole.DIRECTIVA_DE_AREA && !effectiveAreaId) {
       throw new UnauthorizedException(
         'Authenticated member has no assigned area',
       );
     }
 
     request.accessActor = {
-      role: member.role,
+      role: effectiveRole,
       memberId: String(member.id),
-      areaId: member.areaId ? String(member.areaId) : undefined,
+      areaId: effectiveAreaId ? String(effectiveAreaId) : undefined,
       member:
         member.firstNames && member.lastNames
           ? {
@@ -73,11 +93,14 @@ export class AuthGuard implements CanActivate {
             }
           : undefined,
       projectIds:
-        member.role === AreaRole.MIEMBRO
-          ? (member.projectMemberships ?? []).map(({ projectId }) =>
-              String(projectId),
-            )
+        effectiveRole === AreaRole.MIEMBRO
+          ? effectiveProjectIds.map((projectId) => String(projectId))
           : undefined,
+      ...(isDisabled && {
+        status: member.availabilityStatus,
+        readOnly: true,
+        snapshotAt: member.disabledAt as Date,
+      }),
     };
     request.authenticatedMember = member;
 

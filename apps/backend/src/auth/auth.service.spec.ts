@@ -86,7 +86,7 @@ describe('AuthService', () => {
       role: AreaRole.PRESIDENCIA,
       institution: 'UNI',
       studentCode: '20260004',
-      activityStatus: MemberActivityStatus.ACTIVE,
+      activityStatus: MemberActivityStatus.INACTIVE,
       sessionVersion: 0,
     } as Member;
 
@@ -150,14 +150,6 @@ describe('AuthService', () => {
       },
     },
     {
-      label: 'inactive',
-      member: {
-        institution: 'UNI',
-        studentCode: '20260004',
-        activityStatus: MemberActivityStatus.INACTIVE,
-      },
-    },
-    {
       label: 'without a student code',
       member: {
         institution: 'UNI',
@@ -187,13 +179,13 @@ describe('AuthService', () => {
     },
   );
 
-  it('returns a token for valid active credentials without exposing the hash', async () => {
+  it('returns a token for valid inactive credentials without exposing the hash', async () => {
     const member = {
       id: 7,
       institution: 'UNI',
       studentCode: '20260007',
       passwordHash: 'stored-hash',
-      activityStatus: MemberActivityStatus.ACTIVE,
+      activityStatus: MemberActivityStatus.INACTIVE,
       sessionVersion: 5,
     } as Member;
 
@@ -238,7 +230,7 @@ describe('AuthService', () => {
     );
   });
 
-  it('rejects login for active but disabled members', async () => {
+  it('allows login for disabled members in read-only mode', async () => {
     const member = {
       id: 7,
       institution: 'UNI',
@@ -257,7 +249,10 @@ describe('AuthService', () => {
         studentCode: '20260007',
         password: 'a-secure-password',
       }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).resolves.toMatchObject({
+      accessToken: 'signed-token',
+      member: { readOnly: true },
+    });
   });
 
   it('increments the session version when changing a password', async () => {

@@ -24,19 +24,12 @@ import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
-import { MemberActivityStatus } from './enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
-import { Member } from './member.entity';
+import { DisabledAccessSnapshot, Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
 import { AuditService } from '../audit/audit.service';
-
-interface LegacyCreateMemberInput extends CreateMemberDto {
-  status?: MemberAvailabilityStatus;
-}
-
-interface LegacyUpdateMemberInput extends UpdateMemberDto {
-  status?: MemberAvailabilityStatus;
-}
+import { MemberActivityService } from './member-activity.service';
+import { MemberAvailabilityService } from './member-availability.service';
 
 @Injectable()
 export class MembersService {
@@ -51,6 +44,8 @@ export class MembersService {
     private readonly areaMembershipsRepository: Repository<AreaMembership>,
     private readonly dataSource: DataSource,
     private readonly auditService: AuditService,
+    private readonly memberActivityService: MemberActivityService,
+    private readonly memberAvailabilityService: MemberAvailabilityService,
   ) {}
 
   async create(
@@ -58,20 +53,27 @@ export class MembersService {
     entityManager?: EntityManager,
     accessActor?: RequestAccessActor,
   ): Promise<Member> {
+    this.assertMemberCreationAccess(createMemberDto, accessActor);
+
     if (!entityManager) {
       return this.dataSource.transaction(async (em) =>
         this.create(createMemberDto, em, accessActor),
       );
     }
-    const { skills, areaId, status, ...restDto } =
-      createMemberDto as LegacyCreateMemberInput;
+    const sanitizedDto = { ...createMemberDto } as CreateMemberDto & {
+      status?: unknown;
+      availabilityStatus?: unknown;
+      activityStatus?: unknown;
+    };
+    delete sanitizedDto.status;
+    delete sanitizedDto.availabilityStatus;
+    delete sanitizedDto.activityStatus;
+    const { skills, areaId, ...restDto } = sanitizedDto;
     const membersRepository = entityManager.getRepository(Member);
     const skillsRepository = entityManager.getRepository(Skill);
     const areasRepository = entityManager.getRepository(Area);
     const areaMembershipsRepository =
       entityManager.getRepository(AreaMembership);
-
-    const resolvedAvailabilityStatus = restDto.availabilityStatus ?? status;
 
     if (areaId !== undefined && areaId !== null) {
       await this.validateActiveAreaExists(areaId, areasRepository);
@@ -81,9 +83,6 @@ export class MembersService {
 
     const member = membersRepository.create({
       ...restDto,
-      ...(resolvedAvailabilityStatus !== undefined && {
-        availabilityStatus: resolvedAvailabilityStatus,
-      }),
       skills: resolvedSkills,
     } as DeepPartial<Member>);
 
@@ -141,16 +140,15 @@ export class MembersService {
         this.update(id, updateMemberDto, em, accessActor),
       );
     }
-    const {
-      activityStatus,
-      availabilityStatus,
-      status,
-      areaId,
-      cycle,
-      skills,
-      ...profileUpdates
-    } = updateMemberDto as LegacyUpdateMemberInput;
-    const resolvedAvailabilityStatus = availabilityStatus ?? status;
+    const sanitizedDto = { ...updateMemberDto } as UpdateMemberDto & {
+      status?: unknown;
+      availabilityStatus?: unknown;
+      activityStatus?: unknown;
+    };
+    delete sanitizedDto.status;
+    delete sanitizedDto.availabilityStatus;
+    delete sanitizedDto.activityStatus;
+    const { areaId, cycle, skills, ...profileUpdates } = sanitizedDto;
 
     const membersRepository = entityManager.getRepository(Member);
     const skillsRepository = entityManager.getRepository(Skill);
@@ -164,7 +162,7 @@ export class MembersService {
 
     const member = await membersRepository.findOne({
       where: { id },
-      relations: ['memberships'],
+      relations: ['memberships', 'projectMemberships'],
     });
 
     if (!member) {
@@ -175,12 +173,6 @@ export class MembersService {
 
     if (skills !== undefined) {
       member.skills = await this.resolveSkills(skills, skillsRepository);
-    }
-    if (activityStatus !== undefined) {
-      member.activityStatus = activityStatus;
-    }
-    if (resolvedAvailabilityStatus !== undefined) {
-      member.availabilityStatus = resolvedAvailabilityStatus;
     }
     if (cycle !== undefined) {
       member.cycle = cycle === null ? null : cycle;
@@ -274,7 +266,7 @@ export class MembersService {
   ): Promise<Member> {
     const member = await this.membersRepository.findOne({
       where: { id },
-      relations: ['memberships'],
+      relations: ['memberships', 'projectMemberships'],
     });
 
     if (!member) {
@@ -290,8 +282,13 @@ export class MembersService {
       );
     }
 
-    member.activityStatus = MemberActivityStatus.INACTIVE;
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
+    member.disabledAt = new Date();
+    member.disabledAccessSnapshot = this.buildDisabledAccessSnapshot(
+      member.role,
+      member.areaId,
+      (member.projectMemberships ?? []).map(({ projectId }) => projectId),
+    );
 
     const savedMember = await this.membersRepository.save(member);
 
@@ -309,7 +306,84 @@ export class MembersService {
     return savedMember;
   }
 
-  findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
+  async reactivate(
+    id: number,
+    confirmName: string,
+    accessActor: RequestAccessActor,
+  ): Promise<Member> {
+    return this.dataSource.transaction(async (entityManager) => {
+      const membersRepository = entityManager.getRepository(Member);
+      const member = await membersRepository.findOne({
+        where: { id },
+        relations: ['memberships'],
+      });
+
+      if (!member) {
+        throw new NotFoundException(`Member with ID ${id} not found`);
+      }
+
+      this.assertMemberDeactivationAccess(member, accessActor);
+
+      const exactName = `${member.firstNames} ${member.lastNames}`;
+      if (confirmName !== exactName) {
+        throw new BadRequestException(
+          'confirmName must exactly match the member full name',
+        );
+      }
+
+      if (member.availabilityStatus !== MemberAvailabilityStatus.DISABLED) {
+        throw new BadRequestException(
+          'Only disabled members can be reactivated',
+        );
+      }
+
+      member.availabilityStatus = MemberAvailabilityStatus.AVAILABLE;
+      member.disabledAt = null;
+      member.disabledAccessSnapshot = null;
+      const savedMember = await membersRepository.save(member);
+      await this.memberActivityService.refreshMembers([id], entityManager);
+      await this.memberAvailabilityService.refreshMembers([id], entityManager);
+
+      await this.auditService.record(
+        accessActor,
+        {
+          action: 'reactivate',
+          entityType: 'Member',
+          entityId: savedMember.id,
+          areaId: savedMember.areaId ?? null,
+          metadata: {
+            firstNames: savedMember.firstNames,
+            lastNames: savedMember.lastNames,
+          },
+        },
+        entityManager,
+      );
+
+      return (
+        (await membersRepository.findOne({
+          where: { id },
+          relations: ['memberships'],
+        })) ?? savedMember
+      );
+    });
+  }
+
+  private buildDisabledAccessSnapshot(
+    role: AreaRole,
+    areaId: number | null,
+    projectIds: number[],
+  ): DisabledAccessSnapshot {
+    return {
+      role,
+      areaId,
+      projectIds: [...new Set(projectIds)].sort((left, right) => left - right),
+    };
+  }
+
+  findAll(
+    filterDto?: GetMembersFilterDto,
+    membershipSnapshotAt?: Date,
+  ): Promise<Member[]> {
     const activityStatus = filterDto?.activityStatus;
     const availabilityStatus = filterDto?.availabilityStatus;
     const areaId = filterDto?.areaId;
@@ -338,11 +412,14 @@ export class MembersService {
     }
 
     if (areaId !== undefined) {
+      const membershipCutoff = membershipSnapshotAt
+        ? ' AND areaMembershipFilter.createdAt <= :membershipSnapshotAt AND areaMembershipFilter.updatedAt <= :membershipSnapshotAt'
+        : '';
       query.innerJoin(
         'member.memberships',
         'areaMembershipFilter',
-        'areaMembershipFilter.areaId = :areaId',
-        { areaId },
+        `areaMembershipFilter.areaId = :areaId${membershipCutoff}`,
+        { areaId, ...(membershipSnapshotAt && { membershipSnapshotAt }) },
       );
     }
 
@@ -381,10 +458,13 @@ export class MembersService {
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
       const areaId = parseAreaId(accessActor.areaId);
 
-      const members = await this.findAll({
-        ...filterDto,
-        areaId,
-      });
+      const members = await this.findAll(
+        {
+          ...filterDto,
+          areaId,
+        },
+        accessActor.snapshotAt,
+      );
 
       return this.toAccessibleMemberResponses(members, accessActor);
     }
@@ -462,6 +542,29 @@ export class MembersService {
 
     throw new ForbiddenException(
       'Member deactivation is limited to members in your own area',
+    );
+  }
+
+  private assertMemberCreationAccess(
+    createMemberDto: CreateMemberDto,
+    accessActor?: RequestAccessActor,
+  ): void {
+    if (!accessActor || accessActor.role === AreaRole.PRESIDENCIA) {
+      return;
+    }
+
+    if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
+      const actorAreaId = parseAreaId(accessActor.areaId);
+      if (
+        createMemberDto.areaId === actorAreaId &&
+        createMemberDto.role === AreaRole.MIEMBRO
+      ) {
+        return;
+      }
+    }
+
+    throw new ForbiddenException(
+      'Member creation is limited to regular members in your own area',
     );
   }
 }

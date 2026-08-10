@@ -74,7 +74,7 @@ describe('RolesGuard', () => {
     await expect(guard.canActivate(createContext({}))).resolves.toBe(true);
   });
 
-  it('rejects requests from disabled members via database', async () => {
+  it('allows disabled members to reach role-scoped read endpoints', async () => {
     setupReflector([AreaRole.MIEMBRO], undefined, 'disabled');
 
     await expect(
@@ -87,7 +87,7 @@ describe('RolesGuard', () => {
           },
         }),
       ),
-    ).rejects.toThrow(ForbiddenException);
+    ).resolves.toBe(true);
   });
 
   it('rejects requests without an authenticated access actor', async () => {

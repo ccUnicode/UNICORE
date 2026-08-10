@@ -11,10 +11,12 @@ import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
 import { AuditModule } from '../audit/audit.module';
+import { MembersModule } from '../members/members.module';
 
 @Module({
   imports: [
     AreaModule,
+    MembersModule,
     TypeOrmModule.forFeature([
       Project,
       ProjectPhase,
