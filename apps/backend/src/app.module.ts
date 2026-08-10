@@ -12,6 +12,7 @@ import { MigrateMemberRolesAndAreas1787788800000 } from './migrations/1787788800
 import { RepairMemberAreaMemberships1787788800001 } from './migrations/1787788800001-RepairMemberAreaMemberships';
 import { AddTaskCollaboration1787788800002 } from './migrations/1787788800002-AddTaskCollaboration';
 import { CreateAuditEventsTable1787788800003 } from './migrations/1787788800003-CreateAuditEventsTable';
+import { DeriveMemberAvailabilityFromTasks1787788800005 } from './migrations/1787788800005-DeriveMemberAvailabilityFromTasks';
 import { DeriveMemberActivityFromTasks1787788800004 } from './migrations/1787788800004-DeriveMemberActivityFromTasks';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
@@ -48,6 +49,7 @@ import { SkillsModule } from './skills/skills.module';
             AddTaskCollaboration1787788800002,
             CreateAuditEventsTable1787788800003,
             DeriveMemberActivityFromTasks1787788800004,
+            DeriveMemberAvailabilityFromTasks1787788800005,
             AddMemberDisabledSnapshotCutoff1787788800006,
           ],
           migrationsRun: true,

@@ -8,6 +8,7 @@ import { ProjectRole } from '../common/enums/project-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { Member } from '../members/member.entity';
 import { MemberActivityService } from '../members/member-activity.service';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
@@ -225,6 +226,12 @@ describe('TasksService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         TasksService,
+        {
+          provide: MemberAvailabilityService,
+          useValue: {
+            refreshMembers: jest.fn().mockResolvedValue(undefined),
+          },
+        },
         { provide: getRepositoryToken(Task), useValue: tasksRepository },
         {
           provide: getRepositoryToken(TaskAssignee),
@@ -847,6 +854,32 @@ describe('TasksService', () => {
         memberId: 3,
         projectMembershipId: 3,
       }),
+    ]);
+  });
+
+  it('keeps existing unavailable assignees when editing a task', async () => {
+    const task = createTask();
+    const existingMembership = createMembership({
+      id: 2,
+      memberId: 2,
+      member: createMember({
+        id: 2,
+        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+      }),
+    });
+
+    tasksRepository.findOne.mockResolvedValue(task);
+    projectsRepository.findOne.mockResolvedValue(task.project);
+    taskAssigneesRepository.find.mockResolvedValue([
+      { taskId: task.id, memberId: 2 } as TaskAssignee,
+    ]);
+    projectMembershipsRepository.find.mockResolvedValue([existingMembership]);
+
+    await expect(
+      service.setAssignees(1, { memberIds: [2] }, presidencyActor),
+    ).resolves.toEqual(expect.objectContaining({ id: 1 }));
+    expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
+      expect.objectContaining({ taskId: 1, memberId: 2 }),
     ]);
   });
 

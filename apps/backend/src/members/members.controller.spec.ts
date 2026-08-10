@@ -32,6 +32,7 @@ describe('MembersController', () => {
     findAccessible: jest.fn(),
     update: jest.fn(),
     deactivate: jest.fn(),
+    reactivate: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -143,6 +144,21 @@ describe('MembersController', () => {
     );
   });
 
+  it('reactivates members through the scoped service method', async () => {
+    const accessActor = { role: AreaRole.DIRECTIVA_DE_AREA, areaId: '2' };
+    const reactivatedMember = { id: 1 } as Member;
+    mockMembersService.reactivate.mockResolvedValue(reactivatedMember);
+
+    await expect(
+      controller.reactivate(1, { confirmName: 'Ana Torres' }, accessActor),
+    ).resolves.toEqual(toMemberResponse(reactivatedMember, accessActor.role));
+    expect(mockMembersService.reactivate).toHaveBeenCalledWith(
+      1,
+      'Ana Torres',
+      accessActor,
+    );
+  });
+
   describe('access metadata', () => {
     it('uses RolesGuard at controller level', () => {
       const guards = Reflect.getMetadata(
@@ -176,6 +192,15 @@ describe('MembersController', () => {
         Reflect.getMetadata(
           ROLES_KEY,
           getMembersControllerMethod('deactivate'),
+        ),
+      ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
+    });
+
+    it('guards member reactivation for Presidencia and Directiva de Area', () => {
+      expect(
+        Reflect.getMetadata(
+          ROLES_KEY,
+          getMembersControllerMethod('reactivate'),
         ),
       ).toEqual([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA]);
     });

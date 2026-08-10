@@ -113,6 +113,13 @@ export type Task = {
   updatedAt?: string;
 };
 
+export const haveSameMemberIds = (left: number[], right: number[]) => {
+  if (left.length !== right.length) return false;
+  const sortedLeft = [...left].sort((a, b) => a - b);
+  const sortedRight = [...right].sort((a, b) => a - b);
+  return sortedLeft.every((id, index) => id === sortedRight[index]);
+};
+
 type TaskStatusHistoryItem = {
   id: number;
   taskId: number;
@@ -504,8 +511,12 @@ export default function TaskManagement({
 
   // Activity is derived from current work and does not gate assignment.
   const eligibleMembers = useMemo(() => {
-    return projectMembers.filter((m) => m.isEligible !== false);
-  }, [projectMembers]);
+    return projectMembers.filter(
+      (m) =>
+        m.isEligible !== false ||
+        (editing && formValues.assigneeIds.includes(m.id)),
+    );
+  }, [projectMembers, editing, formValues.assigneeIds]);
 
   // Default project selection
   useEffect(() => {
@@ -790,16 +801,20 @@ export default function TaskManagement({
           },
         );
 
-        // 2. Update assignees
-        await requestJson<Task>(
-          apiUrl,
-          accessToken,
-          `/tasks/${taskDetail.id}/assignees`,
-          {
-            method: "PATCH",
-            body: JSON.stringify({ memberIds: formValues.assigneeIds }),
-          },
-        );
+        const currentAssigneeIds =
+          taskDetail.assignees?.map(({ memberId }) => memberId) ?? [];
+
+        if (!haveSameMemberIds(currentAssigneeIds, formValues.assigneeIds)) {
+          await requestJson<Task>(
+            apiUrl,
+            accessToken,
+            `/tasks/${taskDetail.id}/assignees`,
+            {
+              method: "PATCH",
+              body: JSON.stringify({ memberIds: formValues.assigneeIds }),
+            },
+          );
+        }
 
         setNotice("Tarea modificada con éxito");
         setEditing(false);

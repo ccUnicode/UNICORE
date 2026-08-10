@@ -2,12 +2,18 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it } from "node:test";
 import { JSDOM } from "jsdom";
 import type { Task } from "./task-management";
+import { haveSameMemberIds } from "./task-management";
 
 type FetchCall = {
   method: string;
   pathname: string;
   body?: unknown;
 };
+
+it("detects unchanged assignee sets regardless of order", () => {
+  assert.equal(haveSameMemberIds([2, 1], [1, 2]), true);
+  assert.equal(haveSameMemberIds([1], [1, 2]), false);
+});
 
 const jsonResponse = (payload: unknown, status = 200) =>
   new Response(JSON.stringify(payload), {
