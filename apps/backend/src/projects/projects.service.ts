@@ -733,6 +733,10 @@ export class ProjectsService {
   ): FindOptionsWhere<Project> {
     const where: FindOptionsWhere<Project> = {
       isArchived: filterDto.archived ?? false,
+      ...(accessActor?.snapshotAt && {
+        createdAt: LessThanOrEqual(accessActor.snapshotAt),
+        updatedAt: LessThanOrEqual(accessActor.snapshotAt),
+      }),
     };
 
     if (filterDto.status) {

@@ -156,7 +156,7 @@ describe('AuthGuard', () => {
     ).resolves.toBe(true);
   });
 
-  it('rejects disabled authenticated members', async () => {
+  it('allows disabled members to read with a snapshot cutoff', async () => {
     const reflector = {
       getAllAndOverride: jest.fn().mockReturnValue(false),
     } as unknown as Reflector;
@@ -170,15 +170,136 @@ describe('AuthGuard', () => {
     });
     jest.mocked(membersRepository.findOne).mockResolvedValue({
       id: 7,
+      role: AreaRole.MIEMBRO,
       activityStatus: MemberActivityStatus.ACTIVE,
       availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      disabledAt: new Date('2026-08-01T10:00:00.000Z'),
+      disabledAccessSnapshot: {
+        role: AreaRole.MIEMBRO,
+        areaId: null,
+        projectIds: [],
+      },
+      sessionVersion: 0,
+      memberships: [],
+      projectMemberships: [],
+    } as unknown as Member);
+
+    const request = {
+      method: 'GET',
+      headers: { authorization: 'Bearer valid-token' },
+    } as Partial<AccessControlledRequest>;
+    await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
+    expect(request.accessActor).toMatchObject({
+      readOnly: true,
+      snapshotAt: new Date('2026-08-01T10:00:00.000Z'),
+    });
+  });
+
+  it('uses the frozen access snapshot instead of current memberships', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(false),
+    } as unknown as Reflector;
+    const guard = new AuthGuard(reflector, tokenService, membersRepository);
+
+    jest.mocked(tokenService.verify).mockReturnValue({
+      sub: 7,
+      ver: 0,
+      iat: 1,
+      exp: 2,
+    });
+    jest.mocked(membersRepository.findOne).mockResolvedValue({
+      id: 7,
+      role: AreaRole.PRESIDENCIA,
+      activityStatus: MemberActivityStatus.INACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      disabledAt: new Date('2026-08-01T10:00:00.000Z'),
+      disabledAccessSnapshot: {
+        role: AreaRole.MIEMBRO,
+        areaId: 3,
+        projectIds: [4, 8],
+      },
+      sessionVersion: 0,
+      memberships: [],
+      projectMemberships: [{ projectId: 99 }],
+    } as unknown as Member);
+
+    const request = {
+      method: 'GET',
+      headers: { authorization: 'Bearer valid-token' },
+    } as Partial<AccessControlledRequest>;
+
+    await expect(guard.canActivate(createContext(request))).resolves.toBe(true);
+    expect(request.accessActor).toMatchObject({
+      role: AreaRole.MIEMBRO,
+      areaId: '3',
+      projectIds: ['4', '8'],
+    });
+  });
+
+  it('rejects disabled members without a complete snapshot', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(false),
+    } as unknown as Reflector;
+    const guard = new AuthGuard(reflector, tokenService, membersRepository);
+    jest.mocked(tokenService.verify).mockReturnValue({
+      sub: 7,
+      ver: 0,
+      iat: 1,
+      exp: 2,
+    });
+    jest.mocked(membersRepository.findOne).mockResolvedValue({
+      id: 7,
+      activityStatus: MemberActivityStatus.INACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      disabledAt: null,
+      disabledAccessSnapshot: null,
+      sessionVersion: 0,
     } as Member);
 
     await expect(
       guard.canActivate(
-        createContext({ headers: { authorization: 'Bearer valid-token' } }),
+        createContext({
+          method: 'GET',
+          headers: { authorization: 'Bearer valid-token' },
+        }),
       ),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).rejects.toThrow('Disabled member access snapshot is unavailable');
+  });
+
+  it('rejects mutation attempts from disabled members', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue(false),
+    } as unknown as Reflector;
+    const guard = new AuthGuard(reflector, tokenService, membersRepository);
+    jest.mocked(tokenService.verify).mockReturnValue({
+      sub: 7,
+      ver: 0,
+      iat: 1,
+      exp: 2,
+    });
+    jest.mocked(membersRepository.findOne).mockResolvedValue({
+      id: 7,
+      role: AreaRole.MIEMBRO,
+      activityStatus: MemberActivityStatus.INACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      disabledAt: new Date('2026-08-01T10:00:00.000Z'),
+      disabledAccessSnapshot: {
+        role: AreaRole.MIEMBRO,
+        areaId: null,
+        projectIds: [],
+      },
+      sessionVersion: 0,
+      memberships: [],
+    } as unknown as Member);
+
+    await expect(
+      guard.canActivate(
+        createContext({
+          method: 'POST',
+          headers: { authorization: 'Bearer valid-token' },
+        }),
+      ),
+    ).rejects.toThrow('DISABLED_READ_ONLY');
   });
 
   it('rejects tokens issued before the latest password change', async () => {

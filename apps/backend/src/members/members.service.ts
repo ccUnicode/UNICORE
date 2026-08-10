@@ -25,7 +25,7 @@ import { GetMembersFilterDto } from './dto/get-members-filter.dto';
 import { MemberResponse } from './dto/member-response.dto';
 import { UpdateMemberDto } from './dto/update-member.dto';
 import { MemberAvailabilityStatus } from './enums/member-availability-status.enum';
-import { Member } from './member.entity';
+import { DisabledAccessSnapshot, Member } from './member.entity';
 import { toMemberResponse } from './utils/member-response.util';
 import { AuditService } from '../audit/audit.service';
 import { MemberActivityService } from './member-activity.service';
@@ -162,7 +162,7 @@ export class MembersService {
 
     const member = await membersRepository.findOne({
       where: { id },
-      relations: ['memberships'],
+      relations: ['memberships', 'projectMemberships'],
     });
 
     if (!member) {
@@ -266,7 +266,7 @@ export class MembersService {
   ): Promise<Member> {
     const member = await this.membersRepository.findOne({
       where: { id },
-      relations: ['memberships'],
+      relations: ['memberships', 'projectMemberships'],
     });
 
     if (!member) {
@@ -283,6 +283,12 @@ export class MembersService {
     }
 
     member.availabilityStatus = MemberAvailabilityStatus.DISABLED;
+    member.disabledAt = new Date();
+    member.disabledAccessSnapshot = this.buildDisabledAccessSnapshot(
+      member.role,
+      member.areaId,
+      (member.projectMemberships ?? []).map(({ projectId }) => projectId),
+    );
 
     const savedMember = await this.membersRepository.save(member);
 
@@ -332,6 +338,8 @@ export class MembersService {
       }
 
       member.availabilityStatus = MemberAvailabilityStatus.AVAILABLE;
+      member.disabledAt = null;
+      member.disabledAccessSnapshot = null;
       const savedMember = await membersRepository.save(member);
       await this.memberActivityService.refreshMembers([id], entityManager);
       await this.memberAvailabilityService.refreshMembers([id], entityManager);
@@ -360,7 +368,22 @@ export class MembersService {
     });
   }
 
-  findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
+  private buildDisabledAccessSnapshot(
+    role: AreaRole,
+    areaId: number | null,
+    projectIds: number[],
+  ): DisabledAccessSnapshot {
+    return {
+      role,
+      areaId,
+      projectIds: [...new Set(projectIds)].sort((left, right) => left - right),
+    };
+  }
+
+  findAll(
+    filterDto?: GetMembersFilterDto,
+    membershipSnapshotAt?: Date,
+  ): Promise<Member[]> {
     const activityStatus = filterDto?.activityStatus;
     const availabilityStatus = filterDto?.availabilityStatus;
     const areaId = filterDto?.areaId;
@@ -389,11 +412,14 @@ export class MembersService {
     }
 
     if (areaId !== undefined) {
+      const membershipCutoff = membershipSnapshotAt
+        ? ' AND areaMembershipFilter.createdAt <= :membershipSnapshotAt AND areaMembershipFilter.updatedAt <= :membershipSnapshotAt'
+        : '';
       query.innerJoin(
         'member.memberships',
         'areaMembershipFilter',
-        'areaMembershipFilter.areaId = :areaId',
-        { areaId },
+        `areaMembershipFilter.areaId = :areaId${membershipCutoff}`,
+        { areaId, ...(membershipSnapshotAt && { membershipSnapshotAt }) },
       );
     }
 
@@ -432,10 +458,13 @@ export class MembersService {
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
       const areaId = parseAreaId(accessActor.areaId);
 
-      const members = await this.findAll({
-        ...filterDto,
-        areaId,
-      });
+      const members = await this.findAll(
+        {
+          ...filterDto,
+          areaId,
+        },
+        accessActor.snapshotAt,
+      );
 
       return this.toAccessibleMemberResponses(members, accessActor);
     }

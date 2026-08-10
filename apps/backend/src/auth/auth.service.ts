@@ -148,12 +148,7 @@ export class AuthService {
       member?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
 
-    if (
-      !member ||
-      !member.passwordHash ||
-      !credentialsAreValid ||
-      member.availabilityStatus === MemberAvailabilityStatus.DISABLED
-    ) {
+    if (!member || !member.passwordHash || !credentialsAreValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 

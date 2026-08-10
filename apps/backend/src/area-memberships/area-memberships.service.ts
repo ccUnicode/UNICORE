@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { LessThanOrEqual, Repository } from 'typeorm';
 import { AreaMembership } from './entities/area-membership.entity';
 import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
 import { Area } from '../area/entities/area.entity';
@@ -15,6 +15,7 @@ import { isUniqueViolation } from '../common/utils/database-errors.util';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { UpdateAreaMembershipDto } from './dto/update-area-membership.dto';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
+import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 
 @Injectable()
 export class AreaMembershipsService {
@@ -155,11 +156,18 @@ export class AreaMembershipsService {
 
   async findAll(
     paginationDto: PaginationDto,
+    accessActor?: RequestAccessActor,
   ): Promise<PaginatedResponse<AreaMembership>> {
     const { page = 1, limit = 10 } = paginationDto;
     const skip = (page - 1) * limit;
 
     const [data, total] = await this.areaMembershipsRepository.findAndCount({
+      ...(accessActor?.snapshotAt && {
+        where: {
+          createdAt: LessThanOrEqual(accessActor.snapshotAt),
+          updatedAt: LessThanOrEqual(accessActor.snapshotAt),
+        },
+      }),
       relations: ['member', 'area'],
       skip,
       take: limit,

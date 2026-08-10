@@ -59,6 +59,7 @@ describe('toMemberResponse', () => {
 
     expect(response).not.toHaveProperty('activityStatus');
     expect(response).not.toHaveProperty('availabilityStatus');
+    expect(response).not.toHaveProperty('disabledAccessSnapshot');
     expect(response).toMatchObject({
       id: member.id,
       firstNames: member.firstNames,
@@ -93,5 +94,50 @@ describe('toMemberResponse', () => {
 
     expect(response.memberships[0]).not.toHaveProperty('member');
     expect(() => JSON.stringify(response)).not.toThrow();
+  });
+
+  it('uses frozen access data for disabled authentication responses', () => {
+    const disabledAt = new Date('2026-08-01T10:00:00.000Z');
+    const historicalMembership = {
+      id: 10,
+      memberId: member.id,
+      areaId: 3,
+      role: AreaRole.MIEMBRO,
+      area: null,
+      createdAt: new Date('2026-07-01T10:00:00.000Z'),
+      updatedAt: new Date('2026-07-01T10:00:00.000Z'),
+    } as AreaMembership;
+    const laterMembership = {
+      ...historicalMembership,
+      id: 11,
+      areaId: 9,
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      createdAt: new Date('2026-08-02T10:00:00.000Z'),
+      updatedAt: new Date('2026-08-02T10:00:00.000Z'),
+    } as AreaMembership;
+    const disabledMember = {
+      ...member,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      disabledAt,
+      disabledAccessSnapshot: {
+        role: AreaRole.MIEMBRO,
+        areaId: 3,
+        projectIds: [4],
+      },
+      memberships: [historicalMembership, laterMembership],
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: 9,
+    } as unknown as Member;
+
+    const response = toMemberResponse(disabledMember, AreaRole.MIEMBRO);
+
+    expect(response).toMatchObject({
+      role: AreaRole.MIEMBRO,
+      areaId: 3,
+      readOnly: true,
+      disabledAt,
+    });
+    expect(response.memberships).toHaveLength(1);
+    expect(response.memberships[0]).toMatchObject({ id: 10, areaId: 3 });
   });
 });

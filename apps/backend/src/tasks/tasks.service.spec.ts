@@ -457,7 +457,12 @@ describe('TasksService', () => {
     const task = createTask();
     const membership = createMembership();
 
-    projectsRepository.findOne.mockResolvedValue(createProject());
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T10:00:00.000Z'),
+      }),
+    );
     projectMembershipsRepository.findOne.mockResolvedValue(membership);
     tasksRepository.findAndCount.mockResolvedValue([[task], 1]);
 
@@ -475,6 +480,100 @@ describe('TasksService', () => {
         take: 10,
       }),
     );
+  });
+
+  it('uses frozen project access and applies the cutoff before pagination', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const disabledActor: RequestAccessActor = {
+      ...memberActor,
+      readOnly: true,
+      snapshotAt,
+      projectIds: ['1'],
+    };
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T10:00:00.000Z'),
+      }),
+    );
+    tasksRepository.findAndCount.mockResolvedValue([[], 0]);
+
+    await service.findAll({ projectId: 1 }, disabledActor);
+
+    expect(projectMembershipsRepository.findOne).not.toHaveBeenCalled();
+    const [{ where: projectWhere }] = projectsRepository.findOne.mock
+      .calls[0] as [
+      {
+        where: {
+          createdAt: FindOperator<Date>;
+          updatedAt: FindOperator<Date>;
+        };
+      },
+    ];
+    expect(projectWhere.createdAt.value).toEqual(snapshotAt);
+    expect(projectWhere.updatedAt.value).toEqual(snapshotAt);
+    const [{ where }] = tasksRepository.findAndCount.mock.calls[0] as [
+      {
+        where: {
+          createdAt: FindOperator<Date>;
+          updatedAt: FindOperator<Date>;
+        };
+      },
+    ];
+    expect(where.createdAt.type).toBe('lessThanOrEqual');
+    expect(where.createdAt.value).toEqual(snapshotAt);
+    expect(where.updatedAt.type).toBe('lessThanOrEqual');
+    expect(where.updatedAt.value).toEqual(snapshotAt);
+  });
+
+  it('rejects a project moved into a disabled Directiva area after the snapshot', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const disabledAreaLeader: RequestAccessActor = {
+      ...areaLeaderActor,
+      readOnly: true,
+      snapshotAt,
+    };
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        areaId: 1,
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-08-02T10:00:00.000Z'),
+      }),
+    );
+
+    await expect(
+      service.findAll({ projectId: 1 }, disabledAreaLeader),
+    ).rejects.toThrow(
+      new ForbiddenException(
+        'Task access is limited to projects visible in your disabled access snapshot',
+      ),
+    );
+    expect(tasksRepository.findAndCount).not.toHaveBeenCalled();
+  });
+
+  it('rejects projects added after the disabled access snapshot', async () => {
+    const disabledActor: RequestAccessActor = {
+      ...memberActor,
+      readOnly: true,
+      snapshotAt: new Date('2026-08-01T10:00:00.000Z'),
+      projectIds: [],
+    };
+    projectsRepository.findOne.mockResolvedValue(
+      createProject({
+        createdAt: new Date('2026-07-01T10:00:00.000Z'),
+        updatedAt: new Date('2026-07-01T10:00:00.000Z'),
+      }),
+    );
+    projectMembershipsRepository.findOne.mockResolvedValue(createMembership());
+
+    await expect(
+      service.findAll({ projectId: 1 }, disabledActor),
+    ).rejects.toThrow(
+      new ForbiddenException(
+        'Task access is limited to projects in your disabled access snapshot',
+      ),
+    );
+    expect(projectMembershipsRepository.findOne).not.toHaveBeenCalled();
   });
 
   it('keeps every task assignee when filtering by one assignee', async () => {

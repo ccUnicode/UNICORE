@@ -2,6 +2,7 @@ export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export const AUTH_TOKEN_STORAGE_KEY = "unicore.auth.v1.accessToken";
+export const READ_ONLY_STORAGE_KEY = "unicore.auth.v1.readOnly";
 
 export class ApiError extends Error {
   constructor(
@@ -25,6 +26,17 @@ export async function authorizedJson<T>(
   accessToken: string,
   init: RequestInit = {},
 ): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  if (
+    typeof window !== "undefined" &&
+    window.sessionStorage.getItem(READ_ONLY_STORAGE_KEY) === "true" &&
+    method !== "GET"
+  ) {
+    throw new ApiError(
+      "Tu cuenta está inhabilitada y solo permite consultar información histórica.",
+      403,
+    );
+  }
   const headers = new Headers(init.headers);
   headers.set("Authorization", `Bearer ${accessToken}`);
   if (init.body !== undefined && !headers.has("Content-Type")) {

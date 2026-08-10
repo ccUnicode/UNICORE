@@ -415,6 +415,12 @@ describe('MembersService', () => {
     expect(membersRepository.create).toHaveBeenCalledWith(
       expect.not.objectContaining({
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        disabledAt: expect.any(Date) as Date,
+        disabledAccessSnapshot: {
+          role: AreaRole.MIEMBRO,
+          areaId: null,
+          projectIds: [],
+        },
       }),
     );
   });
@@ -614,7 +620,7 @@ describe('MembersService', () => {
       ).resolves.toEqual(updatedMember);
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -645,7 +651,7 @@ describe('MembersService', () => {
       );
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -678,7 +684,7 @@ describe('MembersService', () => {
       );
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 99 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
@@ -703,7 +709,7 @@ describe('MembersService', () => {
       );
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         persistedAreaDirectiveMember,
@@ -747,7 +753,7 @@ describe('MembersService', () => {
       });
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         persistedAreaDirectiveMember,
@@ -880,6 +886,28 @@ describe('MembersService', () => {
     );
   });
 
+  it('limits Directiva member access to area memberships within the snapshot', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const queryBuilderMock = createQueryBuilderMock([]);
+    membersRepository.createQueryBuilder?.mockReturnValue(
+      queryBuilderMock as any,
+    );
+
+    await service.findAccessible({
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+      readOnly: true,
+      snapshotAt,
+    });
+
+    expect(queryBuilderMock.innerJoin).toHaveBeenCalledWith(
+      'member.memberships',
+      'areaMembershipFilter',
+      'areaMembershipFilter.areaId = :areaId AND areaMembershipFilter.createdAt <= :membershipSnapshotAt AND areaMembershipFilter.updatedAt <= :membershipSnapshotAt',
+      { areaId: 3, membershipSnapshotAt: snapshotAt },
+    );
+  });
+
   it('rejects member listing for Miembro until project persistence exists', async () => {
     await expect(
       service.findAccessible({
@@ -907,13 +935,19 @@ describe('MembersService', () => {
       ).resolves.toEqual(deactivatedMember);
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 10,
           activityStatus: MemberActivityStatus.ACTIVE,
           availabilityStatus: MemberAvailabilityStatus.DISABLED,
+          disabledAt: persistedAreaDirectiveMember.disabledAt,
+          disabledAccessSnapshot: {
+            role: AreaRole.DIRECTIVA_DE_AREA,
+            areaId: persistedAreaDirectiveMember.areaId,
+            projectIds: [],
+          },
         }),
       );
     });
@@ -984,6 +1018,12 @@ describe('MembersService', () => {
         ...persistedAreaDirectiveMember,
         activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        disabledAt: new Date('2026-08-01T10:00:00.000Z'),
+        disabledAccessSnapshot: {
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          areaId: 3,
+          projectIds: [],
+        },
       };
       const refreshedMember = {
         ...disabledMember,
@@ -1010,6 +1050,8 @@ describe('MembersService', () => {
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+          disabledAt: null,
+          disabledAccessSnapshot: null,
         }),
       );
       expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(

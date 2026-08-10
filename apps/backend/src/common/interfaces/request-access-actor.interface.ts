@@ -6,6 +6,8 @@ export interface RequestAccessActor {
   memberId?: string;
   projectIds?: string[];
   status?: string;
+  readOnly?: boolean;
+  snapshotAt?: Date;
   member?: {
     firstNames: string;
     lastNames: string;
