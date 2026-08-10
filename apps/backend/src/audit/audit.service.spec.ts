@@ -2,7 +2,7 @@
 import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { Between, ILike, Repository } from 'typeorm';
+import { Between, ILike, LessThanOrEqual, Repository } from 'typeorm';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { Member } from '../members/member.entity';
@@ -139,6 +139,29 @@ describe('AuditService', () => {
 
       expect(auditRepo.findAndCount).toHaveBeenCalledWith({
         where: { areaId: 2 },
+        order: { timestamp: 'DESC', id: 'DESC' },
+        skip: 0,
+        take: 10,
+      });
+    });
+
+    it('limits disabled actor audit results to the snapshot cutoff', async () => {
+      const snapshotAt = new Date('2026-08-03T10:00:00.000Z');
+
+      await service.findAll(
+        {},
+        {
+          ...areaDirectivaActor,
+          readOnly: true,
+          snapshotAt,
+        },
+      );
+
+      expect(auditRepo.findAndCount).toHaveBeenCalledWith({
+        where: {
+          areaId: 2,
+          timestamp: LessThanOrEqual(snapshotAt),
+        },
         order: { timestamp: 'DESC', id: 'DESC' },
         skip: 0,
         take: 10,
