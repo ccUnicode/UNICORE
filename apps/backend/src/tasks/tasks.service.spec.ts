@@ -10,6 +10,7 @@ import { MemberActivityStatus } from '../members/enums/member-activity-status.en
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberAvailabilityService } from '../members/member-availability.service';
 import { Member } from '../members/member.entity';
+import { MemberActivityService } from '../members/member-activity.service';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
 import { ProjectPhase } from '../projects/entities/project-phase.entity';
 import { Project } from '../projects/entities/project.entity';
@@ -258,6 +259,13 @@ describe('TasksService', () => {
           useValue: {
             record: jest.fn(),
             findAll: jest.fn(),
+          },
+        },
+        {
+          provide: MemberActivityService,
+          useValue: {
+            refreshMembers: jest.fn(),
+            refreshProjectMembers: jest.fn(),
           },
         },
       ],

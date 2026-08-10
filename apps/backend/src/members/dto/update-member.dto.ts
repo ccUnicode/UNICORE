@@ -2,14 +2,12 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsDateString,
-  IsEnum,
   IsInt,
   IsOptional,
   IsString,
   Length,
   Min,
 } from 'class-validator';
-import { MemberActivityStatus } from '../enums/member-activity-status.enum';
 
 const trimString = ({ value }: { value: unknown }): unknown =>
   typeof value === 'string' ? value.trim() : value;
@@ -74,10 +72,6 @@ export class UpdateMemberDto {
   @Length(1, 80, { each: true })
   @IsOptional()
   skills?: string[];
-
-  @IsEnum(MemberActivityStatus)
-  @IsOptional()
-  activityStatus?: MemberActivityStatus;
 
   @Type(() => Number)
   @IsInt()

@@ -498,9 +498,7 @@ export default function TaskManagement({
         .filter((m) => projectMemberIds.has(m.id))
         .map((m) => ({
           ...m,
-          isEligible:
-            m.activityStatus === "active" &&
-            m.availabilityStatus === "available",
+          isEligible: m.availabilityStatus === "available",
         }));
     }
 
@@ -511,7 +509,7 @@ export default function TaskManagement({
     );
   }, [activeProjectDetails, selectedProject, allMembers]);
 
-  // Eligible members: active AND available
+  // Activity is derived from current work and does not gate assignment.
   const eligibleMembers = useMemo(() => {
     return projectMembers.filter(
       (m) =>

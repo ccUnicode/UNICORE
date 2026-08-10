@@ -22,6 +22,8 @@ import { MembersService } from './members.service';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { toMemberResponse } from './utils/member-response.util';
 import { AuditService } from '../audit/audit.service';
+import { MemberActivityService } from './member-activity.service';
+import { MemberAvailabilityService } from './member-availability.service';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
@@ -58,11 +60,14 @@ const createQueryBuilderMock = (members: Member[]) => ({
 describe('MembersService', () => {
   let service: MembersService;
   let auditService: jest.Mocked<AuditService>;
+  let memberActivityService: jest.Mocked<MemberActivityService>;
+  let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
   let areasRepository: AreaRepositoryMock;
   let areaMembershipsRepository: AreaMembershipRepositoryMock;
   let mockDataSource: DataSource;
+  let mockEntityManager: EntityManager;
   let persistedAreaDirectiveMember: Member;
   let persistedSkills: Skill[];
 
@@ -113,7 +118,7 @@ describe('MembersService', () => {
       find: jest.fn().mockResolvedValue([]),
     };
 
-    const mockEntityManager = {
+    mockEntityManager = {
       getRepository: <T extends ObjectLiteral>(
         entity: new () => T,
       ): Repository<T> => {
@@ -167,11 +172,21 @@ describe('MembersService', () => {
             findAll: jest.fn(),
           },
         },
+        {
+          provide: MemberActivityService,
+          useValue: { refreshMembers: jest.fn() },
+        },
+        {
+          provide: MemberAvailabilityService,
+          useValue: { refreshMembers: jest.fn() },
+        },
       ],
     }).compile();
 
     service = module.get<MembersService>(MembersService);
     auditService = module.get(AuditService);
+    memberActivityService = module.get(MemberActivityService);
+    memberAvailabilityService = module.get(MemberAvailabilityService);
     persistedSkills = [createSkill(1, 'typescript'), createSkill(2, 'testing')];
     persistedAreaDirectiveMember = {
       id: 10,
@@ -322,6 +337,56 @@ describe('MembersService', () => {
       area: null,
       role: AreaRole.MIEMBRO,
     });
+  });
+
+  it('allows Directiva to create a regular member in its own area', async () => {
+    const createDto = {
+      ...areaDirectiveMemberDto,
+      role: AreaRole.MIEMBRO,
+    };
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    areasRepository.exists?.mockResolvedValue(true);
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedAreaDirectiveMember);
+    membersRepository.save?.mockResolvedValue(persistedAreaDirectiveMember);
+
+    await expect(
+      service.create(createDto, undefined, accessActor),
+    ).resolves.toEqual(persistedAreaDirectiveMember);
+    expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
+      member: persistedAreaDirectiveMember,
+      area: { id: 3 },
+      role: AreaRole.MIEMBRO,
+    });
+  });
+
+  it('rejects Directiva member creation in another area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '2',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(areasRepository.exists).not.toHaveBeenCalled();
+    expect(membersRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects privileged role creation by Directiva in its own area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(membersRepository.create).not.toHaveBeenCalled();
   });
 
   it('ignores legacy status input when creating a member', async () => {
@@ -589,32 +654,6 @@ describe('MembersService', () => {
       );
     });
 
-    it('successfully updates a member activity status', async () => {
-      const updateDto = { activityStatus: MemberActivityStatus.INACTIVE };
-      const updatedMember = {
-        ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(updatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        updatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activityStatus: MemberActivityStatus.INACTIVE,
-        }),
-      );
-    });
-
     it('throws NotFoundException when updating to an unknown or archived area', async () => {
       const updateDto = { areaId: 999 };
 
@@ -854,7 +893,6 @@ describe('MembersService', () => {
     it('deactivates a member for Presidencia with an exact full name', async () => {
       const deactivatedMember = {
         ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(
@@ -874,7 +912,7 @@ describe('MembersService', () => {
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 10,
-          activityStatus: MemberActivityStatus.INACTIVE,
+          activityStatus: MemberActivityStatus.ACTIVE,
           availabilityStatus: MemberAvailabilityStatus.DISABLED,
         }),
       );
@@ -888,7 +926,6 @@ describe('MembersService', () => {
       };
       const deactivatedMember = {
         ...member,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(member);
@@ -942,13 +979,20 @@ describe('MembersService', () => {
   });
 
   describe('reactivate', () => {
-    it('reactivates a disabled member without manually changing activity', async () => {
+    it('reactivates a disabled member and recalculates its derived states', async () => {
       const disabledMember = {
         ...persistedAreaDirectiveMember,
         activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
-      membersRepository.findOne?.mockResolvedValue(disabledMember);
+      const refreshedMember = {
+        ...disabledMember,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+      };
+      membersRepository.findOne
+        ?.mockResolvedValueOnce(disabledMember)
+        .mockResolvedValueOnce(refreshedMember);
       membersRepository.save?.mockImplementation((member: Member) =>
         Promise.resolve(member),
       );
@@ -959,15 +1003,22 @@ describe('MembersService', () => {
         }),
       ).resolves.toEqual(
         expect.objectContaining({
-          activityStatus: MemberActivityStatus.INACTIVE,
-          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+          activityStatus: MemberActivityStatus.ACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
         }),
       );
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          activityStatus: MemberActivityStatus.INACTIVE,
           availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
         }),
+      );
+      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
+        [10],
+        mockEntityManager,
+      );
+      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
+        [10],
+        mockEntityManager,
       );
     });
 
