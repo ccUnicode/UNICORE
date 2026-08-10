@@ -348,7 +348,10 @@ export class MembersService {
     };
   }
 
-  findAll(filterDto?: GetMembersFilterDto): Promise<Member[]> {
+  findAll(
+    filterDto?: GetMembersFilterDto,
+    membershipSnapshotAt?: Date,
+  ): Promise<Member[]> {
     const activityStatus = filterDto?.activityStatus;
     const availabilityStatus = filterDto?.availabilityStatus;
     const areaId = filterDto?.areaId;
@@ -377,11 +380,14 @@ export class MembersService {
     }
 
     if (areaId !== undefined) {
+      const membershipCutoff = membershipSnapshotAt
+        ? ' AND areaMembershipFilter.createdAt <= :membershipSnapshotAt AND areaMembershipFilter.updatedAt <= :membershipSnapshotAt'
+        : '';
       query.innerJoin(
         'member.memberships',
         'areaMembershipFilter',
-        'areaMembershipFilter.areaId = :areaId',
-        { areaId },
+        `areaMembershipFilter.areaId = :areaId${membershipCutoff}`,
+        { areaId, ...(membershipSnapshotAt && { membershipSnapshotAt }) },
       );
     }
 
@@ -420,10 +426,13 @@ export class MembersService {
     if (accessActor.role === AreaRole.DIRECTIVA_DE_AREA) {
       const areaId = parseAreaId(accessActor.areaId);
 
-      const members = await this.findAll({
-        ...filterDto,
-        areaId,
-      });
+      const members = await this.findAll(
+        {
+          ...filterDto,
+          areaId,
+        },
+        accessActor.snapshotAt,
+      );
 
       return this.toAccessibleMemberResponses(members, accessActor);
     }

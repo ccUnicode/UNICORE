@@ -976,6 +976,28 @@ describe('MembersService', () => {
     );
   });
 
+  it('limits Directiva member access to area memberships within the snapshot', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const queryBuilderMock = createQueryBuilderMock([]);
+    membersRepository.createQueryBuilder?.mockReturnValue(
+      queryBuilderMock as any,
+    );
+
+    await service.findAccessible({
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+      readOnly: true,
+      snapshotAt,
+    });
+
+    expect(queryBuilderMock.innerJoin).toHaveBeenCalledWith(
+      'member.memberships',
+      'areaMembershipFilter',
+      'areaMembershipFilter.areaId = :areaId AND areaMembershipFilter.createdAt <= :membershipSnapshotAt AND areaMembershipFilter.updatedAt <= :membershipSnapshotAt',
+      { areaId: 3, membershipSnapshotAt: snapshotAt },
+    );
+  });
+
   it('rejects member listing for Miembro until project persistence exists', async () => {
     await expect(
       service.findAccessible({

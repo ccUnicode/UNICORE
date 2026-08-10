@@ -160,7 +160,12 @@ export class TasksService {
     filterDto: GetTasksFilterDto,
     accessActor: RequestAccessActor,
   ): Promise<PaginatedResponse<Task>> {
-    const project = await this.findProjectOrThrow(filterDto.projectId);
+    const project = await this.findProjectOrThrow(
+      filterDto.projectId,
+      this.projectsRepository,
+      false,
+      accessActor.snapshotAt,
+    );
     await this.assertProjectAccess(project, accessActor, 'read');
 
     if (filterDto.phaseId !== undefined) {
@@ -623,9 +628,16 @@ export class TasksService {
     id: number,
     projectsRepository: Repository<Project> = this.projectsRepository,
     lock = false,
+    snapshotAt?: Date,
   ): Promise<Project> {
     const project = await projectsRepository.findOne({
-      where: { id },
+      where: {
+        id,
+        ...(snapshotAt && {
+          createdAt: LessThanOrEqual(snapshotAt),
+          updatedAt: LessThanOrEqual(snapshotAt),
+        }),
+      },
       ...(lock && { lock: { mode: 'pessimistic_write' as const } }),
     });
 
@@ -710,6 +722,17 @@ export class TasksService {
     projectMembershipsRepository: Repository<ProjectMembership> = this
       .projectMembershipsRepository,
   ): Promise<void> {
+    if (
+      accessActor.readOnly &&
+      accessActor.snapshotAt &&
+      (project.createdAt > accessActor.snapshotAt ||
+        project.updatedAt > accessActor.snapshotAt)
+    ) {
+      throw new ForbiddenException(
+        'Task access is limited to projects visible in your disabled access snapshot',
+      );
+    }
+
     if (accessActor.role === AreaRole.PRESIDENCIA) {
       return;
     }
