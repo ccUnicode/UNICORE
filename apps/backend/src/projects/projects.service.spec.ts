@@ -25,6 +25,7 @@ import { Member } from '../members/member.entity';
 import { MemberActivityService } from '../members/member-activity.service';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectLabel } from './entities/project-label.entity';
@@ -206,6 +207,7 @@ describe('ProjectsService', () => {
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
   let auditService: jest.Mocked<AuditService>;
+  let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -304,6 +306,12 @@ describe('ProjectsService', () => {
       providers: [
         ProjectsService,
         {
+          provide: MemberAvailabilityService,
+          useValue: {
+            refreshProjectMembers: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
           provide: getRepositoryToken(Project),
           useValue: projectsRepository,
         },
@@ -354,6 +362,7 @@ describe('ProjectsService', () => {
 
     service = module.get<ProjectsService>(ProjectsService);
     auditService = module.get(AuditService);
+    memberAvailabilityService = module.get(MemberAvailabilityService);
   });
 
   it('creates a project with default phases when the area exists', async () => {
@@ -894,6 +903,15 @@ describe('ProjectsService', () => {
     );
     expect(projectsRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1, isArchived: true }),
+    );
+    expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+    expect(
+      memberAvailabilityService.refreshProjectMembers,
+    ).toHaveBeenCalledWith(1, expect.anything());
+    expect(auditService.record).toHaveBeenCalledWith(
+      presidencyActor,
+      expect.objectContaining({ action: 'archive', entityId: 1 }),
+      expect.anything(),
     );
   });
 

@@ -29,7 +29,6 @@ type MemberFormState = {
   role: string;
   areaId: string;
   skills: string[];
-  availabilityStatus: string;
   cycle: string;
 };
 
@@ -64,7 +63,6 @@ export function MemberForm({
         ? String(member.areaId)
         : "",
     skills: member?.skills?.map((skill) => skill.name) ?? [],
-    availabilityStatus: member?.availabilityStatus ?? "available",
     cycle: member?.cycle ? String(member.cycle) : "",
   };
   const [form, setForm] = useState(initial);
@@ -106,7 +104,6 @@ export function MemberForm({
         major: form.major.trim(),
         birthDate: form.birthDate || undefined,
         skills: form.skills,
-        availabilityStatus: form.availabilityStatus,
         cycle: form.cycle ? Number(form.cycle) : member ? null : undefined,
         ...(!member
           ? {
@@ -227,17 +224,11 @@ export function MemberForm({
           </label>
           <label className={labelClass}>
             Disponibilidad
-            <select
-              value={form.availabilityStatus}
-              onChange={(event) =>
-                set("availabilityStatus", event.target.value)
-              }
-              className={fieldClass}
-            >
-              <option value="available">Disponible</option>
-              <option value="not_available">No disponible</option>
-              <option value="disabled">Inhabilitado</option>
-            </select>
+            <output className={`${fieldClass} cursor-not-allowed opacity-70`}>
+              {statusLabels[member?.availabilityStatus ?? "available"] ??
+                "Disponible"}
+              {" · Calculado desde asignaciones vigentes"}
+            </output>
           </label>
           <div className="sm:col-span-2">
             <TagInput

@@ -23,6 +23,7 @@ import { parseAreaId } from '../common/utils/parse-area-id.util';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { MemberActivityService } from '../members/member-activity.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
@@ -62,6 +63,7 @@ export class ProjectsService {
     private readonly taskAssigneesRepository: Repository<TaskAssignee>,
     private readonly areaService: AreaService,
     private readonly auditService: AuditService,
+    private readonly memberAvailabilityService: MemberAvailabilityService,
     private readonly memberActivityService: MemberActivityService,
   ) {}
 
@@ -277,6 +279,10 @@ export class ProjectsService {
           savedProject.id,
           entityManager,
         );
+        await this.memberAvailabilityService.refreshProjectMembers(
+          savedProject.id,
+          entityManager,
+        );
       }
 
       if (updateProjectDto.links !== undefined) {
@@ -318,6 +324,10 @@ export class ProjectsService {
 
       const savedProject = await projectsRepository.save(project);
       await this.memberActivityService.refreshProjectMembers(
+        savedProject.id,
+        entityManager,
+      );
+      await this.memberAvailabilityService.refreshProjectMembers(
         savedProject.id,
         entityManager,
       );

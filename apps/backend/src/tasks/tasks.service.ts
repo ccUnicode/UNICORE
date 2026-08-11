@@ -18,6 +18,7 @@ import { ProjectRole } from '../common/enums/project-role.enum';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { MemberActivityService } from '../members/member-activity.service';
 import { Member } from '../members/member.entity';
 import { ProjectMembership } from '../projects/entities/project-membership.entity';
@@ -64,6 +65,7 @@ export class TasksService {
     @InjectRepository(ProjectMembership)
     private readonly projectMembershipsRepository: Repository<ProjectMembership>,
     private readonly auditService: AuditService,
+    private readonly memberAvailabilityService: MemberAvailabilityService,
     private readonly memberActivityService: MemberActivityService,
   ) {}
 
@@ -131,6 +133,10 @@ export class TasksService {
 
         await taskAssigneesRepository.save(assignees);
         await this.memberActivityService.refreshMembers(
+          memberships.map((membership) => membership.memberId),
+          entityManager,
+        );
+        await this.memberAvailabilityService.refreshMembers(
           memberships.map((membership) => membership.memberId),
           entityManager,
         );
@@ -370,6 +376,10 @@ export class TasksService {
         assignees.map((assignee) => assignee.memberId),
         entityManager,
       );
+      await this.memberAvailabilityService.refreshMembers(
+        assignees.map((assignee) => assignee.memberId),
+        entityManager,
+      );
 
       if (accessActor) {
         await this.auditService.record(
@@ -486,15 +496,16 @@ export class TasksService {
       );
       this.assertProjectIsActive(project);
 
+      const previousAssignees = await taskAssigneesRepository.find({
+        where: { taskId: task.id },
+      });
+
       const memberships = await this.validateAssignees(
         project.id,
         setTaskAssigneesDto.memberIds,
         projectMembershipsRepository,
+        new Set(previousAssignees.map(({ memberId }) => memberId)),
       );
-
-      const previousAssignees = await taskAssigneesRepository.find({
-        where: { taskId: task.id },
-      });
 
       await taskAssigneesRepository.delete({ taskId: task.id });
       await taskAssigneesRepository.save(
@@ -507,6 +518,13 @@ export class TasksService {
         ),
       );
       await this.memberActivityService.refreshMembers(
+        [
+          ...previousAssignees.map((assignee) => assignee.memberId),
+          ...memberships.map((membership) => membership.memberId),
+        ],
+        entityManager,
+      );
+      await this.memberAvailabilityService.refreshMembers(
         [
           ...previousAssignees.map((assignee) => assignee.memberId),
           ...memberships.map((membership) => membership.memberId),
@@ -672,6 +690,7 @@ export class TasksService {
     memberIds: number[],
     projectMembershipsRepository: Repository<ProjectMembership> = this
       .projectMembershipsRepository,
+    availabilityExemptMemberIds: ReadonlySet<number> = new Set(),
   ): Promise<ProjectMembership[]> {
     if (
       memberIds.length === 0 ||
@@ -701,6 +720,7 @@ export class TasksService {
 
     const ineligibleMembership = memberships.find(
       ({ member }) =>
+        !availabilityExemptMemberIds.has(member.id) &&
         member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE,
     );
 
