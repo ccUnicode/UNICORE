@@ -10,6 +10,15 @@ export function combineProjectExperience<T>(
   return [...activeProjects, ...archivedProjects];
 }
 
+export function normalizeCandidateFilter(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase();
+}
+
 export function getPortfolioLabelNames(
   projects: ProjectExperienceSource[],
 ): string[] {

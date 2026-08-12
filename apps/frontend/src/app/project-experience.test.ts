@@ -4,6 +4,7 @@ import {
   combineProjectExperience,
   getMemberProjectLabelNames,
   getPortfolioLabelNames,
+  normalizeCandidateFilter,
 } from "./project-experience";
 
 describe("project experience filters", () => {
@@ -42,5 +43,16 @@ describe("project experience filters", () => {
     combineProjectExperience(activeProjects, archivedProjects);
 
     assert.deepEqual(activeProjects.map((project) => project.id), [1]);
+  });
+
+  it("normalizes accents, casing, and repeated whitespace in candidate filters", () => {
+    assert.equal(
+      normalizeCandidateFilter("  Ingeniería   de Sistemas "),
+      normalizeCandidateFilter("ingenieria de sistemas"),
+    );
+    assert.equal(
+      normalizeCandidateFilter("Gestión Ágil"),
+      normalizeCandidateFilter("gestion agil"),
+    );
   });
 });

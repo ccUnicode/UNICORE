@@ -11,6 +11,7 @@ import {
   combineProjectExperience,
   getMemberProjectLabelNames,
   getPortfolioLabelNames,
+  normalizeCandidateFilter,
 } from "./project-experience";
 import {
   DropPlacement,
@@ -1024,24 +1025,29 @@ function TeamPanel({
 
   const candidates = areaCandidates
     .filter((member) => {
-      const memberSkills = member.skills?.map((skill) => normalize(skill.name)) ?? [];
+      const memberSkills =
+        member.skills?.map((skill) => normalizeCandidateFilter(skill.name)) ?? [];
       const matchesQuery =
-        !normalize(candidateQuery) ||
-        normalize(`${memberName(member)} ${member.major}`).includes(
-          normalize(candidateQuery),
+        !normalizeCandidateFilter(candidateQuery) ||
+        normalizeCandidateFilter(`${memberName(member)} ${member.major}`).includes(
+          normalizeCandidateFilter(candidateQuery),
         );
       const matchesSkill =
-        !skillFilter || memberSkills.includes(normalize(skillFilter));
+        !skillFilter ||
+        memberSkills.includes(normalizeCandidateFilter(skillFilter));
       const memberProjectLabels = getMemberProjectLabelNames(
         portfolioProjects,
         member.id,
-      ).map(normalize);
+      ).map(normalizeCandidateFilter);
       const matchesProjectLabel =
         !labelFilter ||
-        memberProjectLabels.includes(normalize(labelFilter));
+        memberProjectLabels.includes(normalizeCandidateFilter(labelFilter));
       const matchesCycle =
         !cycleFilter || member.cycle === Number(cycleFilter);
-      const matchesMajor = !majorFilter || member.major === majorFilter;
+      const matchesMajor =
+        !majorFilter ||
+        normalizeCandidateFilter(member.major) ===
+          normalizeCandidateFilter(majorFilter);
       return (
         matchesQuery &&
         matchesSkill &&
