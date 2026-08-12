@@ -76,7 +76,11 @@ describe("getLoginErrorMessage", () => {
   it("maps MEMBER_INACTIVE status 403 to an inactive account message", () => {
     assert.equal(
       getLoginErrorMessage(
-        new ApiError("MEMBER_INACTIVE: Account inactive", 403),
+        new ApiError(
+          "MEMBER_INACTIVE: Tu cuenta no registra actividad activa basada en tareas asignadas. Contacta a Directiva o Presidencia para reactivarte.",
+          403,
+          "MEMBER_INACTIVE",
+        ),
       ),
       "Tu cuenta está inactiva porque no registras tareas o actividad activa asignada. Contacta a la Directiva o Presidencia para reactivarte.",
     );
@@ -85,7 +89,11 @@ describe("getLoginErrorMessage", () => {
   it("maps DISABLED_READ_ONLY status 403 to a disabled read-only message", () => {
     assert.equal(
       getLoginErrorMessage(
-        new ApiError("DISABLED_READ_ONLY: Read-only access only", 403),
+        new ApiError(
+          "DISABLED_READ_ONLY: Disabled members cannot modify resources",
+          403,
+          "DISABLED_READ_ONLY",
+        ),
       ),
       "Tu cuenta está inhabilitada y solo tiene acceso de lectura. No puedes realizar modificaciones.",
     );
