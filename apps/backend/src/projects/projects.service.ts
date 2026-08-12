@@ -546,6 +546,16 @@ export class ProjectsService {
         const membersRepository = entityManager.getRepository(Member);
         const projectMembershipsRepository =
           entityManager.getRepository(ProjectMembership);
+
+        await this.memberActivityService.refreshMembers(
+          [addDto.memberId],
+          entityManager,
+        );
+        await this.memberAvailabilityService.refreshMembers(
+          [addDto.memberId],
+          entityManager,
+        );
+
         const member = await membersRepository.findOne({
           where: { id: addDto.memberId },
           relations: ['memberships'],

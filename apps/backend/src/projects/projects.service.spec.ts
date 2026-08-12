@@ -208,6 +208,7 @@ describe('ProjectsService', () => {
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
   let auditService: jest.Mocked<AuditService>;
   let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
+  let memberActivityService: jest.Mocked<MemberActivityService>;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -309,6 +310,7 @@ describe('ProjectsService', () => {
           provide: MemberAvailabilityService,
           useValue: {
             refreshProjectMembers: jest.fn().mockResolvedValue(undefined),
+            refreshMembers: jest.fn().mockResolvedValue(undefined),
           },
         },
         {
@@ -363,6 +365,7 @@ describe('ProjectsService', () => {
     service = module.get<ProjectsService>(ProjectsService);
     auditService = module.get(AuditService);
     memberAvailabilityService = module.get(MemberAvailabilityService);
+    memberActivityService = module.get(MemberActivityService);
   });
 
   it('creates a project with default phases when the area exists', async () => {
@@ -1266,6 +1269,14 @@ describe('ProjectsService', () => {
         membership,
       );
       expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
+      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
       expect(projectsRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
         lock: { mode: 'pessimistic_write' },
@@ -1305,6 +1316,49 @@ describe('ProjectsService', () => {
           'Members marked as unavailable are not selectable when building a team',
         ),
       );
+      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+    });
+
+    it('allows inactive members when their derived availability is available', async () => {
+      const member = createMember({
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+      });
+      const membership = createProjectMembership({ member });
+
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      membersRepository.findOne?.mockResolvedValue(member);
+      projectMembershipsRepository.findOne
+        ?.mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(membership);
+      projectMembershipsRepository.create?.mockReturnValue(membership);
+      projectMembershipsRepository.save?.mockResolvedValue(membership);
+
+      await expect(
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
+      ).resolves.toEqual(membership);
+    });
+
+    it.each([
+      MemberAvailabilityStatus.NOT_AVAILABLE,
+      MemberAvailabilityStatus.DISABLED,
+    ])('rejects a member with %s derived availability', async (status) => {
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      membersRepository.findOne?.mockResolvedValue(
+        createMember({ availabilityStatus: status }),
+      );
+
+      await expect(
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
+      ).rejects.toThrow(BadRequestException);
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
     });
 
