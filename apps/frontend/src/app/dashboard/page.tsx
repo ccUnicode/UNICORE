@@ -33,6 +33,7 @@ import {
   getAreasPath,
   getMemberAreaIds,
   navItems,
+  resolveAreaNavigation,
 } from "./dashboard.model";
 import {
   canAccessDashboardRoute,
@@ -174,6 +175,21 @@ export default function DashboardPage() {
     };
   }, [accessToken, authState, currentMemberRole]);
 
+  useEffect(() => {
+    if (loadState !== "ready" || view !== "areas" || !currentMemberRole) {
+      return;
+    }
+    const navResolution = resolveAreaNavigation(areas, currentMemberRole);
+    if (
+      navResolution.targetView === "area-detail" &&
+      navResolution.targetAreaId
+    ) {
+      router.replace(
+        getDashboardPath("area-detail", navResolution.targetAreaId),
+      );
+    }
+  }, [areas, currentMemberRole, loadState, router, view]);
+
   const handleLogout = (): void => {
     window.sessionStorage.removeItem(AUTH_TOKEN_STORAGE_KEY);
     setAccessToken(null);
@@ -191,6 +207,22 @@ export default function DashboardPage() {
     if (!accessToken) return;
     const loadedProjects = await getAllProjects(accessToken);
     setProjects(loadedProjects);
+  };
+
+  const handleNavigateToNavItem = (itemId: View): void => {
+    if (itemId === "areas") {
+      const navResolution = resolveAreaNavigation(areas, currentMemberRole);
+      if (
+        navResolution.targetView === "area-detail" &&
+        navResolution.targetAreaId
+      ) {
+        router.push(
+          getDashboardPath("area-detail", navResolution.targetAreaId),
+        );
+        return;
+      }
+    }
+    router.push(getDashboardPath(itemId));
   };
 
   const refreshPeopleData = async (): Promise<void> => {
@@ -261,7 +293,17 @@ export default function DashboardPage() {
               <NavButton
                 key={item.id}
                 active={activeNavView === item.id}
-                href={getDashboardPath(item.id)}
+                href={
+                  item.id === "areas"
+                    ? resolveAreaNavigation(areas, currentMemberRole).targetView === "area-detail" &&
+                      resolveAreaNavigation(areas, currentMemberRole).targetAreaId
+                      ? getDashboardPath(
+                          "area-detail",
+                          resolveAreaNavigation(areas, currentMemberRole).targetAreaId!,
+                        )
+                      : getDashboardPath("areas")
+                    : getDashboardPath(item.id)
+                }
                 icon={item.icon}
                 label={item.label}
               />
@@ -289,7 +331,7 @@ export default function DashboardPage() {
               aria-label="Cambiar vista"
               value={activeNavView ?? "dashboard"}
               onChange={(event) =>
-                router.push(getDashboardPath(event.target.value as View))
+                handleNavigateToNavItem(event.target.value as View)
               }
               className="rounded-md border border-white/10 bg-[#20212c] px-3 py-2 text-sm text-white"
             >
@@ -361,6 +403,10 @@ export default function DashboardPage() {
                 accessToken={accessToken}
                 currentRole={currentMember.role}
                 currentAreaId={currentMember.areaId}
+                showBackLink={
+                  currentMember.role === "presidencia" ||
+                  areas.filter((a) => !a.isArchived).length > 1
+                }
                 onChanged={refreshPeopleData}
                 onBack={() => router.push(getDashboardPath("areas"))}
                 onOpenMember={(memberId) => {

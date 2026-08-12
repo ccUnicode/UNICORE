@@ -32,6 +32,8 @@
     "src/app/task-collaboration.test.ts",
     "src/app/task-management.tsx",
     "src/app/task-management.test.tsx",
+    "src/app/dashboard/dashboard.model.ts",
+    "src/app/dashboard/dashboard-navigation.test.ts",
     "src/lib/auth-client.ts"
   ]
 }
