@@ -255,6 +255,31 @@ describe('AuthService', () => {
     });
   });
 
+  it('allows login in read-only mode for disabled members even if they are inactive', async () => {
+    const member = {
+      id: 9,
+      institution: 'UNI',
+      studentCode: '20260009',
+      passwordHash: 'stored-hash',
+      activityStatus: MemberActivityStatus.INACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      sessionVersion: 2,
+    } as Member;
+
+    queryBuilder.getOne.mockResolvedValue(member);
+    jest.mocked(passwordService.verify).mockResolvedValue(true);
+
+    await expect(
+      service.login({
+        studentCode: '20260009',
+        password: 'a-secure-password',
+      }),
+    ).resolves.toMatchObject({
+      accessToken: 'signed-token',
+      member: { readOnly: true },
+    });
+  });
+
   it('rejects login with ForbiddenException MEMBER_INACTIVE for inactive members with valid credentials', async () => {
     const member = {
       id: 8,

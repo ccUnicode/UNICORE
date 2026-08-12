@@ -155,7 +155,10 @@ export class AuthService {
 
     delete member.passwordHash;
 
-    if (member.activityStatus === MemberActivityStatus.INACTIVE) {
+    if (
+      member.availabilityStatus !== MemberAvailabilityStatus.DISABLED &&
+      member.activityStatus === MemberActivityStatus.INACTIVE
+    ) {
       throw new ForbiddenException({
         statusCode: 403,
         code: 'MEMBER_INACTIVE',
