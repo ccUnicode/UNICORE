@@ -179,13 +179,13 @@ describe('AuthService', () => {
     },
   );
 
-  it('returns a token for valid inactive credentials without exposing the hash', async () => {
+  it('returns a token for valid credentials without exposing the hash', async () => {
     const member = {
       id: 7,
       institution: 'UNI',
       studentCode: '20260007',
       passwordHash: 'stored-hash',
-      activityStatus: MemberActivityStatus.INACTIVE,
+      activityStatus: MemberActivityStatus.ACTIVE,
       sessionVersion: 5,
     } as Member;
 
@@ -253,6 +253,74 @@ describe('AuthService', () => {
       accessToken: 'signed-token',
       member: { readOnly: true },
     });
+  });
+
+  it('allows login in read-only mode for disabled members even if they are inactive', async () => {
+    const member = {
+      id: 9,
+      institution: 'UNI',
+      studentCode: '20260009',
+      passwordHash: 'stored-hash',
+      activityStatus: MemberActivityStatus.INACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      sessionVersion: 2,
+    } as Member;
+
+    queryBuilder.getOne.mockResolvedValue(member);
+    jest.mocked(passwordService.verify).mockResolvedValue(true);
+
+    await expect(
+      service.login({
+        studentCode: '20260009',
+        password: 'a-secure-password',
+      }),
+    ).resolves.toMatchObject({
+      accessToken: 'signed-token',
+      member: { readOnly: true },
+    });
+  });
+
+  it('rejects login with ForbiddenException MEMBER_INACTIVE for inactive members with valid credentials', async () => {
+    const member = {
+      id: 8,
+      institution: 'UNI',
+      studentCode: '20260008',
+      passwordHash: 'stored-hash',
+      activityStatus: MemberActivityStatus.INACTIVE,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+      sessionVersion: 1,
+    } as Member;
+
+    queryBuilder.getOne.mockResolvedValue(member);
+    jest.mocked(passwordService.verify).mockResolvedValue(true);
+
+    await expect(
+      service.login({
+        studentCode: '20260008',
+        password: 'a-secure-password',
+      }),
+    ).rejects.toThrow(ForbiddenException);
+  });
+
+  it('rejects login with UnauthorizedException for inactive members with invalid credentials without revealing status', async () => {
+    const member = {
+      id: 8,
+      institution: 'UNI',
+      studentCode: '20260008',
+      passwordHash: 'stored-hash',
+      activityStatus: MemberActivityStatus.INACTIVE,
+      sessionVersion: 1,
+    } as Member;
+
+    queryBuilder.getOne.mockResolvedValue(member);
+    jest.mocked(passwordService.verify).mockResolvedValue(false);
+
+    await expect(
+      service.login({
+        studentCode: '20260008',
+        password: 'wrong-password',
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('increments the session version when changing a password', async () => {
