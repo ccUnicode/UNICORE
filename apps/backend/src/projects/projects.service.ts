@@ -536,7 +536,7 @@ export class ProjectsService {
     addDto: AddProjectMemberDto,
     accessActor: RequestAccessActor,
   ): Promise<ProjectMembership> {
-    return this.projectsRepository.manager.transaction(
+    const membership = await this.projectsRepository.manager.transaction(
       async (entityManager) => {
         const project = await this.findProjectForUpdate(
           projectId,
@@ -568,9 +568,7 @@ export class ProjectsService {
         }
 
         if (member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE) {
-          throw new BadRequestException(
-            'Members marked as unavailable are not selectable when building a team',
-          );
+          return null;
         }
 
         const belongsToArea = member.memberships?.some(
@@ -637,6 +635,14 @@ export class ProjectsService {
         }
       },
     );
+
+    if (!membership) {
+      throw new BadRequestException(
+        'Members marked as unavailable are not selectable when building a team',
+      );
+    }
+
+    return membership;
   }
 
   async updateTeamMemberRole(

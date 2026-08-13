@@ -1317,6 +1317,15 @@ describe('ProjectsService', () => {
         ),
       );
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
+      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
+      expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
     });
 
     it('allows inactive members when their derived availability is available', async () => {
