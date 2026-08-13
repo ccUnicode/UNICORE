@@ -3,6 +3,7 @@ export type View =
   | "areas"
   | "area-detail"
   | "members"
+  | "member-create"
   | "member-profile"
   | "projects"
   | "tasks"

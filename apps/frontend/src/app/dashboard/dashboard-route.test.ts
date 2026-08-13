@@ -3,7 +3,9 @@ import { describe, it } from "node:test";
 import {
   canAccessDashboardRoute,
   getDashboardPath,
+  getMemberCreationPath,
   getRouteNavView,
+  parseMemberCreationAreaId,
   parseDashboardPath,
 } from "./dashboard-route";
 
@@ -17,6 +19,9 @@ describe("dashboard canonical routes", () => {
     assert.deepEqual(parseDashboardPath("/dashboard/members/7/"), {
       view: "member-profile",
       resourceId: 7,
+    });
+    assert.deepEqual(parseDashboardPath("/dashboard/members/new"), {
+      view: "member-create",
     });
   });
 
@@ -40,6 +45,18 @@ describe("dashboard canonical routes", () => {
       getDashboardPath("member-profile", 15),
       "/dashboard/members/15",
     );
+    assert.equal(getMemberCreationPath(), "/dashboard/members/new");
+    assert.equal(
+      getMemberCreationPath(12),
+      "/dashboard/members/new?areaId=12",
+    );
+  });
+
+  it("parses a valid area context without accepting invalid identifiers", () => {
+    assert.equal(parseMemberCreationAreaId("12"), 12);
+    assert.equal(parseMemberCreationAreaId(null), undefined);
+    assert.equal(parseMemberCreationAreaId("0"), undefined);
+    assert.equal(parseMemberCreationAreaId("other"), undefined);
   });
 
   it("keeps detail routes active under their parent navigation item", () => {
@@ -51,6 +68,7 @@ describe("dashboard canonical routes", () => {
       getRouteNavView({ view: "member-profile", resourceId: 9 }),
       "members",
     );
+    assert.equal(getRouteNavView({ view: "member-create" }), "members");
   });
 
   it("preserves people and audit authorization on direct navigation", () => {

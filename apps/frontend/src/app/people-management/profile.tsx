@@ -6,7 +6,7 @@ import { authorizedJson } from "@/lib/auth-client";
 import type { ManagedArea, ManagedAreaMembership, ManagedMember, ManagedProject } from "../people-management.types";
 import { dangerButton, memberName, displayCycle, messageFrom, displayRole, StatusPill, Feedback } from "./shared";
 import { ExactNameAction } from "./areas";
-import { MemberForm } from "./members";
+import { MemberForm } from "./member-form";
 
 import { MembershipForm } from "./membership-form";
 
