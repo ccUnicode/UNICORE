@@ -40,6 +40,7 @@ export function MemberForm({
   fixedAreaId,
   regularMemberOnly = false,
   onClose,
+  onCloseAfterSaveFailure,
   onSaved,
 }: {
   member?: ManagedMember;
@@ -49,6 +50,7 @@ export function MemberForm({
   fixedAreaId?: number;
   regularMemberOnly?: boolean;
   onClose: () => void;
+  onCloseAfterSaveFailure?: () => void;
   onSaved: (memberId: number) => Promise<void>;
 }) {
   const initial: MemberFormState = {
@@ -74,6 +76,7 @@ export function MemberForm({
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [created, setCreated] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
   const submissionStarted = useRef(false);
   const [skillSuggestions, setSkillSuggestions] = useState<string[]>(
     member?.skills?.map((skill) => skill.name) ?? [],
@@ -132,6 +135,7 @@ export function MemberForm({
       try {
         await onSaved(saved.id);
       } catch {
+        setRefreshFailed(true);
         setError(
           member
             ? "El miembro se actualizó correctamente, pero no se pudo actualizar la vista. Cierra el formulario para volver a cargarla."
@@ -145,10 +149,14 @@ export function MemberForm({
       setSaving(false);
     }
   };
+  const close =
+    refreshFailed && onCloseAfterSaveFailure
+      ? onCloseAfterSaveFailure
+      : onClose;
   return (
     <Modal
       title={member ? "Editar miembro" : "Añadir miembro"}
-      onClose={onClose}
+      onClose={close}
     >
       <form onSubmit={submit} className="grid gap-5">
         {error && <Feedback>{error}</Feedback>}
@@ -265,7 +273,7 @@ export function MemberForm({
           </div>
         </div>
         <div className="flex justify-end gap-3">
-          <button type="button" className={secondaryButton} onClick={onClose}>
+          <button type="button" className={secondaryButton} onClick={close}>
             Cancelar
           </button>
           <button disabled={saving || created} className={primaryButton}>

@@ -260,6 +260,9 @@ function DashboardContent() {
   const creationArea = creationAreaId
     ? areas.find((area) => area.id === creationAreaId && !area.isArchived)
     : undefined;
+  const memberCreationReturnPath = creationAreaId
+    ? getDashboardPath("area-detail", creationAreaId)
+    : getDashboardPath("members");
   const canCreateMember =
     view === "member-create" &&
     !currentMember?.readOnly &&
@@ -446,11 +449,10 @@ function DashboardContent() {
                     currentMember.role === "directiva_de_area"
                   }
                   onClose={() => {
-                    router.replace(
-                      creationAreaId
-                        ? getDashboardPath("area-detail", creationAreaId)
-                        : getDashboardPath("members"),
-                    );
+                    router.replace(memberCreationReturnPath);
+                  }}
+                  onCloseAfterSaveFailure={() => {
+                    window.location.replace(memberCreationReturnPath);
                   }}
                   onSaved={async (memberId) => {
                     await refreshPeopleData();
