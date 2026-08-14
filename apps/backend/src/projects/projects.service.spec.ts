@@ -8,8 +8,8 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
-  ILike,
   In,
+  FindOperator,
   LessThanOrEqual,
   MoreThanOrEqual,
   ObjectLiteral,
@@ -670,7 +670,10 @@ describe('ProjectsService', () => {
         isArchived: true,
         status: ProjectStatus.ACTIVE,
         areaId: 4,
-        name: ILike('%portal%'),
+        name: expect.objectContaining({
+          _type: 'raw',
+          _objectLiteralParameters: { projectSearch: '%portal%' },
+        }) as FindOperator<string>,
         startDate: LessThanOrEqual('2026-06-30'),
         endDate: MoreThanOrEqual('2026-06-01'),
         labels: { normalizedName: In(['backend']) },

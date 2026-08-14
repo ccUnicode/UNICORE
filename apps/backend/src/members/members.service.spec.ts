@@ -247,7 +247,7 @@ describe('MembersService', () => {
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
-        name: In(['typescript', 'testing']),
+        normalizedName: In(['typescript', 'testing']),
       },
     });
     expect(membersRepository.create).toHaveBeenCalledWith({
@@ -598,7 +598,7 @@ describe('MembersService', () => {
         }),
       );
       expect(skillsRepository.find).toHaveBeenCalledWith({
-        where: { name: In(['nestjs']) },
+        where: { normalizedName: In(['nestjs']) },
       });
     });
 
