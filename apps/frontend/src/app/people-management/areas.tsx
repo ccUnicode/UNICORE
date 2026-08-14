@@ -14,8 +14,6 @@ import {
   SearchField,
 } from "./shared";
 import { MemberTable } from "./members";
-import { MemberForm } from "./member-form";
-
 import { AreaForm, ExactNameAction } from "./area-actions";
 export { ExactNameAction } from "./area-actions";
 
@@ -238,6 +236,7 @@ export function AreaDetailManagementView({
   currentRole,
   currentAreaId,
   onBack,
+  onAddMember,
   onOpenMember,
   onChanged,
   showBackLink = true,
@@ -247,13 +246,13 @@ export function AreaDetailManagementView({
   currentRole: string;
   currentAreaId?: number | null;
   onBack: () => void;
+  onAddMember: (areaId: number) => void;
   onOpenMember: (memberId: number) => void;
   onChanged: () => Promise<void>;
   showBackLink?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [archiving, setArchiving] = useState(false);
-  const [creatingMember, setCreatingMember] = useState(false);
   const canEdit = currentRole === "presidencia";
   const canAddMember = canCreateMemberInArea(
     currentRole,
@@ -316,7 +315,7 @@ export function AreaDetailManagementView({
             <button
               type="button"
               className={primaryButton}
-              onClick={() => setCreatingMember(true)}
+              onClick={() => onAddMember(metric.area.id)}
             >
               ＋ Añadir miembro
             </button>
@@ -351,19 +350,6 @@ export function AreaDetailManagementView({
           onDone={async () => {
             setArchiving(false);
             onBack();
-            await onChanged();
-          }}
-        />
-      )}
-      {creatingMember && (
-        <MemberForm
-          areas={[metric.area]}
-          accessToken={accessToken}
-          fixedAreaId={metric.area.id}
-          regularMemberOnly={currentRole === "directiva_de_area"}
-          onClose={() => setCreatingMember(false)}
-          onSaved={async () => {
-            setCreatingMember(false);
             await onChanged();
           }}
         />

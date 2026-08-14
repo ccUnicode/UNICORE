@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
 import { TagInput } from "../components/tag-input";
 import type {
@@ -36,17 +36,21 @@ export function MemberForm({
   member,
   areas,
   accessToken,
+  initialAreaId,
   fixedAreaId,
   regularMemberOnly = false,
   onClose,
+  onCloseAfterSaveFailure,
   onSaved,
 }: {
   member?: ManagedMember;
   areas: ManagedArea[];
   accessToken: string;
+  initialAreaId?: number;
   fixedAreaId?: number;
   regularMemberOnly?: boolean;
   onClose: () => void;
+  onCloseAfterSaveFailure?: () => void;
   onSaved: (memberId: number) => Promise<void>;
 }) {
   const initial: MemberFormState = {
@@ -57,17 +61,23 @@ export function MemberForm({
     major: member?.major ?? "",
     birthDate: member?.birthDate?.slice(0, 10) ?? "",
     role: regularMemberOnly ? "miembro" : (member?.role ?? "miembro"),
-    areaId: fixedAreaId
-      ? String(fixedAreaId)
-      : member?.areaId
-        ? String(member.areaId)
-        : "",
+    areaId:
+      fixedAreaId !== undefined
+        ? String(fixedAreaId)
+        : initialAreaId !== undefined
+          ? String(initialAreaId)
+          : member?.areaId
+            ? String(member.areaId)
+            : "",
     skills: member?.skills?.map((skill) => skill.name) ?? [],
     cycle: member?.cycle ? String(member.cycle) : "",
   };
   const [form, setForm] = useState(initial);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [created, setCreated] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const submissionStarted = useRef(false);
   const [skillSuggestions, setSkillSuggestions] = useState<string[]>(
     member?.skills?.map((skill) => skill.name) ?? [],
   );
@@ -89,10 +99,12 @@ export function MemberForm({
   }, [accessToken]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submissionStarted.current) return;
     if (form.skills.length === 0) {
       setError("Agrega al menos una skill antes de guardar.");
       return;
     }
+    submissionStarted.current = true;
     setSaving(true);
     setError("");
     try {
@@ -119,17 +131,32 @@ export function MemberForm({
         accessToken,
         { method: member ? "PATCH" : "POST", body: JSON.stringify(payload) },
       );
-      await onSaved(saved.id);
+      setCreated(true);
+      try {
+        await onSaved(saved.id);
+      } catch {
+        setRefreshFailed(true);
+        setError(
+          member
+            ? "El miembro se actualizó correctamente, pero no se pudo actualizar la vista. Cierra el formulario para volver a cargarla."
+            : "El miembro se creó correctamente, pero no se pudo actualizar la vista. Cierra el formulario para volver a cargarla.",
+        );
+      }
     } catch (currentError) {
+      submissionStarted.current = false;
       setError(messageFrom(currentError));
     } finally {
       setSaving(false);
     }
   };
+  const close =
+    refreshFailed && onCloseAfterSaveFailure
+      ? onCloseAfterSaveFailure
+      : onClose;
   return (
     <Modal
       title={member ? "Editar miembro" : "Añadir miembro"}
-      onClose={onClose}
+      onClose={close}
     >
       <form onSubmit={submit} className="grid gap-5">
         {error && <Feedback>{error}</Feedback>}
@@ -193,7 +220,9 @@ export function MemberForm({
                 <select
                   required={form.role === "directiva_de_area"}
                   value={form.areaId}
-                  disabled={form.role === "presidencia" || Boolean(fixedAreaId)}
+                  disabled={
+                    form.role === "presidencia" || fixedAreaId !== undefined
+                  }
                   onChange={(event) => set("areaId", event.target.value)}
                   className={fieldClass}
                 >
@@ -244,11 +273,17 @@ export function MemberForm({
           </div>
         </div>
         <div className="flex justify-end gap-3">
-          <button type="button" className={secondaryButton} onClick={onClose}>
+          <button type="button" className={secondaryButton} onClick={close}>
             Cancelar
           </button>
-          <button disabled={saving} className={primaryButton}>
-            {saving ? "Guardando..." : "Guardar miembro"}
+          <button disabled={saving || created} className={primaryButton}>
+            {created
+              ? member
+                ? "Miembro actualizado"
+                : "Miembro creado"
+              : saving
+                ? "Guardando..."
+                : "Guardar miembro"}
           </button>
         </div>
       </form>

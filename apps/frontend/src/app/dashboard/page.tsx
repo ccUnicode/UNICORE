@@ -1,7 +1,7 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   API_URL,
@@ -18,6 +18,8 @@ import {
   MemberProfileManagementView,
   MembersManagementView,
 } from "../people-management";
+import { canCreateMemberInArea } from "../people-management-utils";
+import { MemberForm } from "../people-management/member-form";
 import type {
   Area,
   AuthState,
@@ -38,7 +40,9 @@ import {
 import {
   canAccessDashboardRoute,
   getDashboardPath,
+  getMemberCreationPath,
   getRouteNavView,
+  parseMemberCreationAreaId,
   parseDashboardPath,
 } from "./dashboard-route";
 import {
@@ -52,7 +56,16 @@ import {
 } from "./dashboard.components";
 
 export default function DashboardPage() {
+  return (
+    <Suspense fallback={<SessionLoadingView />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const params = useParams<{ segments?: string[] }>();
   const pathname = params.segments?.length
     ? `/dashboard/${params.segments.join("/")}`
@@ -270,6 +283,31 @@ export default function DashboardPage() {
       ? members.find((member) => member.id === route.resourceId)
       : undefined;
 
+  const hasCreationAreaContext =
+    view === "member-create" && searchParams.has("areaId");
+  const creationAreaId =
+    view === "member-create"
+      ? parseMemberCreationAreaId(searchParams.get("areaId"))
+      : undefined;
+  const creationArea = creationAreaId
+    ? areas.find((area) => area.id === creationAreaId && !area.isArchived)
+    : undefined;
+  const memberCreationReturnPath = creationAreaId
+    ? getDashboardPath("area-detail", creationAreaId)
+    : getDashboardPath("members");
+  const canCreateMember =
+    view === "member-create" &&
+    !currentMember?.readOnly &&
+    (hasCreationAreaContext
+      ? Boolean(creationArea) &&
+        creationAreaId !== undefined &&
+        canCreateMemberInArea(
+          currentMemberRole ?? "",
+          currentMember?.areaId,
+          creationAreaId,
+        )
+      : currentMemberRole === "presidencia");
+
   const activeMembers = members.filter(
     (member) => member.activityStatus !== "inactive",
   ).length;
@@ -409,6 +447,9 @@ export default function DashboardPage() {
                 }
                 onChanged={refreshPeopleData}
                 onBack={() => router.push(getDashboardPath("areas"))}
+                onAddMember={(areaId) => {
+                  router.push(getMemberCreationPath(areaId));
+                }}
                 onOpenMember={(memberId) => {
                   router.push(getDashboardPath("member-profile", memberId));
                 }}
@@ -430,14 +471,60 @@ export default function DashboardPage() {
                 members={members}
                 areas={areas}
                 projects={projects}
-                accessToken={accessToken}
                 currentRole={currentMember.role}
-                onChanged={refreshPeopleData}
+                onCreateMember={() => router.push(getMemberCreationPath())}
                 onOpenMember={(memberId) => {
                   router.push(getDashboardPath("member-profile", memberId));
                 }}
               />
             )}
+            {view === "member-create" &&
+              routeAuthorized &&
+              loadState === "ready" &&
+              canCreateMember && (
+                <MemberForm
+                  areas={areas}
+                  accessToken={accessToken}
+                  initialAreaId={creationAreaId}
+                  fixedAreaId={
+                    currentMember.role === "directiva_de_area"
+                      ? creationAreaId
+                      : undefined
+                  }
+                  regularMemberOnly={
+                    currentMember.role === "directiva_de_area"
+                  }
+                  onClose={() => {
+                    router.replace(memberCreationReturnPath);
+                  }}
+                  onCloseAfterSaveFailure={() => {
+                    window.location.replace(memberCreationReturnPath);
+                  }}
+                  onSaved={async (memberId) => {
+                    await refreshPeopleData();
+                    router.replace(
+                      creationAreaId
+                        ? getDashboardPath("area-detail", creationAreaId)
+                        : getDashboardPath("member-profile", memberId),
+                    );
+                  }}
+                />
+              )}
+            {view === "member-create" &&
+              routeAuthorized &&
+              loadState === "ready" &&
+              !canCreateMember && (
+                <RouteStateView
+                  title="No se puede añadir el miembro"
+                  description="El área solicitada no está activa o tu rol no permite crear miembros en ella."
+                  href={
+                    creationAreaId
+                      ? getDashboardPath("area-detail", creationAreaId)
+                      : getDashboardPath("members")
+                  }
+                  action="Volver"
+                />
+              )}
             {view === "member-profile" && routeAuthorized && selectedMember && (
               <MemberProfileManagementView
                 member={selectedMember}

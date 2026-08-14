@@ -5,7 +5,10 @@ export type DashboardRoute = {
   resourceId?: number;
 };
 
-const VIEW_PATHS: Record<Exclude<View, "area-detail" | "member-profile">, string> = {
+const VIEW_PATHS: Record<
+  Exclude<View, "area-detail" | "member-create" | "member-profile">,
+  string
+> = {
   dashboard: "/dashboard",
   areas: "/dashboard/areas",
   members: "/dashboard/members",
@@ -23,7 +26,8 @@ function parsePositiveId(value: string): number | undefined {
 }
 
 export function parseDashboardPath(pathname: string): DashboardRoute {
-  const normalizedPath = pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
+  const normalizedPath =
+    pathname.length > 1 ? pathname.replace(/\/+$/, "") : pathname;
 
   const staticRoute = Object.entries(VIEW_PATHS).find(
     ([, path]) => path === normalizedPath,
@@ -36,6 +40,10 @@ export function parseDashboardPath(pathname: string): DashboardRoute {
     return resourceId
       ? { view: "area-detail", resourceId }
       : { view: "not-found" };
+  }
+
+  if (normalizedPath === "/dashboard/members/new") {
+    return { view: "member-create" };
   }
 
   const memberMatch = normalizedPath.match(/^\/dashboard\/members\/([^/]+)$/);
@@ -51,19 +59,34 @@ export function parseDashboardPath(pathname: string): DashboardRoute {
 
 export function getDashboardPath(view: View, resourceId?: number): string {
   if (view === "area-detail") {
-    if (!resourceId) throw new Error("El detalle de área requiere un identificador");
+    if (!resourceId)
+      throw new Error("El detalle de área requiere un identificador");
     return `/dashboard/areas/${resourceId}`;
   }
   if (view === "member-profile") {
     if (!resourceId) throw new Error("El perfil de miembro requiere un identificador");
     return `/dashboard/members/${resourceId}`;
   }
+  if (view === "member-create") return "/dashboard/members/new";
   return VIEW_PATHS[view];
+}
+
+export function getMemberCreationPath(areaId?: number): string {
+  const path = getDashboardPath("member-create");
+  return areaId ? `${path}?areaId=${areaId}` : path;
+}
+
+export function parseMemberCreationAreaId(
+  value: string | null,
+): number | undefined {
+  return value === null ? undefined : parsePositiveId(value);
 }
 
 export function getRouteNavView(route: DashboardRoute): View | undefined {
   if (route.view === "area-detail") return "areas";
-  if (route.view === "member-profile") return "members";
+  if (route.view === "member-create" || route.view === "member-profile") {
+    return "members";
+  }
   return route.view === "not-found" ? undefined : route.view;
 }
 

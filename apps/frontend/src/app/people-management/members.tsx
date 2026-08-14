@@ -16,28 +16,22 @@ const emptyFilters: MemberDirectoryFilters = {
   projectLabel: "",
 };
 
-import { MemberForm } from "./member-form";
-export { MemberForm } from "./member-form";
-
 export function MembersManagementView({
   members,
   areas,
   projects,
-  accessToken,
   currentRole,
+  onCreateMember,
   onOpenMember,
-  onChanged,
 }: {
   members: ManagedMember[];
   areas: ManagedArea[];
   projects: ManagedProject[];
-  accessToken: string;
   currentRole: string;
+  onCreateMember: () => void;
   onOpenMember: (memberId: number) => void;
-  onChanged: () => Promise<void>;
 }) {
   const [filters, setFilters] = useState(emptyFilters);
-  const [creating, setCreating] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const filtered = useMemo(
     () => filterAndSortMembers(members, projects, filters),
@@ -139,23 +133,11 @@ export function MembersManagementView({
           <button
             type="button"
             className="rounded-md bg-[#212330] px-4 py-2.5 text-sm text-white/80 hover:bg-[#2b2d3d]"
-            onClick={() => setCreating(true)}
+            onClick={onCreateMember}
           >
             ＋ &nbsp; Añadir miembro
           </button>
         </div>
-      )}
-      {creating && (
-        <MemberForm
-          areas={areas}
-          accessToken={accessToken}
-          onClose={() => setCreating(false)}
-          onSaved={async (memberId) => {
-            setCreating(false);
-            await onChanged();
-            onOpenMember(memberId);
-          }}
-        />
       )}
     </div>
   );
