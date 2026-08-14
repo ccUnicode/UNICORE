@@ -45,6 +45,7 @@ const createSkill = (
   updatedAt: new Date(),
   members: [],
   ...overrides,
+  normalizedName: overrides.normalizedName ?? name,
 });
 
 const createQueryBuilderMock = (members: Member[]) => ({

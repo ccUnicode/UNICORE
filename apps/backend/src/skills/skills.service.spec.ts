@@ -19,6 +19,7 @@ describe('SkillsService', () => {
   const skillEntity: Skill = {
     id: 1,
     name: 'react',
+    normalizedName: 'react',
     createdAt: new Date('2026-03-30T10:00:00.000Z'),
     updatedAt: new Date('2026-03-30T10:00:00.000Z'),
     members: [],
@@ -105,6 +106,7 @@ describe('SkillsService', () => {
         {
           id: 2,
           name: 'typescript',
+          normalizedName: 'typescript',
           createdAt: new Date('2026-03-30T11:00:00.000Z'),
           updatedAt: new Date('2026-03-30T11:00:00.000Z'),
           members: [],
