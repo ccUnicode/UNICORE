@@ -103,6 +103,31 @@ test("combines directory filters", () => {
   );
 });
 
+test("matches member text, careers, skills and labels without accents", () => {
+  const accentedMember = {
+    ...members[0],
+    firstNames: "Ángela",
+    major: "Ingeniería de Sistemas",
+    skills: [{ name: "Gestión" }],
+  };
+  const accentedProjects = [
+    {
+      labels: [{ name: "Innovación" }],
+      memberships: [{ memberId: accentedMember.id }],
+    },
+  ];
+
+  assert.deepEqual(
+    filterAndSortMembers([accentedMember], accentedProjects, {
+      ...noFilters,
+      query: "gestion",
+      career: "INGENIERIA   DE SISTEMAS",
+      projectLabel: "innovacion",
+    }).map(({ id }) => id),
+    [accentedMember.id],
+  );
+});
+
 test("collects unique project labels for a member", () => {
   assert.deepEqual(getProjectLabelsForMember(2, projects), ["Datos", "Web"]);
 });

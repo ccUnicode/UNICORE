@@ -29,12 +29,7 @@ export function combineProjectExperience<T>(
 }
 
 export function normalizeCandidateFilter(value: string): string {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .toLocaleLowerCase();
+  return normalizeText(value);
 }
 
 export function filterAndSortProjectCandidates<T extends CandidateFilterMember>(
@@ -80,11 +75,9 @@ export function filterAndSortProjectCandidates<T extends CandidateFilterMember>(
 export function getPortfolioLabelNames(
   projects: ProjectExperienceSource[],
 ): string[] {
-  return Array.from(
-    new Set(
-      projects.flatMap(
-        (project) => project.labels?.map((label) => label.name) ?? [],
-      ),
+  return uniqueDisplayValues(
+    projects.flatMap(
+      (project) => project.labels?.map((label) => label.name) ?? [],
     ),
   ).sort((a, b) => a.localeCompare(b));
 }
@@ -103,3 +96,4 @@ export function getMemberProjectLabelNames(
       (project) => project.labels?.map((label) => label.name) ?? [],
     );
 }
+import { normalizeText, uniqueDisplayValues } from "./text-normalization";

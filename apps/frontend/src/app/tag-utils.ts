@@ -1,12 +1,9 @@
-export function cleanTag(value: string): string {
-  return value.trim().replace(/\s+/g, " ");
-}
+import { cleanText, normalizeText } from "./text-normalization";
+
+export const cleanTag = cleanText;
 
 export function normalizeTag(value: string): string {
-  return cleanTag(value)
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("es");
+  return normalizeText(value);
 }
 
 export function canonicalizeTags(
