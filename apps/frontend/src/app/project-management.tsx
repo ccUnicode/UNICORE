@@ -9,7 +9,7 @@ import {
 } from "react";
 import {
   combineProjectExperience,
-  getMemberProjectLabelNames,
+  filterAndSortProjectCandidates,
   getPortfolioLabelNames,
 } from "./project-experience";
 import {
@@ -1022,40 +1022,17 @@ function TeamPanel({
   ).sort((a, b) => a.localeCompare(b));
   const projectLabels = getPortfolioLabelNames(portfolioProjects);
 
-  const candidates = areaCandidates
-    .filter((member) => {
-      const memberSkills = member.skills?.map((skill) => normalize(skill.name)) ?? [];
-      const matchesQuery =
-        !normalize(candidateQuery) ||
-        normalize(`${memberName(member)} ${member.major}`).includes(
-          normalize(candidateQuery),
-        );
-      const matchesSkill =
-        !skillFilter || memberSkills.includes(normalize(skillFilter));
-      const memberProjectLabels = getMemberProjectLabelNames(
-        portfolioProjects,
-        member.id,
-      ).map(normalize);
-      const matchesProjectLabel =
-        !labelFilter ||
-        memberProjectLabels.includes(normalize(labelFilter));
-      const matchesCycle =
-        !cycleFilter || member.cycle === Number(cycleFilter);
-      const matchesMajor = !majorFilter || member.major === majorFilter;
-      return (
-        matchesQuery &&
-        matchesSkill &&
-        matchesProjectLabel &&
-        matchesCycle &&
-        matchesMajor
-      );
-    })
-    .sort((a, b) => {
-      const activityOrder =
-        Number(a.activityStatus === "inactive") -
-        Number(b.activityStatus === "inactive");
-      return activityOrder || memberName(a).localeCompare(memberName(b));
-    });
+  const candidates = filterAndSortProjectCandidates(
+    areaCandidates,
+    portfolioProjects,
+    {
+      query: candidateQuery,
+      skill: skillFilter,
+      projectLabel: labelFilter,
+      cycle: cycleFilter,
+      major: majorFilter,
+    },
+  );
 
   const mutate = async (
     path: string,
