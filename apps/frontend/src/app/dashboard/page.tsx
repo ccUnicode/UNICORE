@@ -9,6 +9,10 @@ import {
   READ_ONLY_STORAGE_KEY,
   getJson,
 } from "@/lib/auth-client";
+import {
+  loadMemberProfile,
+  type MemberProfileLoadResult,
+} from "../member-profile-client";
 import ProjectManagement from "../project-management";
 import TaskManagement from "../task-management";
 import AuditManagementView from "../audit-management";
@@ -81,6 +85,10 @@ function DashboardContent() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loadState, setLoadState] = useState<LoadState>("idle");
   const [error, setError] = useState("");
+  const [memberProfileState, setMemberProfileState] = useState<
+    MemberProfileLoadResult | { status: "idle" | "loading" }
+  >({ status: "idle" });
+  const [memberProfileRefresh, setMemberProfileRefresh] = useState(0);
   const currentMemberRole = currentMember?.role;
   const visibleNavItems = navItems.filter((item) =>
     canSeeNavItem(item.id, currentMemberRole),
@@ -172,11 +180,7 @@ function DashboardContent() {
           return;
         }
 
-        setError(
-          currentError instanceof Error
-            ? currentError.message
-            : "No se pudo cargar la información",
-        );
+        setError("No pudimos cargar toda la información. Inténtalo nuevamente.");
         setLoadState("error");
       }
     }
@@ -187,6 +191,44 @@ function DashboardContent() {
       ignore = true;
     };
   }, [accessToken, authState, currentMemberRole]);
+
+  useEffect(() => {
+    if (
+      authState !== "authenticated" ||
+      !accessToken ||
+      !currentMemberRole ||
+      route.view !== "member-profile" ||
+      !route.resourceId
+    ) {
+      return;
+    }
+
+    const memberId = route.resourceId;
+    const token = accessToken;
+    const role = currentMemberRole;
+    let ignore = false;
+
+    async function loadProfile() {
+      await Promise.resolve();
+      if (ignore) return;
+      setMemberProfileState({ status: "loading" });
+      const result = await loadMemberProfile(memberId, token, role);
+      if (!ignore) setMemberProfileState(result);
+    }
+
+    void loadProfile();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    accessToken,
+    authState,
+    currentMemberRole,
+    memberProfileRefresh,
+    route.resourceId,
+    route.view,
+  ]);
 
   useEffect(() => {
     if (loadState !== "ready" || view !== "areas" || !currentMemberRole) {
@@ -279,8 +321,9 @@ function DashboardContent() {
       : undefined;
 
   const selectedMember =
-    route.view === "member-profile"
-      ? members.find((member) => member.id === route.resourceId)
+    memberProfileState.status === "ready" &&
+    memberProfileState.member.id === route.resourceId
+      ? memberProfileState.member
       : undefined;
 
   const hasCreationAreaContext =
@@ -397,7 +440,7 @@ function DashboardContent() {
             )}
             {error && (
               <div className="mb-8 rounded-md border border-rose-500/40 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
-                No se pudo conectar con la API en {API_URL}: {error}
+                {error}
               </div>
             )}
 
@@ -525,6 +568,15 @@ function DashboardContent() {
                   action="Volver"
                 />
               )}
+            {view === "member-profile" &&
+              routeAuthorized &&
+              (memberProfileState.status === "idle" ||
+                memberProfileState.status === "loading") && (
+                <RouteStateView
+                  title="Cargando perfil"
+                  description="Estamos preparando la información del miembro."
+                />
+              )}
             {view === "member-profile" && routeAuthorized && selectedMember && (
               <MemberProfileManagementView
                 member={selectedMember}
@@ -532,17 +584,21 @@ function DashboardContent() {
                 projects={projects}
                 accessToken={accessToken}
                 currentRole={currentMember.role}
-                onChanged={refreshPeopleData}
+                onChanged={async () => {
+                  await refreshPeopleData();
+                  setMemberProfileRefresh((value) => value + 1);
+                }}
                 onBack={() => router.push(getDashboardPath("members"))}
               />
             )}
             {view === "member-profile" &&
               routeAuthorized &&
-              loadState === "ready" &&
-              !selectedMember && (
+              (memberProfileState.status === "not-found" ||
+                memberProfileState.status === "unauthorized" ||
+                memberProfileState.status === "error") && (
                 <RouteStateView
-                  title="Miembro no encontrado"
-                  description="El perfil solicitado no existe o no está disponible para tu cuenta."
+                  title={memberProfileState.title}
+                  description={memberProfileState.description}
                   href={getDashboardPath("members")}
                   action="Volver a miembros"
                 />

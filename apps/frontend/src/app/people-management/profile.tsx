@@ -4,6 +4,10 @@ import Image from "next/image";
 import { useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
 import type { ManagedArea, ManagedAreaMembership, ManagedMember, ManagedProject } from "../people-management.types";
+import {
+  canViewInternalMemberProfileFields,
+  formatProfileDate,
+} from "../member-profile-client";
 import { dangerButton, memberName, displayCycle, messageFrom, displayRole, StatusPill, Feedback } from "./shared";
 import { ExactNameAction } from "./areas";
 import { MemberForm } from "./member-form";
@@ -38,6 +42,7 @@ export function MemberProfileManagementView({
     project.memberships?.some((item) => item.memberId === member.id),
   );
   const canEdit = currentRole === "presidencia";
+  const canViewInternal = canViewInternalMemberProfileFields(currentRole);
   const canDeactivate =
     currentRole === "presidencia" || currentRole === "directiva_de_area";
   const removeMembership = async (item: ManagedAreaMembership) => {
@@ -88,19 +93,25 @@ export function MemberProfileManagementView({
           <p className="mt-1 text-center text-white/75">
             {member.major} · {displayCycle(member.cycle)}
           </p>
-          <div className="mt-4 flex justify-center gap-2">
-            <StatusPill value={member.activityStatus} />
-            <StatusPill value={member.availabilityStatus} />
-          </div>
+          {canViewInternal && (
+            <div className="mt-4 flex justify-center gap-2">
+              <StatusPill value={member.activityStatus} />
+              <StatusPill value={member.availabilityStatus} />
+            </div>
+          )}
           <div className="mt-6 space-y-3 border-t border-white/10 pt-5 text-sm">
-            <ProfileRow
-              label="Institución"
-              value={member.institution ?? "UNI"}
-            />
-            <ProfileRow
-              label="Código"
-              value={member.studentCode ?? "Sin código"}
-            />
+            {canViewInternal && (
+              <>
+                <ProfileRow
+                  label="Institución"
+                  value={member.institution ?? "Sin institución"}
+                />
+                <ProfileRow
+                  label="Código"
+                  value={member.studentCode ?? "Sin código"}
+                />
+              </>
+            )}
             <ProfileRow label="Rol" value={displayRole(member.role)} />
           </div>
           <div className="mt-6">
@@ -266,14 +277,16 @@ export function MemberProfileManagementView({
             </div>
           </section>
           <section className="rounded-md bg-[#191822] p-6 lg:p-8">
-            <h2 className="text-xl font-semibold">Participación</h2>
-            <div className="mt-6 rounded-md border border-dashed border-white/15 px-6 py-14 text-center">
-              <p className="text-sm font-medium text-white/65">
-                Aún no hay datos de participación disponibles.
-              </p>
-              <p className="mt-2 text-xs text-white/40">
-                Esta sección se completará cuando exista una fuente de métricas.
-              </p>
+            <h2 className="text-xl font-semibold">Historial del perfil</h2>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2">
+              <HistoryItem
+                label="Registro"
+                value={formatProfileDate(member.createdAt)}
+              />
+              <HistoryItem
+                label="Última actualización"
+                value={formatProfileDate(member.updatedAt)}
+              />
             </div>
           </section>
         </div>
@@ -342,6 +355,15 @@ function ProfileRow({ label, value }: { label: string; value: string }) {
     <div className="flex justify-between gap-4">
       <span className="text-white/40">{label}</span>
       <span className="text-right font-semibold text-white/80">{value}</span>
+    </div>
+  );
+}
+
+function HistoryItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-white/10 bg-white/[0.03] px-5 py-4">
+      <p className="text-xs text-white/45">{label}</p>
+      <p className="mt-2 text-sm font-semibold text-white/80">{value}</p>
     </div>
   );
 }

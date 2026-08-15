@@ -40,6 +40,8 @@ export type Member = {
   area?: Area | null;
   activityStatus?: "active" | "inactive" | string;
   availabilityStatus?: "available" | "not_available" | string;
+  createdAt?: string;
+  updatedAt?: string;
   disabledAt?: string | null;
   readOnly?: boolean;
   skills?: Skill[];

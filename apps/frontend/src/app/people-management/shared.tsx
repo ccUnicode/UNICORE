@@ -36,7 +36,20 @@ export function displayCycle(cycle?: number | null): string {
 }
 
 export function messageFrom(error: unknown): string {
-  if (error instanceof ApiError || error instanceof Error) return error.message;
+  if (error instanceof ApiError) {
+    if (error.code === "DISABLED_READ_ONLY") {
+      return "Tu cuenta está inhabilitada y solo permite consultar información histórica.";
+    }
+    if (error.status === 401) return "Tu sesión venció. Vuelve a iniciar sesión.";
+    if (error.status === 403) return "Tu rol no permite realizar esta acción.";
+    if (error.status === 404) return "La información solicitada ya no está disponible.";
+    if (error.status === 409) return "La operación entra en conflicto con información existente.";
+    if (error.status >= 500) return "El servicio no está disponible. Inténtalo nuevamente.";
+    return "Revisa los datos ingresados e inténtalo nuevamente.";
+  }
+  if (error instanceof Error) {
+    return "No se pudo completar la operación. Inténtalo nuevamente.";
+  }
   return "No se pudo completar la operación.";
 }
 
@@ -199,4 +212,3 @@ export function SearchField({
     </label>
   );
 }
-
