@@ -8,10 +8,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   FindOptionsWhere,
-  ILike,
   In,
   LessThanOrEqual,
   MoreThanOrEqual,
+  Raw,
   Repository,
 } from 'typeorm';
 import { AreaService } from '../area/area.service';
@@ -20,6 +20,11 @@ import { PaginatedResponse } from '../common/interfaces/paginated-response.inter
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
 import { parseAreaId } from '../common/utils/parse-area-id.util';
+import {
+  cleanText,
+  normalizedSql,
+  normalizeText,
+} from '../common/utils/text-normalization.util';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
@@ -762,7 +767,10 @@ export class ProjectsService {
       where.areaId = filterDto.areaId;
     }
     if (filterDto.search) {
-      where.name = ILike(`%${filterDto.search}%`);
+      where.name = Raw(
+        (column) => `${normalizedSql(column)} LIKE :projectSearch`,
+        { projectSearch: `%${normalizeText(filterDto.search)}%` },
+      );
     }
     if (filterDto.dateFrom) {
       where.endDate = MoreThanOrEqual(filterDto.dateFrom);
@@ -799,8 +807,8 @@ export class ProjectsService {
     const labelsByNormalizedName = new Map<string, string>();
 
     labelNames.forEach((name) => {
-      const trimmedName = name.trim();
-      labelsByNormalizedName.set(this.normalizeLabel(trimmedName), trimmedName);
+      const trimmedName = cleanText(name);
+      labelsByNormalizedName.set(normalizeText(trimmedName), trimmedName);
     });
 
     const normalizedNames = [...labelsByNormalizedName.keys()];
@@ -860,7 +868,7 @@ export class ProjectsService {
   }
 
   private normalizeLabel(label: string): string {
-    return label.trim().toLocaleLowerCase();
+    return normalizeText(label);
   }
 
   private createDefaultPhases(

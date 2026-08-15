@@ -19,6 +19,11 @@ import { AreaRole } from '../common/enums/area-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
 import { parseAreaId } from '../common/utils/parse-area-id.util';
+import {
+  cleanText,
+  normalizedSql,
+  normalizeText,
+} from '../common/utils/text-normalization.util';
 import { Skill } from '../skills/skill.entity';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { GetMembersFilterDto } from './dto/get-members-filter.dto';
@@ -389,6 +394,8 @@ export class MembersService {
     const areaId = filterDto?.areaId;
     const cycle = filterDto?.cycle;
     const skills = filterDto?.skills;
+    const search = filterDto?.search;
+    const career = filterDto?.career;
 
     const query = this.membersRepository
       .createQueryBuilder('member')
@@ -427,6 +434,19 @@ export class MembersService {
       query.andWhere('member.cycle = :cycle', { cycle });
     }
 
+    if (career) {
+      query.andWhere(`${normalizedSql('member.major')} = :career`, {
+        career: normalizeText(career),
+      });
+    }
+
+    if (search) {
+      query.andWhere(
+        `concat_ws(' ', ${normalizedSql('member.firstNames')}, ${normalizedSql('member.lastNames')}, ${normalizedSql('member.major')}, ${normalizedSql('area.name')}, ${normalizedSql('skill.name')}) LIKE :search`,
+        { search: `%${normalizeText(search)}%` },
+      );
+    }
+
     if (skills && skills.length > 0) {
       query
         .andWhere((qb) => {
@@ -435,11 +455,11 @@ export class MembersService {
             .select('member_sub.id')
             .from(Member, 'member_sub')
             .innerJoin('member_sub.skills', 'skill_sub')
-            .where('skill_sub.name IN (:...skills)')
+            .where(`${normalizedSql('skill_sub.name')} IN (:...skills)`)
             .getQuery();
           return `member.id IN ${subQuery}`;
         })
-        .setParameter('skills', skills);
+        .setParameter('skills', skills.map(normalizeText));
     }
 
     return query.getMany();
@@ -485,21 +505,36 @@ export class MembersService {
     skillNames: string[],
     skillsRepository: Repository<Skill> = this.skillsRepository,
   ): Promise<Skill[]> {
-    const uniqueSkillNames = [...new Set(skillNames)];
+    const skillNamesByNormalizedName = new Map<string, string>();
+    skillNames.forEach((name) => {
+      const cleanedName = cleanText(name);
+      const normalizedName = normalizeText(cleanedName);
+      if (normalizedName && !skillNamesByNormalizedName.has(normalizedName)) {
+        skillNamesByNormalizedName.set(normalizedName, cleanedName);
+      }
+    });
+    const normalizedNames = [...skillNamesByNormalizedName.keys()];
 
     const existingSkills = await skillsRepository.find({
       where: {
-        name: In(uniqueSkillNames),
+        normalizedName: In(normalizedNames),
       },
     });
 
     const existingSkillNames = new Set(
-      existingSkills.map((skill) => skill.name),
+      existingSkills.map((skill) =>
+        skill.normalizedName ? skill.normalizedName : normalizeText(skill.name),
+      ),
     );
 
-    const newSkills = uniqueSkillNames
+    const newSkills = normalizedNames
       .filter((name) => !existingSkillNames.has(name))
-      .map((name) => skillsRepository.create({ name }));
+      .map((normalizedName) =>
+        skillsRepository.create({
+          name: skillNamesByNormalizedName.get(normalizedName),
+          normalizedName,
+        }),
+      );
 
     const savedNewSkills =
       newSkills.length > 0 ? await skillsRepository.save(newSkills) : [];

@@ -15,6 +15,7 @@ import {
 } from "./shared";
 import { MemberTable } from "./members";
 import { AreaForm, ExactNameAction } from "./area-actions";
+import { normalizeText } from "../text-normalization";
 export { ExactNameAction } from "./area-actions";
 
 export function AreasManagementView({
@@ -37,9 +38,9 @@ export function AreasManagementView({
   const [openMenuAreaId, setOpenMenuAreaId] = useState<number | null>(null);
   const canEdit = currentRole === "presidencia";
   const filtered = metrics.filter(({ area }) => {
-    const matchesQuery = `${area.name} ${area.description ?? ""}`
-      .toLocaleLowerCase("es")
-      .includes(query.trim().toLocaleLowerCase("es"));
+    const matchesQuery = normalizeText(
+      `${area.name} ${area.description ?? ""}`,
+    ).includes(normalizeText(query));
     const archived = Boolean(area.isArchived);
     return (
       matchesQuery &&

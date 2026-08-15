@@ -10,6 +10,10 @@ import {
 } from 'class-validator';
 import { MemberActivityStatus } from '../enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
+import {
+  cleanText,
+  normalizeText,
+} from '../../common/utils/text-normalization.util';
 
 const normalizeEnumValue = <T extends string>(
   value: unknown,
@@ -51,13 +55,27 @@ const normalizeSkills = (value: unknown): unknown => {
   }
 
   return items.map((item) =>
-    typeof item === 'string'
-      ? item.trim().replace(/\s+/g, ' ').toLowerCase()
-      : item,
+    typeof item === 'string' ? normalizeText(item) : item,
   );
 };
 
 export class GetMembersFilterDto {
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? normalizeText(value) : value,
+  )
+  @IsString()
+  @Length(1, 120)
+  search?: string;
+
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? cleanText(value) : value,
+  )
+  @IsString()
+  @Length(1, 120)
+  career?: string;
+
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     normalizeEnumValue(value, Object.values(MemberActivityStatus)),

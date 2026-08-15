@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { filterAndSortMembers, type MemberDirectoryFilters } from "../people-management-utils";
 import type { ManagedArea, ManagedMember, ManagedProject } from "../people-management.types";
 import { fieldClass, memberName, displayCycle, StatusPill, PageHeading, SearchField } from "./shared";
+import { uniqueDisplayValues } from "../text-normalization";
 
 const emptyFilters: MemberDirectoryFilters = {
   query: "",
@@ -44,16 +45,14 @@ export function MembersManagementView({
         .filter((cycle): cycle is number => typeof cycle === "number"),
     ),
   ].sort((a, b) => a - b);
-  const careers = [...new Set(members.map((member) => member.major))].sort(
+  const careers = uniqueDisplayValues(members.map((member) => member.major)).sort(
     (a, b) => a.localeCompare(b, "es"),
   );
-  const labels = [
-    ...new Set(
-      projects.flatMap(
-        (project) => project.labels?.map((label) => label.name) ?? [],
-      ),
+  const labels = uniqueDisplayValues(
+    projects.flatMap(
+      (project) => project.labels?.map((label) => label.name) ?? [],
     ),
-  ].sort((a, b) => a.localeCompare(b, "es"));
+  ).sort((a, b) => a.localeCompare(b, "es"));
   const setFilter = (key: keyof MemberDirectoryFilters, value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
   return (
