@@ -148,9 +148,11 @@ export class AreaMembershipsService {
     });
 
     if (assignedProject) {
-      throw new BadRequestException(
-        'Remove the member from active project teams in this area before changing or removing the area membership',
-      );
+      throw new BadRequestException({
+        code: 'AREA_MEMBERSHIP_HAS_ACTIVE_PROJECTS',
+        message:
+          'Remove the member from active project teams in this area before changing or removing the area membership',
+      });
     }
   }
 

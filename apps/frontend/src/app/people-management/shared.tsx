@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { ApiError } from "@/lib/auth-client";
+import { ApiError } from "../../lib/auth-client";
 import type { ManagedMember } from "../people-management.types";
 
 export const fieldClass =
@@ -39,6 +39,9 @@ export function messageFrom(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.code === "DISABLED_READ_ONLY") {
       return "Tu cuenta está inhabilitada y solo permite consultar información histórica.";
+    }
+    if (error.code === "AREA_MEMBERSHIP_HAS_ACTIVE_PROJECTS") {
+      return "Primero retira al miembro de los proyectos activos de esta área y luego vuelve a intentar cambiar o quitar su pertenencia.";
     }
     if (error.status === 401) return "Tu sesión venció. Vuelve a iniciar sesión.";
     if (error.status === 403) return "Tu rol no permite realizar esta acción.";
