@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { Area } from '../area/entities/area.entity';
@@ -154,11 +154,13 @@ describe('AreaMembershipsService', () => {
     areaMembershipsRepository.findOne.mockResolvedValue(membership);
     projectMembershipsRepository.findOne.mockResolvedValue({ id: 8 });
 
-    await expect(service.remove(membership.id)).rejects.toThrow(
-      new BadRequestException(
-        'Remove the member from active project teams in this area before changing or removing the area membership',
-      ),
-    );
+    await expect(service.remove(membership.id)).rejects.toMatchObject({
+      response: {
+        code: 'AREA_MEMBERSHIP_HAS_ACTIVE_PROJECTS',
+        message:
+          'Remove the member from active project teams in this area before changing or removing the area membership',
+      },
+    });
     expect(areaMembershipsRepository.remove).not.toHaveBeenCalled();
   });
 });

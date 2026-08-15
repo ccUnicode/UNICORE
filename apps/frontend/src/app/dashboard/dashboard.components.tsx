@@ -3,7 +3,6 @@
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
-import { API_URL } from "@/lib/auth-client";
 import { BrandLogo } from "../components/brand-logo";
 import { BRAND_LOGO_WIDTHS } from "../components/brand-logo.config";
 import { fullName } from "./dashboard.model";
@@ -113,9 +112,9 @@ export function DashboardView({
 }) {
   return (
     <div>
-      <SectionTitle
+        <SectionTitle
         title="Dashboard"
-        subtitle="Resumen operativo de áreas, miembros y proyectos conectados al backend."
+        subtitle="Resumen operativo de áreas, miembros y proyectos de UNICORE."
       />
       <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_374px]">
         <div className="min-w-0 rounded-md border border-white/8 bg-[#20212c] p-5 sm:p-8">
@@ -178,14 +177,13 @@ export function DashboardView({
             empty="No hay proyectos para mostrar."
           />
         </Panel>
-        <Panel title="Estado de datos">
+        <Panel title="Tu acceso">
           <StackList
             items={[
-              { title: "Backend API", subtitle: API_URL, meta: "Conectado" },
               {
                 title: "Modo de acceso",
-                subtitle: authRole,
-                meta: "Bearer",
+                subtitle: authRole.replaceAll("_", " "),
+                meta: "Activo",
               },
             ]}
           />
@@ -196,12 +194,12 @@ export function DashboardView({
               {
                 title: "Listados dinámicos",
                 subtitle: "Áreas, miembros y proyectos",
-                meta: "API",
+                meta: "Actualizados",
               },
               {
-                title: "Charts",
-                subtitle: "Permitidos como mock en scope",
-                meta: "Mock",
+                title: "Resumen semanal",
+                subtitle: "Vista general de actividad",
+                meta: "Disponible",
               },
             ]}
           />
@@ -361,7 +359,6 @@ export function ProfileView({
               (member.areaId ? `Área ${member.areaId}` : "Todas")
             }
           />
-          <InfoRow label="API" value={API_URL.replace(/^https?:\/\//, "")} />
         </div>
         <button
           type="button"
