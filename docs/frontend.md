@@ -26,7 +26,9 @@ src/
 │   │   ├── page.tsx                  # Componente de Login con formulario
 │   │   └── login-validation.test.ts  # Pruebas unitarias de credenciales y rate-limit
 │   ├── dashboard/                    # Vista Principal (Panel de Control)
-│   │   ├── page.tsx                  # Contenedor principal de pestañas
+│   │   ├── page.tsx                  # Contenedor principal y carga de sesión
+│   │   ├── [...segments]/page.tsx    # Entrada para rutas profundas del dashboard
+│   │   ├── dashboard-route.ts        # Parseo, generación y autorización de rutas
 │   │   ├── dashboard.components.tsx  # Componentes reutilizables de UI
 │   │   ├── dashboard.model.ts        # Adaptadores de datos backend -> frontend
 │   │   └── dashboard.types.ts        # Tipos TypeScript del dashboard
@@ -38,6 +40,8 @@ src/
 │   │   ├── membership-form.tsx       # Modal de membresía multi-área
 │   │   └── profile.tsx               # Vista de perfil individual
 │   ├── project-management.tsx        # Pestaña de Gestión de Proyectos y Fases
+│   ├── phase-reordering.ts           # Reordenamiento optimista de fases
+│   ├── tag-utils.ts                  # Etiquetas libres y sugerencias normalizadas
 │   ├── task-management.tsx           # Pestaña de Gestión de Tareas y Tablero Kanban
 │   ├── audit-management.tsx          # Pestaña de Log de Auditoría
 │   └── project-experience.ts         # Cálculo helper de proyectos activos/previos
@@ -59,15 +63,20 @@ src/
 ### 2. Panel Principal (`/dashboard`)
 Dispone de una barra de navegación superior con el perfil del usuario logueado y una barra lateral/pestañas condicionales según los permisos del usuario:
 
+La navegación usa rutas persistentes: `/dashboard/areas`, `/dashboard/areas/:id`, `/dashboard/members`, `/dashboard/members/new`, `/dashboard/members/:id`, `/dashboard/projects`, `/dashboard/tasks`, `/dashboard/integrations`, `/dashboard/audit` y `/dashboard/profile`. Presidencia y Directiva acceden a personas, áreas y auditoría; un Miembro queda limitado a las vistas permitidas por su rol.
+
 #### A. Gestión de Personas (`people-management/`)
 * **Listado de Miembros**: Permite buscar por nombre, código UNI, carrera o filtrar por competencias, área, estado (Activo/Inactivo) y disponibilidad (Disponible, No disponible, Inhabilitado).
 * **Regla de Orden**: Los miembros *Inactivos* aparecen al final del listado y los *No disponibles* se muestran con un badge restrictivo.
 * **Modal de Creación/Edición**: Formulario para registrar o actualizar atributos principales y etiquetas de competencias.
+* **Alta contextual**: Directiva puede abrir `/dashboard/members/new?areaId=<id>` desde su propia área para crear un miembro ya vinculado a ella.
+* **Perfil seguro**: `member-profile-client.ts` separa la carga y actualización del perfil; la interfaz no muestra mensajes internos crudos de la API.
 
 #### B. Gestión de Proyectos (`project-management.tsx`)
 * **Listado y Filtros**: Proyectos organizados por área, archivado y estado (`planned`, `active`, `on_hold`, `completed`, `cancelled`).
 * **Fases del Proyecto**: Vista para reordenar, agregar o eliminar fases del proyecto.
-* **Conformación de Equipos**: Modal para agregar miembros al equipo filtrando exclusivamente por disponibilidad y habilidades requeridas.
+* **Conformación de Equipos**: Modal para agregar miembros al equipo filtrando por elegibilidad derivada de actividad, disponibilidad, membresía de área y habilidades requeridas.
+* **Etiquetas**: admite texto libre y reutiliza sugerencias sin duplicados por diferencias de mayúsculas o acentos.
 
 #### C. Gestión de Tareas / Tablero Kanban (`task-management.tsx`)
 * Tablero por columnas: **Por hacer (ToDo)**, **En progreso**, **En revisión**, **Hecho**.
@@ -103,3 +112,8 @@ Suites probadas:
 * `project-experience.test.ts`: Cálculo de proyectos activos vs. archivados.
 * `task-collaboration.test.ts`: Inserción cronológica de comentarios sin mutar el servidor.
 * `task-management.test.tsx`: Flujo de actualización Kanban e historial.
+* `dashboard-route.test.ts` y `dashboard-navigation.test.ts`: rutas profundas, navegación y visibilidad por rol.
+* `brand-logo.test.tsx`: selección consistente del recurso de marca.
+* `tag-input.test.tsx`, `tag-utils.test.ts` y `text-normalization.test.ts`: etiquetas libres, sugerencias y normalización sin acentos.
+* `phase-reordering.test.ts`: reordenamiento de fases y rollback de estado optimista.
+* `member-profile-client.test.ts`: carga, actualización y mensajes seguros del perfil.

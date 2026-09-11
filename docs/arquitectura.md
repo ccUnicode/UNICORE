@@ -22,7 +22,7 @@ graph TD
     subgraph Capa Backend
         Backend
         Guards["Guards (Auth & Roles)"]
-        Modules["Módulos (Auth, Area, Members, Projects, Tasks, Audit)"]
+        Modules["Módulos (Auth, Area, Members, Skills, Projects, Tasks, Audit)"]
         Backend --> Guards
         Guards --> Modules
     end
@@ -44,6 +44,7 @@ graph TD
   * **Proyectos**: Gestión de proyectos, fases y conformación de equipos.
   * **Tareas**: Tablero Kanban interactivo, historial de estado y comentarios.
   * **Auditoría**: Visor de registro de acciones del sistema.
+  * Cada vista tiene una URL estable (`/dashboard/areas`, `/dashboard/members`, `/dashboard/projects`, `/dashboard/tasks`, `/dashboard/audit`); áreas y perfiles también admiten rutas de detalle.
 
 ### 2. Capa de Servicios y Lógica (`apps/backend`)
 * **NestJS 11**: Framework modular que organiza la lógica de negocio en módulos acoplados mediante inyección de dependencias.
@@ -55,6 +56,7 @@ graph TD
   * **Roles por Área**: `presidencia` (acceso global), `directiva_de_area` (alcance de su área) y `miembro` (alcance de sus proyectos asignados).
   * **Roles por Proyecto**: `representative`, `subrepresentative` y `member`.
   * **Guards de NestJS**: `AuthGuard` verifica el token JWT y `RolesGuard` valida los permisos por área/proyecto.
+  * **Deshabilitación con trazabilidad**: un miembro deshabilitado conserva acceso de solo lectura según un snapshot de rol, área y proyectos; un interceptor filtra cambios posteriores al momento de desactivación.
 
 ### 3. Capa de Persistencia (`apps/backend/src/migrations`, TypeORM, PostgreSQL)
 * **TypeORM 0.3**: Mapeador objeto-relacional para interactuar de forma segura con PostgreSQL.
@@ -112,3 +114,4 @@ sequenceDiagram
 1. **Sin Secretos en Repositorio**: Toda clave secreta se inyecta por variables de entorno (`.env`).
 2. **Confirmación explícita donde el contrato la exige**: `PATCH /areas/:id/archive` requiere `{ confirmName }` igual al nombre del área y `PATCH /members/:id/deactivate` requiere el nombre completo exacto del miembro. Los `DELETE` de membresías de área, fases y miembros de proyecto no reciben `confirmName` en sus controladores actuales.
 3. **Control de Intentos de Inicio de Sesión**: Rate limiter configurable por ventana de tiempo (60s) limitando intentos concurrentes e IP brutes.
+4. **Acceso de cuentas deshabilitadas**: se rechaza toda escritura con `DISABLED_READ_ONLY`; las lecturas usan el alcance y corte temporal persistidos al desactivar la cuenta.
