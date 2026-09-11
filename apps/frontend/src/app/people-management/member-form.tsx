@@ -1,9 +1,23 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { authorizedJson } from "@/lib/auth-client";
-import type { ManagedArea, ManagedMember } from "../people-management.types";
-import { Feedback, fieldClass, labelClass, messageFrom, Modal, primaryButton, secondaryButton } from "./shared";
+import { TagInput } from "../components/tag-input";
+import type {
+  ManagedArea,
+  ManagedMember,
+  ManagedSkill,
+} from "../people-management.types";
+import {
+  Feedback,
+  fieldClass,
+  labelClass,
+  messageFrom,
+  Modal,
+  primaryButton,
+  secondaryButton,
+  statusLabels,
+} from "./shared";
 
 type MemberFormState = {
   institution: string;
@@ -14,9 +28,7 @@ type MemberFormState = {
   birthDate: string;
   role: string;
   areaId: string;
-  skills: string;
-  activityStatus: string;
-  availabilityStatus: string;
+  skills: string[];
   cycle: string;
 };
 
@@ -24,13 +36,21 @@ export function MemberForm({
   member,
   areas,
   accessToken,
+  initialAreaId,
+  fixedAreaId,
+  regularMemberOnly = false,
   onClose,
+  onCloseAfterSaveFailure,
   onSaved,
 }: {
   member?: ManagedMember;
   areas: ManagedArea[];
   accessToken: string;
+  initialAreaId?: number;
+  fixedAreaId?: number;
+  regularMemberOnly?: boolean;
   onClose: () => void;
+  onCloseAfterSaveFailure?: () => void;
   onSaved: (memberId: number) => Promise<void>;
 }) {
   const initial: MemberFormState = {
@@ -40,28 +60,54 @@ export function MemberForm({
     lastNames: member?.lastNames ?? "",
     major: member?.major ?? "",
     birthDate: member?.birthDate?.slice(0, 10) ?? "",
-    role: member?.role ?? "miembro",
-    areaId: member?.areaId ? String(member.areaId) : "",
-    skills: member?.skills?.map((skill) => skill.name).join(", ") ?? "",
-    activityStatus: member?.activityStatus ?? "active",
-    availabilityStatus: member?.availabilityStatus ?? "available",
+    role: regularMemberOnly ? "miembro" : (member?.role ?? "miembro"),
+    areaId:
+      fixedAreaId !== undefined
+        ? String(fixedAreaId)
+        : initialAreaId !== undefined
+          ? String(initialAreaId)
+          : member?.areaId
+            ? String(member.areaId)
+            : "",
+    skills: member?.skills?.map((skill) => skill.name) ?? [],
     cycle: member?.cycle ? String(member.cycle) : "",
   };
   const [form, setForm] = useState(initial);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [created, setCreated] = useState(false);
+  const [refreshFailed, setRefreshFailed] = useState(false);
+  const submissionStarted = useRef(false);
+  const [skillSuggestions, setSkillSuggestions] = useState<string[]>(
+    member?.skills?.map((skill) => skill.name) ?? [],
+  );
   const activeAreas = areas.filter((area) => !area.isArchived);
   const set = (key: keyof MemberFormState, value: string) =>
     setForm((current) => ({ ...current, [key]: value }));
+  useEffect(() => {
+    let ignore = false;
+    authorizedJson<ManagedSkill[]>("/skills", accessToken)
+      .then((skills) => {
+        if (!ignore) setSkillSuggestions(skills.map((skill) => skill.name));
+      })
+      .catch(() => {
+        // Existing values remain available when suggestions cannot be loaded.
+      });
+    return () => {
+      ignore = true;
+    };
+  }, [accessToken]);
   const submit = async (event: FormEvent) => {
     event.preventDefault();
+    if (submissionStarted.current) return;
+    if (form.skills.length === 0) {
+      setError("Agrega al menos una skill antes de guardar.");
+      return;
+    }
+    submissionStarted.current = true;
     setSaving(true);
     setError("");
     try {
-      const skills = form.skills
-        .split(",")
-        .map((skill) => skill.trim())
-        .filter(Boolean);
       const payload = {
         institution: form.institution.trim(),
         studentCode: form.studentCode.trim() || (member ? null : undefined),
@@ -69,9 +115,7 @@ export function MemberForm({
         lastNames: form.lastNames.trim(),
         major: form.major.trim(),
         birthDate: form.birthDate || undefined,
-        skills,
-        activityStatus: form.activityStatus,
-        availabilityStatus: form.availabilityStatus,
+        skills: form.skills,
         cycle: form.cycle ? Number(form.cycle) : member ? null : undefined,
         ...(!member
           ? {
@@ -87,17 +131,32 @@ export function MemberForm({
         accessToken,
         { method: member ? "PATCH" : "POST", body: JSON.stringify(payload) },
       );
-      await onSaved(saved.id);
+      setCreated(true);
+      try {
+        await onSaved(saved.id);
+      } catch {
+        setRefreshFailed(true);
+        setError(
+          member
+            ? "El miembro se actualizó correctamente, pero no se pudo actualizar la vista. Cierra el formulario para volver a cargarla."
+            : "El miembro se creó correctamente, pero no se pudo actualizar la vista. Cierra el formulario para volver a cargarla.",
+        );
+      }
     } catch (currentError) {
+      submissionStarted.current = false;
       setError(messageFrom(currentError));
     } finally {
       setSaving(false);
     }
   };
+  const close =
+    refreshFailed && onCloseAfterSaveFailure
+      ? onCloseAfterSaveFailure
+      : onClose;
   return (
     <Modal
       title={member ? "Editar miembro" : "Añadir miembro"}
-      onClose={onClose}
+      onClose={close}
     >
       <form onSubmit={submit} className="grid gap-5">
         {error && <Feedback>{error}</Feedback>}
@@ -147,6 +206,7 @@ export function MemberForm({
                 Rol
                 <select
                   value={form.role}
+                  disabled={regularMemberOnly}
                   onChange={(event) => set("role", event.target.value)}
                   className={fieldClass}
                 >
@@ -160,7 +220,9 @@ export function MemberForm({
                 <select
                   required={form.role === "directiva_de_area"}
                   value={form.areaId}
-                  disabled={form.role === "presidencia"}
+                  disabled={
+                    form.role === "presidencia" || fixedAreaId !== undefined
+                  }
                   onChange={(event) => set("areaId", event.target.value)}
                   className={fieldClass}
                 >
@@ -184,44 +246,44 @@ export function MemberForm({
           />
           <label className={labelClass}>
             Actividad
-            <select
-              value={form.activityStatus}
-              onChange={(event) => set("activityStatus", event.target.value)}
-              className={fieldClass}
-            >
-              <option value="active">Activo</option>
-              <option value="inactive">Inactivo</option>
-            </select>
+            <output className={`${fieldClass} cursor-not-allowed opacity-70`}>
+              {statusLabels[member?.activityStatus ?? "inactive"] ?? "Inactivo"}
+              {" · Calculado desde tareas activas"}
+            </output>
           </label>
           <label className={labelClass}>
             Disponibilidad
-            <select
-              value={form.availabilityStatus}
-              onChange={(event) =>
-                set("availabilityStatus", event.target.value)
-              }
-              className={fieldClass}
-            >
-              <option value="available">Disponible</option>
-              <option value="not_available">No disponible</option>
-              <option value="disabled">Inhabilitado</option>
-            </select>
+            <output className={`${fieldClass} cursor-not-allowed opacity-70`}>
+              {statusLabels[member?.availabilityStatus ?? "available"] ??
+                "Disponible"}
+              {" · Calculado desde asignaciones vigentes"}
+            </output>
           </label>
           <div className="sm:col-span-2">
-            <FormInput
-              label="Skills separadas por comas"
+            <TagInput
+              label="Skills"
               required
+              maxLength={80}
               value={form.skills}
-              onChange={(value) => set("skills", value)}
+              suggestions={skillSuggestions}
+              onChange={(skills) =>
+                setForm((current) => ({ ...current, skills }))
+              }
             />
           </div>
         </div>
         <div className="flex justify-end gap-3">
-          <button type="button" className={secondaryButton} onClick={onClose}>
+          <button type="button" className={secondaryButton} onClick={close}>
             Cancelar
           </button>
-          <button disabled={saving} className={primaryButton}>
-            {saving ? "Guardando..." : "Guardar miembro"}
+          <button disabled={saving || created} className={primaryButton}>
+            {created
+              ? member
+                ? "Miembro actualizado"
+                : "Miembro creado"
+              : saving
+                ? "Guardando..."
+                : "Guardar miembro"}
           </button>
         </div>
       </form>

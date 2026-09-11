@@ -6,8 +6,10 @@ import { AccessControlModule } from '../common/access-control.module';
 import { Skill } from '../skills/skill.entity';
 import { Member } from './member.entity';
 import { MembersController } from './members.controller';
+import { MemberActivityService } from './member-activity.service';
 import { MembersService } from './members.service';
 import { AuditModule } from '../audit/audit.module';
+import { MemberAvailabilityService } from './member-availability.service';
 
 @Module({
   imports: [
@@ -16,7 +18,7 @@ import { AuditModule } from '../audit/audit.module';
     AuditModule,
   ],
   controllers: [MembersController],
-  providers: [MembersService],
-  exports: [MembersService],
+  providers: [MemberActivityService, MemberAvailabilityService, MembersService],
+  exports: [MemberActivityService, MemberAvailabilityService, MembersService],
 })
 export class MembersModule {}

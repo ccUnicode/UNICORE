@@ -1,5 +1,6 @@
-import { getJson } from "@/lib/auth-client";
+import { getJson } from "../../lib/auth-client";
 import type {
+  Area,
   Member,
   PaginatedProjects,
   Project,
@@ -70,4 +71,54 @@ export async function getAllProjects(accessToken: string): Promise<Project[]> {
   }
 
   return projects;
+}
+
+export interface AreaNavigationResolution {
+  targetView: "areas" | "area-detail" | "empty";
+  targetAreaId: number | null;
+}
+
+export function resolveAreaNavigation(
+  areas: Area[],
+  role?: string,
+  preferredAreaId?: number | null,
+): AreaNavigationResolution {
+  const isPresidencia = role?.trim().toLowerCase() === "presidencia";
+  const activeAreas = areas.filter((area) => !area.isArchived);
+
+  if (isPresidencia) {
+    const validPreferredId =
+      preferredAreaId && areas.some((a) => a.id === preferredAreaId)
+        ? preferredAreaId
+        : (areas[0]?.id ?? null);
+
+    return {
+      targetView: "areas",
+      targetAreaId: validPreferredId,
+    };
+  }
+
+  if (activeAreas.length === 0) {
+    return {
+      targetView: "empty",
+      targetAreaId: null,
+    };
+  }
+
+  if (activeAreas.length === 1) {
+    return {
+      targetView: "area-detail",
+      targetAreaId: activeAreas[0].id,
+    };
+  }
+
+  const validPreferredId =
+    preferredAreaId && activeAreas.some((a) => a.id === preferredAreaId)
+      ? preferredAreaId
+      : activeAreas[0].id;
+
+  return {
+    targetView: "areas",
+    targetAreaId: validPreferredId,
+  };
 }

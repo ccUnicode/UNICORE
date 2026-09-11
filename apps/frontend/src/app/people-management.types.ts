@@ -28,6 +28,8 @@ export type ManagedMember = {
   area?: ManagedArea | null;
   activityStatus?: string;
   availabilityStatus?: string;
+  createdAt?: string;
+  updatedAt?: string;
   skills?: ManagedSkill[];
   memberships?: ManagedAreaMembership[];
 };

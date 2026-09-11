@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { filterAndSortMembers, type MemberDirectoryFilters } from "../people-management-utils";
 import type { ManagedArea, ManagedMember, ManagedProject } from "../people-management.types";
 import { fieldClass, memberName, displayCycle, StatusPill, PageHeading, SearchField } from "./shared";
+import { uniqueDisplayValues } from "../text-normalization";
 
 const emptyFilters: MemberDirectoryFilters = {
   query: "",
@@ -16,28 +17,22 @@ const emptyFilters: MemberDirectoryFilters = {
   projectLabel: "",
 };
 
-import { MemberForm } from "./member-form";
-export { MemberForm } from "./member-form";
-
 export function MembersManagementView({
   members,
   areas,
   projects,
-  accessToken,
   currentRole,
+  onCreateMember,
   onOpenMember,
-  onChanged,
 }: {
   members: ManagedMember[];
   areas: ManagedArea[];
   projects: ManagedProject[];
-  accessToken: string;
   currentRole: string;
+  onCreateMember: () => void;
   onOpenMember: (memberId: number) => void;
-  onChanged: () => Promise<void>;
 }) {
   const [filters, setFilters] = useState(emptyFilters);
-  const [creating, setCreating] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const filtered = useMemo(
     () => filterAndSortMembers(members, projects, filters),
@@ -50,16 +45,14 @@ export function MembersManagementView({
         .filter((cycle): cycle is number => typeof cycle === "number"),
     ),
   ].sort((a, b) => a - b);
-  const careers = [...new Set(members.map((member) => member.major))].sort(
+  const careers = uniqueDisplayValues(members.map((member) => member.major)).sort(
     (a, b) => a.localeCompare(b, "es"),
   );
-  const labels = [
-    ...new Set(
-      projects.flatMap(
-        (project) => project.labels?.map((label) => label.name) ?? [],
-      ),
+  const labels = uniqueDisplayValues(
+    projects.flatMap(
+      (project) => project.labels?.map((label) => label.name) ?? [],
     ),
-  ].sort((a, b) => a.localeCompare(b, "es"));
+  ).sort((a, b) => a.localeCompare(b, "es"));
   const setFilter = (key: keyof MemberDirectoryFilters, value: string) =>
     setFilters((current) => ({ ...current, [key]: value }));
   return (
@@ -139,23 +132,11 @@ export function MembersManagementView({
           <button
             type="button"
             className="rounded-md bg-[#212330] px-4 py-2.5 text-sm text-white/80 hover:bg-[#2b2d3d]"
-            onClick={() => setCreating(true)}
+            onClick={onCreateMember}
           >
             ＋ &nbsp; Añadir miembro
           </button>
         </div>
-      )}
-      {creating && (
-        <MemberForm
-          areas={areas}
-          accessToken={accessToken}
-          onClose={() => setCreating(false)}
-          onSaved={async (memberId) => {
-            setCreating(false);
-            await onChanged();
-            onOpenMember(memberId);
-          }}
-        />
       )}
     </div>
   );

@@ -16,8 +16,6 @@ import {
   ValidatorConstraintInterface,
 } from 'class-validator';
 import { AreaRole } from '../../common/enums/area-role.enum';
-import { MemberActivityStatus } from '../enums/member-activity-status.enum';
-import { MemberAvailabilityStatus } from '../enums/member-availability-status.enum';
 
 const trimString = ({ value }: { value: unknown }) =>
   typeof value === 'string' ? value.trim() : value;
@@ -125,14 +123,6 @@ export class CreateMemberDto {
   @IsString({ each: true })
   @Length(1, 80, { each: true })
   skills: string[];
-
-  @IsEnum(MemberActivityStatus)
-  @IsOptional()
-  activityStatus?: MemberActivityStatus;
-
-  @IsEnum(MemberAvailabilityStatus)
-  @IsOptional()
-  availabilityStatus?: MemberAvailabilityStatus;
 
   @Type(() => Number)
   @IsInt()

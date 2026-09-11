@@ -20,6 +20,8 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
 import { RolesGuard } from '../common/guards/roles.guard';
 import { UpdateAreaMembershipDto } from './dto/update-area-membership.dto';
+import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
+import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 
 @ApiBearerAuth('bearer')
 @Controller('area-memberships')
@@ -56,7 +58,8 @@ export class AreaMembershipsController {
   @Roles(AreaRole.PRESIDENCIA)
   findAll(
     @Query() paginationDto: PaginationDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ): Promise<PaginatedResponse<AreaMembership>> {
-    return this.areaMembershipsService.findAll(paginationDto);
+    return this.areaMembershipsService.findAll(paginationDto, accessActor);
   }
 }

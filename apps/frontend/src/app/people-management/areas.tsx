@@ -3,10 +3,19 @@
 import Image from "next/image";
 import { useState } from "react";
 import type { AreaMetric, ManagedArea } from "../people-management.types";
-import { fieldClass, primaryButton, secondaryButton, dangerButton, StatusPill, PageHeading, SearchField } from "./shared";
+import { canCreateMemberInArea } from "../people-management-utils";
+import {
+  fieldClass,
+  primaryButton,
+  secondaryButton,
+  dangerButton,
+  StatusPill,
+  PageHeading,
+  SearchField,
+} from "./shared";
 import { MemberTable } from "./members";
-
 import { AreaForm, ExactNameAction } from "./area-actions";
+import { normalizeText } from "../text-normalization";
 export { ExactNameAction } from "./area-actions";
 
 export function AreasManagementView({
@@ -29,9 +38,9 @@ export function AreasManagementView({
   const [openMenuAreaId, setOpenMenuAreaId] = useState<number | null>(null);
   const canEdit = currentRole === "presidencia";
   const filtered = metrics.filter(({ area }) => {
-    const matchesQuery = `${area.name} ${area.description ?? ""}`
-      .toLocaleLowerCase("es")
-      .includes(query.trim().toLocaleLowerCase("es"));
+    const matchesQuery = normalizeText(
+      `${area.name} ${area.description ?? ""}`,
+    ).includes(normalizeText(query));
     const archived = Boolean(area.isArchived);
     return (
       matchesQuery &&
@@ -187,7 +196,9 @@ export function AreasManagementView({
       </div>
       {filtered.length === 0 && (
         <div className="rounded-md border border-dashed border-white/15 px-6 py-14 text-center text-white/45">
-          No hay áreas para estos filtros.
+          {!canEdit && metrics.filter((m) => !m.area.isArchived).length === 0
+            ? "No tienes ninguna área activa asignada."
+            : "No hay áreas para estos filtros."}
         </div>
       )}
       {editing && (
@@ -224,31 +235,43 @@ export function AreaDetailManagementView({
   metric,
   accessToken,
   currentRole,
+  currentAreaId,
   onBack,
+  onAddMember,
   onOpenMember,
-  onGoToMembers,
   onChanged,
+  showBackLink = true,
 }: {
   metric: AreaMetric;
   accessToken: string;
   currentRole: string;
+  currentAreaId?: number | null;
   onBack: () => void;
+  onAddMember: (areaId: number) => void;
   onOpenMember: (memberId: number) => void;
-  onGoToMembers: () => void;
   onChanged: () => Promise<void>;
+  showBackLink?: boolean;
 }) {
   const [editing, setEditing] = useState(false);
   const [archiving, setArchiving] = useState(false);
   const canEdit = currentRole === "presidencia";
+  const canAddMember = canCreateMemberInArea(
+    currentRole,
+    currentAreaId,
+    metric.area.id,
+    Boolean(metric.area.isArchived),
+  );
   return (
     <div>
-      <button
-        type="button"
-        onClick={onBack}
-        className="mb-6 text-sm text-white/65 hover:text-white"
-      >
-        ← Áreas / {metric.area.name}
-      </button>
+      {showBackLink && (
+        <button
+          type="button"
+          onClick={onBack}
+          className="mb-6 text-sm text-white/65 hover:text-white"
+        >
+          ← Áreas / {metric.area.name}
+        </button>
+      )}
       <PageHeading
         title={metric.area.name}
         subtitle={metric.area.description ?? "Detalle del área y sus miembros."}
@@ -289,11 +312,11 @@ export function AreaDetailManagementView({
       <section className="rounded-md border border-white/8 bg-[#191822] p-5 sm:p-8">
         <div className="mb-6 flex items-center justify-between">
           <h2 className="text-xl font-black">Miembros</h2>
-          {canEdit && (
+          {canAddMember && (
             <button
               type="button"
               className={primaryButton}
-              onClick={onGoToMembers}
+              onClick={() => onAddMember(metric.area.id)}
             >
               ＋ Añadir miembro
             </button>

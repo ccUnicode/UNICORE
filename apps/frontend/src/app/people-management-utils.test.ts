@@ -1,10 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canCreateMemberInArea,
   filterAndSortMembers,
   getProjectLabelsForMember,
   type MemberDirectoryFilters,
 } from "./people-management-utils";
+
+test("allows member creation only for Presidencia or the area's Directiva", () => {
+  assert.equal(canCreateMemberInArea("presidencia", null, 10), true);
+  assert.equal(canCreateMemberInArea("directiva_de_area", 10, 10), true);
+  assert.equal(canCreateMemberInArea("directiva_de_area", 20, 10), false);
+  assert.equal(canCreateMemberInArea("miembro", 10, 10), false);
+  assert.equal(canCreateMemberInArea("presidencia", null, 10, true), false);
+  assert.equal(
+    canCreateMemberInArea("directiva_de_area", 10, 10, true),
+    false,
+  );
+});
 
 const members = [
   {
@@ -87,6 +100,31 @@ test("combines directory filters", () => {
   assert.deepEqual(
     result.map((member) => member.id),
     [3],
+  );
+});
+
+test("matches member text, careers, skills and labels without accents", () => {
+  const accentedMember = {
+    ...members[0],
+    firstNames: "Ángela",
+    major: "Ingeniería de Sistemas",
+    skills: [{ name: "Gestión" }],
+  };
+  const accentedProjects = [
+    {
+      labels: [{ name: "Innovación" }],
+      memberships: [{ memberId: accentedMember.id }],
+    },
+  ];
+
+  assert.deepEqual(
+    filterAndSortMembers([accentedMember], accentedProjects, {
+      ...noFilters,
+      query: "gestion",
+      career: "INGENIERIA   DE SISTEMAS",
+      projectLabel: "innovacion",
+    }).map(({ id }) => id),
+    [accentedMember.id],
   );
 });
 

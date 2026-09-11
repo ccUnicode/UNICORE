@@ -8,8 +8,8 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
-  ILike,
   In,
+  FindOperator,
   LessThanOrEqual,
   MoreThanOrEqual,
   ObjectLiteral,
@@ -22,8 +22,10 @@ import { ProjectRole } from '../common/enums/project-role.enum';
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { Member } from '../members/member.entity';
+import { MemberActivityService } from '../members/member-activity.service';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
+import { MemberAvailabilityService } from '../members/member-availability.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { ProjectLabel } from './entities/project-label.entity';
@@ -205,6 +207,8 @@ describe('ProjectsService', () => {
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
   let auditService: jest.Mocked<AuditService>;
+  let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
+  let memberActivityService: jest.Mocked<MemberActivityService>;
 
   const mockAreaService = {
     findOne: jest.fn(),
@@ -303,6 +307,13 @@ describe('ProjectsService', () => {
       providers: [
         ProjectsService,
         {
+          provide: MemberAvailabilityService,
+          useValue: {
+            refreshProjectMembers: jest.fn().mockResolvedValue(undefined),
+            refreshMembers: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
           provide: getRepositoryToken(Project),
           useValue: projectsRepository,
         },
@@ -341,11 +352,20 @@ describe('ProjectsService', () => {
             findAll: jest.fn(),
           },
         },
+        {
+          provide: MemberActivityService,
+          useValue: {
+            refreshMembers: jest.fn(),
+            refreshProjectMembers: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
     service = module.get<ProjectsService>(ProjectsService);
     auditService = module.get(AuditService);
+    memberAvailabilityService = module.get(MemberAvailabilityService);
+    memberActivityService = module.get(MemberActivityService);
   });
 
   it('creates a project with default phases when the area exists', async () => {
@@ -650,7 +670,10 @@ describe('ProjectsService', () => {
         isArchived: true,
         status: ProjectStatus.ACTIVE,
         areaId: 4,
-        name: ILike('%portal%'),
+        name: expect.objectContaining({
+          _type: 'raw',
+          _objectLiteralParameters: { projectSearch: '%portal%' },
+        }) as FindOperator<string>,
         startDate: LessThanOrEqual('2026-06-30'),
         endDate: MoreThanOrEqual('2026-06-01'),
         labels: { normalizedName: In(['backend']) },
@@ -886,6 +909,15 @@ describe('ProjectsService', () => {
     );
     expect(projectsRepository.save).toHaveBeenCalledWith(
       expect.objectContaining({ id: 1, isArchived: true }),
+    );
+    expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+    expect(
+      memberAvailabilityService.refreshProjectMembers,
+    ).toHaveBeenCalledWith(1, expect.anything());
+    expect(auditService.record).toHaveBeenCalledWith(
+      presidencyActor,
+      expect.objectContaining({ action: 'archive', entityId: 1 }),
+      expect.anything(),
     );
   });
 
@@ -1240,6 +1272,14 @@ describe('ProjectsService', () => {
         membership,
       );
       expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
+      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
       expect(projectsRepository.findOne).toHaveBeenCalledWith({
         where: { id: 1 },
         lock: { mode: 'pessimistic_write' },
@@ -1279,6 +1319,58 @@ describe('ProjectsService', () => {
           'Members marked as unavailable are not selectable when building a team',
         ),
       );
+      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
+      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
+      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
+        [1],
+        expect.anything(),
+      );
+      expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+    });
+
+    it('allows inactive members when their derived availability is available', async () => {
+      const member = createMember({
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+      });
+      const membership = createProjectMembership({ member });
+
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      membersRepository.findOne?.mockResolvedValue(member);
+      projectMembershipsRepository.findOne
+        ?.mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(membership);
+      projectMembershipsRepository.create?.mockReturnValue(membership);
+      projectMembershipsRepository.save?.mockResolvedValue(membership);
+
+      await expect(
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
+      ).resolves.toEqual(membership);
+    });
+
+    it.each([
+      MemberAvailabilityStatus.NOT_AVAILABLE,
+      MemberAvailabilityStatus.DISABLED,
+    ])('rejects a member with %s derived availability', async (status) => {
+      projectsRepository.findOne?.mockResolvedValue(createProject());
+      membersRepository.findOne?.mockResolvedValue(
+        createMember({ availabilityStatus: status }),
+      );
+
+      await expect(
+        service.addTeamMember(
+          1,
+          { memberId: 1, role: ProjectRole.MEMBER },
+          presidencyActor,
+        ),
+      ).rejects.toThrow(BadRequestException);
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
     });
 

@@ -30,17 +30,17 @@ export class MembersController {
   constructor(private readonly membersService: MembersService) {}
 
   @Post()
-  @Roles(AreaRole.PRESIDENCIA)
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   async create(
     @Body() createMemberDto: CreateMemberDto,
-    @CurrentAccessActor() accessActor?: RequestAccessActor,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
   ): Promise<MemberResponse> {
     const member = await this.membersService.create(
       createMemberDto,
       undefined,
       accessActor,
     );
-    return toMemberResponse(member, AreaRole.PRESIDENCIA);
+    return toMemberResponse(member, accessActor.role);
   }
 
   @Get()
@@ -76,6 +76,21 @@ export class MembersController {
     @CurrentAccessActor() accessActor: RequestAccessActor,
   ): Promise<MemberResponse> {
     const member = await this.membersService.deactivate(
+      id,
+      confirmNameDto.confirmName,
+      accessActor,
+    );
+    return toMemberResponse(member, accessActor.role);
+  }
+
+  @Patch(':id/reactivate')
+  @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
+  async reactivate(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() confirmNameDto: ConfirmNameDto,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ): Promise<MemberResponse> {
+    const member = await this.membersService.reactivate(
       id,
       confirmNameDto.confirmName,
       accessActor,

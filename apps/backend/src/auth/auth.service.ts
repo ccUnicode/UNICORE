@@ -149,17 +149,24 @@ export class AuthService {
       member?.passwordHash ?? DUMMY_PASSWORD_HASH,
     );
 
-    if (
-      !member ||
-      !member.passwordHash ||
-      !credentialsAreValid ||
-      member.activityStatus !== MemberActivityStatus.ACTIVE ||
-      member.availabilityStatus === MemberAvailabilityStatus.DISABLED
-    ) {
+    if (!member || !member.passwordHash || !credentialsAreValid) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     delete member.passwordHash;
+
+    if (
+      member.availabilityStatus !== MemberAvailabilityStatus.DISABLED &&
+      member.activityStatus === MemberActivityStatus.INACTIVE
+    ) {
+      throw new ForbiddenException({
+        statusCode: 403,
+        code: 'MEMBER_INACTIVE',
+        error: 'Forbidden',
+        message:
+          'MEMBER_INACTIVE: Tu cuenta no registra actividad activa basada en tareas asignadas. Contacta a Directiva o Presidencia para reactivarte.',
+      });
+    }
 
     return this.createAuthResponse(member);
   }
@@ -212,22 +219,19 @@ export class AuthService {
     role: AreaRole;
     institution: string;
     studentCode?: string | null;
-    activityStatus?: MemberActivityStatus;
     availabilityStatus?: MemberAvailabilityStatus;
   }): void {
-    const activityStatus = member.activityStatus ?? MemberActivityStatus.ACTIVE;
     const availabilityStatus =
       member.availabilityStatus ?? MemberAvailabilityStatus.AVAILABLE;
 
     if (
       member.role !== AreaRole.PRESIDENCIA ||
       member.institution.trim().toUpperCase() !== 'UNI' ||
-      activityStatus !== MemberActivityStatus.ACTIVE ||
       availabilityStatus === MemberAvailabilityStatus.DISABLED ||
       !member.studentCode?.trim()
     ) {
       throw new ForbiddenException(
-        'The bootstrap member must be an active UNI Presidencia member with a student code',
+        'The bootstrap member must be an enabled UNI Presidencia member with a student code',
       );
     }
   }

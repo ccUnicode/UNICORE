@@ -19,6 +19,7 @@ describe('SkillsService', () => {
   const skillEntity: Skill = {
     id: 1,
     name: 'react',
+    normalizedName: 'react',
     createdAt: new Date('2026-03-30T10:00:00.000Z'),
     updatedAt: new Date('2026-03-30T10:00:00.000Z'),
     members: [],
@@ -55,9 +56,29 @@ describe('SkillsService', () => {
 
       const result = await service.create(createSkillDto);
 
-      expect(repository.create).toHaveBeenCalledWith(createSkillDto);
+      expect(repository.create).toHaveBeenCalledWith({
+        name: 'react',
+        normalizedName: 'react',
+      });
       expect(repository.save).toHaveBeenCalledWith(skillEntity);
       expect(result).toEqual(skillEntity);
+    });
+
+    it('preserves the cleaned display name and stores its normalized value', async () => {
+      const accentedSkill = {
+        ...skillEntity,
+        name: 'Gestión de Datos',
+        normalizedName: 'gestion de datos',
+      };
+      repository.create!.mockReturnValue(accentedSkill);
+      repository.save!.mockResolvedValue(accentedSkill);
+
+      await service.create({ name: '  Gestión   de Datos  ' });
+
+      expect(repository.create).toHaveBeenCalledWith({
+        name: 'Gestión de Datos',
+        normalizedName: 'gestion de datos',
+      });
     });
 
     it('throws ConflictException when the skill name already exists', async () => {
@@ -105,6 +126,7 @@ describe('SkillsService', () => {
         {
           id: 2,
           name: 'typescript',
+          normalizedName: 'typescript',
           createdAt: new Date('2026-03-30T11:00:00.000Z'),
           updatedAt: new Date('2026-03-30T11:00:00.000Z'),
           members: [],

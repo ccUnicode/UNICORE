@@ -8,10 +8,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import {
   FindOptionsWhere,
-  ILike,
   In,
   LessThanOrEqual,
   MoreThanOrEqual,
+  Raw,
   Repository,
 } from 'typeorm';
 import { AreaService } from '../area/area.service';
@@ -20,9 +20,16 @@ import { PaginatedResponse } from '../common/interfaces/paginated-response.inter
 import { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { isUniqueViolation } from '../common/utils/database-errors.util';
 import { parseAreaId } from '../common/utils/parse-area-id.util';
+import {
+  cleanText,
+  normalizedSql,
+  normalizeText,
+} from '../common/utils/text-normalization.util';
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
+import { MemberAvailabilityService } from '../members/member-availability.service';
+import { MemberActivityService } from '../members/member-activity.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectPhaseDto } from './dto/create-project-phase.dto';
@@ -61,6 +68,8 @@ export class ProjectsService {
     private readonly taskAssigneesRepository: Repository<TaskAssignee>,
     private readonly areaService: AreaService,
     private readonly auditService: AuditService,
+    private readonly memberAvailabilityService: MemberAvailabilityService,
+    private readonly memberActivityService: MemberActivityService,
   ) {}
 
   async create(
@@ -270,6 +279,17 @@ export class ProjectsService {
 
       const savedProject = await projectsRepository.save(project);
 
+      if (updateProjectDto.status !== undefined) {
+        await this.memberActivityService.refreshProjectMembers(
+          savedProject.id,
+          entityManager,
+        );
+        await this.memberAvailabilityService.refreshProjectMembers(
+          savedProject.id,
+          entityManager,
+        );
+      }
+
       if (updateProjectDto.links !== undefined) {
         await this.replaceLinks(
           project,
@@ -298,21 +318,39 @@ export class ProjectsService {
   }
 
   async archive(id: number, accessActor: RequestAccessActor): Promise<Project> {
-    const project = await this.findProjectDetails(id);
-    this.assertProjectManagementAccess(project, accessActor);
-    project.isArchived = true;
+    await this.projectsRepository.manager.transaction(async (entityManager) => {
+      const projectsRepository = entityManager.getRepository(Project);
+      const project = await this.findProjectForUpdate(
+        id,
+        projectsRepository,
+        accessActor,
+      );
+      project.isArchived = true;
 
-    const savedProject = await this.projectsRepository.save(project);
+      const savedProject = await projectsRepository.save(project);
+      await this.memberActivityService.refreshProjectMembers(
+        savedProject.id,
+        entityManager,
+      );
+      await this.memberAvailabilityService.refreshProjectMembers(
+        savedProject.id,
+        entityManager,
+      );
 
-    await this.auditService.record(accessActor, {
-      action: 'archive',
-      entityType: 'Project',
-      entityId: savedProject.id,
-      areaId: savedProject.areaId,
-      metadata: { name: savedProject.name },
+      await this.auditService.record(
+        accessActor,
+        {
+          action: 'archive',
+          entityType: 'Project',
+          entityId: savedProject.id,
+          areaId: savedProject.areaId,
+          metadata: { name: savedProject.name },
+        },
+        entityManager,
+      );
     });
 
-    return savedProject;
+    return this.findOne(id, accessActor);
   }
 
   async findPhases(
@@ -503,7 +541,7 @@ export class ProjectsService {
     addDto: AddProjectMemberDto,
     accessActor: RequestAccessActor,
   ): Promise<ProjectMembership> {
-    return this.projectsRepository.manager.transaction(
+    const membership = await this.projectsRepository.manager.transaction(
       async (entityManager) => {
         const project = await this.findProjectForUpdate(
           projectId,
@@ -513,6 +551,16 @@ export class ProjectsService {
         const membersRepository = entityManager.getRepository(Member);
         const projectMembershipsRepository =
           entityManager.getRepository(ProjectMembership);
+
+        await this.memberActivityService.refreshMembers(
+          [addDto.memberId],
+          entityManager,
+        );
+        await this.memberAvailabilityService.refreshMembers(
+          [addDto.memberId],
+          entityManager,
+        );
+
         const member = await membersRepository.findOne({
           where: { id: addDto.memberId },
           relations: ['memberships'],
@@ -525,9 +573,7 @@ export class ProjectsService {
         }
 
         if (member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE) {
-          throw new BadRequestException(
-            'Members marked as unavailable are not selectable when building a team',
-          );
+          return null;
         }
 
         const belongsToArea = member.memberships?.some(
@@ -594,6 +640,14 @@ export class ProjectsService {
         }
       },
     );
+
+    if (!membership) {
+      throw new BadRequestException(
+        'Members marked as unavailable are not selectable when building a team',
+      );
+    }
+
+    return membership;
   }
 
   async updateTeamMemberRole(
@@ -700,6 +754,10 @@ export class ProjectsService {
   ): FindOptionsWhere<Project> {
     const where: FindOptionsWhere<Project> = {
       isArchived: filterDto.archived ?? false,
+      ...(accessActor?.snapshotAt && {
+        createdAt: LessThanOrEqual(accessActor.snapshotAt),
+        updatedAt: LessThanOrEqual(accessActor.snapshotAt),
+      }),
     };
 
     if (filterDto.status) {
@@ -709,7 +767,10 @@ export class ProjectsService {
       where.areaId = filterDto.areaId;
     }
     if (filterDto.search) {
-      where.name = ILike(`%${filterDto.search}%`);
+      where.name = Raw(
+        (column) => `${normalizedSql(column)} LIKE :projectSearch`,
+        { projectSearch: `%${normalizeText(filterDto.search)}%` },
+      );
     }
     if (filterDto.dateFrom) {
       where.endDate = MoreThanOrEqual(filterDto.dateFrom);
@@ -746,8 +807,8 @@ export class ProjectsService {
     const labelsByNormalizedName = new Map<string, string>();
 
     labelNames.forEach((name) => {
-      const trimmedName = name.trim();
-      labelsByNormalizedName.set(this.normalizeLabel(trimmedName), trimmedName);
+      const trimmedName = cleanText(name);
+      labelsByNormalizedName.set(normalizeText(trimmedName), trimmedName);
     });
 
     const normalizedNames = [...labelsByNormalizedName.keys()];
@@ -807,7 +868,7 @@ export class ProjectsService {
   }
 
   private normalizeLabel(label: string): string {
-    return label.trim().toLocaleLowerCase();
+    return normalizeText(label);
   }
 
   private createDefaultPhases(
@@ -976,11 +1037,10 @@ export class ProjectsService {
         return;
       }
 
-      const { id, firstNames, lastNames, activityStatus, availabilityStatus } =
+      const { id, firstNames, lastNames, availabilityStatus } =
         membership.member;
 
       const isEligible =
-        activityStatus === MemberActivityStatus.ACTIVE &&
         availabilityStatus === MemberAvailabilityStatus.AVAILABLE;
 
       membership.member = {

@@ -22,6 +22,8 @@ import { MembersService } from './members.service';
 import { AreaMembership } from '../area-memberships/entities/area-membership.entity';
 import { toMemberResponse } from './utils/member-response.util';
 import { AuditService } from '../audit/audit.service';
+import { MemberActivityService } from './member-activity.service';
+import { MemberAvailabilityService } from './member-availability.service';
 
 type MemberRepositoryMock = Partial<
   Record<keyof Repository<Member>, jest.Mock>
@@ -43,6 +45,7 @@ const createSkill = (
   updatedAt: new Date(),
   members: [],
   ...overrides,
+  normalizedName: overrides.normalizedName ?? name,
 });
 
 const createQueryBuilderMock = (members: Member[]) => ({
@@ -58,11 +61,14 @@ const createQueryBuilderMock = (members: Member[]) => ({
 describe('MembersService', () => {
   let service: MembersService;
   let auditService: jest.Mocked<AuditService>;
+  let memberActivityService: jest.Mocked<MemberActivityService>;
+  let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
   let membersRepository: MemberRepositoryMock;
   let skillsRepository: SkillRepositoryMock;
   let areasRepository: AreaRepositoryMock;
   let areaMembershipsRepository: AreaMembershipRepositoryMock;
   let mockDataSource: DataSource;
+  let mockEntityManager: EntityManager;
   let persistedAreaDirectiveMember: Member;
   let persistedSkills: Skill[];
 
@@ -113,7 +119,7 @@ describe('MembersService', () => {
       find: jest.fn().mockResolvedValue([]),
     };
 
-    const mockEntityManager = {
+    mockEntityManager = {
       getRepository: <T extends ObjectLiteral>(
         entity: new () => T,
       ): Repository<T> => {
@@ -167,11 +173,21 @@ describe('MembersService', () => {
             findAll: jest.fn(),
           },
         },
+        {
+          provide: MemberActivityService,
+          useValue: { refreshMembers: jest.fn() },
+        },
+        {
+          provide: MemberAvailabilityService,
+          useValue: { refreshMembers: jest.fn() },
+        },
       ],
     }).compile();
 
     service = module.get<MembersService>(MembersService);
     auditService = module.get(AuditService);
+    memberActivityService = module.get(MemberActivityService);
+    memberAvailabilityService = module.get(MemberAvailabilityService);
     persistedSkills = [createSkill(1, 'typescript'), createSkill(2, 'testing')];
     persistedAreaDirectiveMember = {
       id: 10,
@@ -232,7 +248,7 @@ describe('MembersService', () => {
     });
     expect(skillsRepository.find).toHaveBeenCalledWith({
       where: {
-        name: In(['typescript', 'testing']),
+        normalizedName: In(['typescript', 'testing']),
       },
     });
     expect(membersRepository.create).toHaveBeenCalledWith({
@@ -324,7 +340,57 @@ describe('MembersService', () => {
     });
   });
 
-  it('supports legacy status input mapping to availabilityStatus when creating a member', async () => {
+  it('allows Directiva to create a regular member in its own area', async () => {
+    const createDto = {
+      ...areaDirectiveMemberDto,
+      role: AreaRole.MIEMBRO,
+    };
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    areasRepository.exists?.mockResolvedValue(true);
+    skillsRepository.find?.mockResolvedValue(persistedSkills);
+    membersRepository.create?.mockReturnValue(persistedAreaDirectiveMember);
+    membersRepository.save?.mockResolvedValue(persistedAreaDirectiveMember);
+
+    await expect(
+      service.create(createDto, undefined, accessActor),
+    ).resolves.toEqual(persistedAreaDirectiveMember);
+    expect(areaMembershipsRepository.create).toHaveBeenCalledWith({
+      member: persistedAreaDirectiveMember,
+      area: { id: 3 },
+      role: AreaRole.MIEMBRO,
+    });
+  });
+
+  it('rejects Directiva member creation in another area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '2',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(areasRepository.exists).not.toHaveBeenCalled();
+    expect(membersRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects privileged role creation by Directiva in its own area', async () => {
+    const accessActor: RequestAccessActor = {
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+    };
+
+    await expect(
+      service.create(areaDirectiveMemberDto, undefined, accessActor),
+    ).rejects.toThrow(ForbiddenException);
+    expect(membersRepository.create).not.toHaveBeenCalled();
+  });
+
+  it('ignores legacy status input when creating a member', async () => {
     const externalSkills: Skill[] = [createSkill(3, 'facilitacion')];
     const createDto = {
       ...externalMemberDto,
@@ -343,8 +409,19 @@ describe('MembersService', () => {
 
     await expect(service.create(createDto)).resolves.toEqual(persistedMember);
     expect(membersRepository.create).toHaveBeenCalledWith(
-      expect.objectContaining({
+      expect.not.objectContaining({
+        status: MemberAvailabilityStatus.DISABLED,
+      }),
+    );
+    expect(membersRepository.create).toHaveBeenCalledWith(
+      expect.not.objectContaining({
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        disabledAt: expect.any(Date) as Date,
+        disabledAccessSnapshot: {
+          role: AreaRole.MIEMBRO,
+          areaId: null,
+          projectIds: [],
+        },
       }),
     );
   });
@@ -522,40 +599,11 @@ describe('MembersService', () => {
         }),
       );
       expect(skillsRepository.find).toHaveBeenCalledWith({
-        where: { name: In(['nestjs']) },
+        where: { normalizedName: In(['nestjs']) },
       });
     });
 
-    it('successfully updates a member availability status', async () => {
-      const updateDto = {
-        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
-      };
-      const updatedMember = {
-        ...persistedAreaDirectiveMember,
-        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(updatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        updatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
-        }),
-      );
-      expect(areaMembershipsRepository.findOne).not.toHaveBeenCalled();
-    });
-
-    it('supports legacy status update input as availability status', async () => {
+    it('ignores legacy status input when updating a member', async () => {
       const updateDto = { status: MemberAvailabilityStatus.NOT_AVAILABLE };
       const updatedMember = {
         ...persistedAreaDirectiveMember,
@@ -573,11 +621,16 @@ describe('MembersService', () => {
       ).resolves.toEqual(updatedMember);
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
-          availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        }),
+      );
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.not.objectContaining({
+          status: MemberAvailabilityStatus.NOT_AVAILABLE,
         }),
       );
     });
@@ -599,68 +652,11 @@ describe('MembersService', () => {
       );
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           cycle: 5,
-        }),
-      );
-    });
-
-    it('successfully reactivates a member', async () => {
-      const updateDto = {
-        activityStatus: MemberActivityStatus.ACTIVE,
-        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-      };
-      const reactivatedMember = {
-        ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.ACTIVE,
-        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(reactivatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        reactivatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activityStatus: MemberActivityStatus.ACTIVE,
-          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
-        }),
-      );
-    });
-
-    it('successfully updates a member activity status', async () => {
-      const updateDto = { activityStatus: MemberActivityStatus.INACTIVE };
-      const updatedMember = {
-        ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
-      };
-
-      membersRepository.findOne?.mockResolvedValue(
-        persistedAreaDirectiveMember,
-      );
-      membersRepository.save?.mockResolvedValue(updatedMember);
-
-      await expect(service.update(10, updateDto)).resolves.toEqual(
-        updatedMember,
-      );
-      expect(membersRepository.findOne).toHaveBeenCalledWith({
-        where: { id: 10 },
-        relations: ['memberships'],
-      });
-      expect(membersRepository.save).toHaveBeenCalledWith(
-        expect.objectContaining({
-          activityStatus: MemberActivityStatus.INACTIVE,
         }),
       );
     });
@@ -680,9 +676,7 @@ describe('MembersService', () => {
     });
 
     it('throws NotFoundException when member to update does not exist', async () => {
-      const updateDto = {
-        availabilityStatus: MemberAvailabilityStatus.DISABLED,
-      };
+      const updateDto = { firstNames: 'Unknown' };
 
       membersRepository.findOne?.mockResolvedValue(null);
 
@@ -691,7 +685,7 @@ describe('MembersService', () => {
       );
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 99 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
@@ -716,7 +710,7 @@ describe('MembersService', () => {
       );
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         persistedAreaDirectiveMember,
@@ -760,7 +754,7 @@ describe('MembersService', () => {
       });
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         persistedAreaDirectiveMember,
@@ -893,6 +887,28 @@ describe('MembersService', () => {
     );
   });
 
+  it('limits Directiva member access to area memberships within the snapshot', async () => {
+    const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+    const queryBuilderMock = createQueryBuilderMock([]);
+    membersRepository.createQueryBuilder?.mockReturnValue(
+      queryBuilderMock as any,
+    );
+
+    await service.findAccessible({
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      areaId: '3',
+      readOnly: true,
+      snapshotAt,
+    });
+
+    expect(queryBuilderMock.innerJoin).toHaveBeenCalledWith(
+      'member.memberships',
+      'areaMembershipFilter',
+      'areaMembershipFilter.areaId = :areaId AND areaMembershipFilter.createdAt <= :membershipSnapshotAt AND areaMembershipFilter.updatedAt <= :membershipSnapshotAt',
+      { areaId: 3, membershipSnapshotAt: snapshotAt },
+    );
+  });
+
   it('rejects member listing for Miembro until project persistence exists', async () => {
     await expect(
       service.findAccessible({
@@ -906,7 +922,6 @@ describe('MembersService', () => {
     it('deactivates a member for Presidencia with an exact full name', async () => {
       const deactivatedMember = {
         ...persistedAreaDirectiveMember,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(
@@ -921,13 +936,19 @@ describe('MembersService', () => {
       ).resolves.toEqual(deactivatedMember);
       expect(membersRepository.findOne).toHaveBeenCalledWith({
         where: { id: 10 },
-        relations: ['memberships'],
+        relations: ['memberships', 'projectMemberships'],
       });
       expect(membersRepository.save).toHaveBeenCalledWith(
         expect.objectContaining({
           id: 10,
-          activityStatus: MemberActivityStatus.INACTIVE,
+          activityStatus: MemberActivityStatus.ACTIVE,
           availabilityStatus: MemberAvailabilityStatus.DISABLED,
+          disabledAt: persistedAreaDirectiveMember.disabledAt,
+          disabledAccessSnapshot: {
+            role: AreaRole.DIRECTIVA_DE_AREA,
+            areaId: persistedAreaDirectiveMember.areaId,
+            projectIds: [],
+          },
         }),
       );
     });
@@ -940,7 +961,6 @@ describe('MembersService', () => {
       };
       const deactivatedMember = {
         ...member,
-        activityStatus: MemberActivityStatus.INACTIVE,
         availabilityStatus: MemberAvailabilityStatus.DISABLED,
       };
       membersRepository.findOne?.mockResolvedValue(member);
@@ -989,6 +1009,72 @@ describe('MembersService', () => {
           role: AreaRole.PRESIDENCIA,
         }),
       ).rejects.toThrow(new NotFoundException('Member with ID 99 not found'));
+      expect(membersRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('reactivate', () => {
+    it('reactivates a disabled member and recalculates its derived states', async () => {
+      const disabledMember = {
+        ...persistedAreaDirectiveMember,
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+        disabledAt: new Date('2026-08-01T10:00:00.000Z'),
+        disabledAccessSnapshot: {
+          role: AreaRole.DIRECTIVA_DE_AREA,
+          areaId: 3,
+          projectIds: [],
+        },
+      };
+      const refreshedMember = {
+        ...disabledMember,
+        activityStatus: MemberActivityStatus.ACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+      };
+      membersRepository.findOne
+        ?.mockResolvedValueOnce(disabledMember)
+        .mockResolvedValueOnce(refreshedMember);
+      membersRepository.save?.mockImplementation((member: Member) =>
+        Promise.resolve(member),
+      );
+
+      await expect(
+        service.reactivate(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).resolves.toEqual(
+        expect.objectContaining({
+          activityStatus: MemberActivityStatus.ACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+        }),
+      );
+      expect(membersRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+          disabledAt: null,
+          disabledAccessSnapshot: null,
+        }),
+      );
+      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
+        [10],
+        mockEntityManager,
+      );
+      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
+        [10],
+        mockEntityManager,
+      );
+    });
+
+    it('rejects reactivation for a member that is not disabled', async () => {
+      membersRepository.findOne?.mockResolvedValue(
+        persistedAreaDirectiveMember,
+      );
+
+      await expect(
+        service.reactivate(10, 'Ana Lucia Rojas Perez', {
+          role: AreaRole.PRESIDENCIA,
+        }),
+      ).rejects.toThrow('Only disabled members can be reactivated');
       expect(membersRepository.save).not.toHaveBeenCalled();
     });
   });

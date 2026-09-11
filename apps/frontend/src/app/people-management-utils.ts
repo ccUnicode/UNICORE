@@ -1,3 +1,5 @@
+import { normalizeText, uniqueDisplayValues } from "./text-normalization";
+
 export type MemberDirectoryItem = {
   id: number;
   firstNames: string;
@@ -25,25 +27,33 @@ export type ProjectDirectoryItem = {
   memberships?: Array<{ memberId: number }>;
 };
 
-function normalize(value: string): string {
-  return value.trim().toLocaleLowerCase("es");
+export function canCreateMemberInArea(
+  role: string,
+  actorAreaId: number | null | undefined,
+  targetAreaId: number,
+  isArchived = false,
+): boolean {
+  if (isArchived) return false;
+
+  return (
+    role === "presidencia" ||
+    (role === "directiva_de_area" && actorAreaId === targetAreaId)
+  );
 }
 
 export function getProjectLabelsForMember(
   memberId: number,
   projects: ProjectDirectoryItem[],
 ): string[] {
-  return [
-    ...new Set(
-      projects
+  return uniqueDisplayValues(
+    projects
         .filter((project) =>
           project.memberships?.some(
             (membership) => membership.memberId === memberId,
           ),
         )
-        .flatMap((project) => project.labels?.map((label) => label.name) ?? []),
-    ),
-  ];
+      .flatMap((project) => project.labels?.map((label) => label.name) ?? []),
+  );
 }
 
 export function filterAndSortMembers<T extends MemberDirectoryItem>(
@@ -51,9 +61,9 @@ export function filterAndSortMembers<T extends MemberDirectoryItem>(
   projects: ProjectDirectoryItem[],
   filters: MemberDirectoryFilters,
 ): T[] {
-  const query = normalize(filters.query);
-  const career = normalize(filters.career);
-  const projectLabel = normalize(filters.projectLabel);
+  const query = normalizeText(filters.query);
+  const career = normalizeText(filters.career);
+  const projectLabel = normalizeText(filters.projectLabel);
 
   return members
     .filter((member) => {
@@ -62,16 +72,16 @@ export function filterAndSortMembers<T extends MemberDirectoryItem>(
           ?.map((membership) => membership.areaId)
           .filter((areaId): areaId is number => typeof areaId === "number") ??
         [];
-      const searchable = [
-        member.firstNames,
-        member.lastNames,
-        member.major,
-        ...(member.skills?.map((skill) => skill.name) ?? []),
-      ]
-        .join(" ")
-        .toLocaleLowerCase("es");
+      const searchable = normalizeText(
+        [
+          member.firstNames,
+          member.lastNames,
+          member.major,
+          ...(member.skills?.map((skill) => skill.name) ?? []),
+        ].join(" "),
+      );
       const labels = getProjectLabelsForMember(member.id, projects).map(
-        normalize,
+        normalizeText,
       );
 
       return (
@@ -81,7 +91,7 @@ export function filterAndSortMembers<T extends MemberDirectoryItem>(
           member.availabilityStatus === filters.availability) &&
         (!filters.areaId || memberAreaIds.includes(Number(filters.areaId))) &&
         (!filters.cycle || member.cycle === Number(filters.cycle)) &&
-        (!career || normalize(member.major) === career) &&
+        (!career || normalizeText(member.major) === career) &&
         (!projectLabel || labels.includes(projectLabel))
       );
     })
