@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "unicore-api-collection",
     "name": "UNICORE API v1",
-    "description": "Flujo ejecutable para validar autenticación, áreas, miembros, proyectos, tareas y auditoría en un ambiente desechable.",
+    "description": "Flujo ejecutable para validar autenticación, áreas, habilidades, miembros, proyectos, tareas y auditoría en un ambiente desechable.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "item": [
@@ -160,6 +160,54 @@
                 "exec": [
                   "pm.test('Areas return 200', () => pm.response.to.have.status(200));",
                   "pm.test('Areas response is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Skill",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"{{skillName}}\"\n}"
+            },
+            "url": "{{baseUrl}}/skills"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Skill creation succeeds or already exists', () => pm.expect([201, 409]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List Skills",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ],
+            "url": "{{baseUrl}}/skills"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Skills return 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Skills response is an array', () => pm.expect(pm.response.json()).to.be.an('array'));"
                 ]
               }
             }
@@ -394,6 +442,7 @@
     { "key": "memberStudentCode", "value": "20260001" },
     { "key": "areaName", "value": "API Collection Area" },
     { "key": "projectName", "value": "API Collection Project" },
+    { "key": "skillName", "value": "TypeScript" },
     { "key": "accessToken", "value": "" },
     { "key": "adminMemberId", "value": "" },
     { "key": "areaId", "value": "" },

@@ -77,8 +77,8 @@ npm run test:migrations
 La cobertura actual incluye, entre otros:
 
 - Autenticación, tokens, contraseñas y rate limiting.
-- Guards y alcance por rol.
-- Servicios y controladores de áreas, miembros, proyectos, tareas y auditoría.
+- Guards, snapshots de solo lectura, filtrado temporal y alcance por rol.
+- Servicios y controladores de áreas, miembros, habilidades, proyectos, tareas y auditoría.
 - DTOs y reglas de validación.
 - Comportamiento aislado de migraciones.
 - Configuración de la publicación OpenAPI.
@@ -119,6 +119,10 @@ Las pruebas actuales cubren:
 - Clasificación de experiencia en proyectos.
 - Comentarios de tareas.
 - Cambios de estado y comportamiento del tablero de tareas.
+- Rutas profundas, navegación y visibilidad del dashboard por rol.
+- Alta contextual y cliente seguro del perfil de miembros.
+- Etiquetas libres, normalización sin acentos y reordenamiento de fases.
+- Selección del recurso de marca y componentes compartidos de personas.
 
 Al añadir un archivo de prueba frontend, actualizar el script `test` o la configuración correspondiente para asegurar que realmente se ejecute.
 

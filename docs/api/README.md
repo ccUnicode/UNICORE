@@ -9,7 +9,7 @@
 - `bootstrapSecret` igual a `AUTH_BOOTSTRAP_SECRET`.
 - Base sin cuentas configuradas para ejecutar Bootstrap; si ya existe el administrador, ejecutar desde Login.
 
-La colección crea áreas, miembros, proyectos, membresías y tareas. No debe ejecutarse contra producción.
+La colección crea áreas, habilidades, miembros, proyectos, membresías y tareas. No debe ejecutarse contra producción.
 
 ## Importación
 
@@ -24,12 +24,13 @@ La colección crea áreas, miembros, proyectos, membresías y tareas. No debe ej
 2. Login guarda `accessToken` y el ID del administrador.
 3. Se comprueba el perfil y el rechazo de una petición sin token.
 4. Se crea un área y se guarda `areaId`.
-5. Se crea un miembro del área y se guarda `memberId`.
-6. Se comprueba un body inválido con respuesta `400`.
-7. Se crea un proyecto, se guarda `projectId` y se toma su primera `phaseId`.
-8. Se agrega el miembro al proyecto y se crea una tarea asignada.
-9. Se valida la respuesta paginada de tareas y el rechazo sin `projectId`.
-10. Se consulta la auditoría generada por el flujo.
+5. Se crea una habilidad (o se acepta que ya exista) y se valida el catálogo.
+6. Se crea un miembro del área y se guarda `memberId`.
+7. Se comprueba un body inválido con respuesta `400`.
+8. Se crea un proyecto, se guarda `projectId` y se toma su primera `phaseId`.
+9. Se agrega el miembro al proyecto y se crea una tarea asignada.
+10. Se valida la respuesta paginada de tareas y el rechazo sin `projectId`.
+11. Se consulta la auditoría generada por el flujo.
 
 ## Variables
 
@@ -39,7 +40,7 @@ La colección crea áreas, miembros, proyectos, membresías y tareas. No debe ej
 | `bootstrapSecret` | Secreto local de bootstrap; no guardar valores compartidos o productivos. |
 | `adminStudentCode`, `adminPassword` | Credenciales del administrador de prueba. |
 | `memberStudentCode` | Código único del miembro creado por la colección. |
-| `areaName`, `projectName` | Nombres que deben ser únicos en el ambiente. |
+| `areaName`, `projectName`, `skillName` | Nombres usados por los recursos creados; área y proyecto deben ser únicos. |
 | `accessToken` | Se completa después del login. |
 | `areaId`, `memberId`, `projectId`, `phaseId`, `taskId` | Se completan al avanzar por el flujo. |
 
