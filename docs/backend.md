@@ -46,7 +46,9 @@ src/
 ├── common/                       # Utilidades comunes y Guards globales
 │   ├── decorators/               # Decorador @Roles()
 │   ├── dto/                      # DTOs reutilizables (ConfirmNameDto)
-│   └── guards/                   # RolesGuard (RBAC por área y proyecto)
+│   ├── guards/                   # RolesGuard (RBAC por área y proyecto)
+│   ├── interceptors/             # Filtrado temporal para snapshots de solo lectura
+│   └── utils/                    # Normalización de texto compartida
 ├── members/                      # Módulo de Miembros y Perfiles
 │   ├── members.controller.ts
 │   ├── members.service.ts
@@ -85,8 +87,9 @@ Administra la estructura organizativa de UNICODE.
 ### 3. Módulo Members (`members/` y `skills/`)
 Gestiona el catálogo de personas.
 * Registro obligatorio con Código UNI, Nombres, Apellidos, Carrera, Fecha de Nacimiento y Competencias (`skills`).
-* Estados de **Actividad**: `active` / `inactive`.
-* Estados de **Disponibilidad**: `available`, `not_available`, `disabled` (Inhabilitado bloquea acceso manteniendo trazabilidad).
+* Los estados de **Actividad** (`active` / `inactive`) y **Disponibilidad** (`available` / `not_available`) se derivan de tareas en proyectos activos.
+* `disabled` conserva el alcance que tenía el miembro al desactivarse: permite consultas de solo lectura con datos hasta `disabledAt` y rechaza operaciones de escritura.
+* `SkillsModule` publica el catálogo de habilidades: Presidencia puede crearlas y Presidencia/Directiva pueden listarlas. Los nombres se comparan sin distinguir mayúsculas ni acentos.
 
 ### 4. Módulo Projects (`projects/`)
 Administra los proyectos de la organización.
@@ -111,7 +114,7 @@ NestJS utiliza dos guards en cascada:
 1. **`AuthGuard`**: Extrae el token JWT del encabezado `Authorization: Bearer <token>` y adjunta el `user` a la petición.
 2. **`RolesGuard`**: Evalúa si el usuario autenticado tiene el rol requerido y, cuando se configura `@AccessScope`, limita el acceso por área o proyecto (ejemplo: `@Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)`).
 
-> **Nota sobre habilidades:** existen `SkillsController` y `SkillsService` en `src/skills/`, pero ningún módulo registrado en `AppModule` declara ese controller. Por ello `/skills` no forma parte de la API expuesta en el estado actual.
+Cuando un miembro está deshabilitado, `AuthGuard` restaura su rol, área y proyectos desde `disabledAccessSnapshot`; solo acepta métodos `GET`. `SnapshotResponseInterceptor` elimina de las respuestas los recursos creados o actualizados después de `disabledAt`.
 
 ---
 

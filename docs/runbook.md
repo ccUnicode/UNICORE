@@ -120,9 +120,19 @@ Acciones:
 Acciones:
 
 1. Confirmar que se usa `studentCode`, no un nombre de campo antiguo.
-2. Verificar que el miembro esté activo y no tenga disponibilidad `disabled`.
-3. Confirmar que la contraseña pertenece al ambiente actual.
-4. Considerar que un cambio de contraseña incrementa `sessionVersion` e invalida tokens anteriores.
+2. Confirmar que la contraseña pertenece al ambiente actual.
+3. Considerar que un cambio de contraseña incrementa `sessionVersion` e invalida tokens anteriores.
+4. Si la cuenta está deshabilitada, comprobar que conserva `disabledAt` y `disabledAccessSnapshot`; sin ambos datos el guard no puede reconstruir el acceso histórico.
+
+### El login devuelve `403 MEMBER_INACTIVE`
+
+La actividad se deriva de asignaciones vigentes en tareas de proyectos activos. Una cuenta inactiva no puede iniciar sesión, salvo que esté deshabilitada y deba entrar en modo de solo lectura.
+
+Acciones:
+
+1. Revisar las tareas, asignaciones y estados de los proyectos del miembro.
+2. No editar `activityStatus` manualmente: corregir la relación de dominio que determina el estado.
+3. Si la cuenta está deshabilitada, verificar su snapshot en lugar de reactivarla solo para permitir una consulta.
 
 ### El login devuelve `429`
 

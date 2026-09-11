@@ -33,15 +33,6 @@ Cada ítem incluye área, impacto, evidencia actual, consecuencias de no resolve
 - **Solución propuesta:** Generar tipos de cliente desde OpenAPI o introducir un paquete compartido que no acople entidades persistentes al frontend.
 - **Revisión sugerida:** Junto con TD-002 o cuando se agregue el siguiente módulo transversal.
 
-### [TD-004] Controller de habilidades no registrado
-
-- **Área:** Backend (`apps/backend/src/skills/`).
-- **Impacto estimado:** Bajo/medio.
-- **Evidencia actual:** Existen `SkillsController` y `SkillsService`, pero ningún `SkillsModule` está importado por `AppModule`; por ello `/skills` no se expone.
-- **Consecuencias de no resolverla:** El código aparenta ofrecer un catálogo independiente de habilidades, pero consumidores y documentación no pueden usarlo; aumenta la ambigüedad de mantenimiento.
-- **Solución propuesta:** Decidir si el catálogo debe ser público para usuarios autenticados. Si sí, registrar un módulo y definir RBAC/pruebas; si no, retirar el controller no alcanzable y documentar que las habilidades se administran mediante miembros.
-- **Revisión sugerida:** En el próximo cambio del módulo de miembros/habilidades.
-
 ## Roadmap funcional V2
 
 Los siguientes ítems son requisitos futuros, no defectos ni compromisos subóptimos de V1.
@@ -76,3 +67,7 @@ Los siguientes ítems son requisitos futuros, no defectos ni compromisos subópt
 - Toda nueva deuda debe recibir un identificador `TD-NNN` y completar los seis campos de la plantilla.
 - Una funcionalidad pendiente permanece en Roadmap hasta que una implementación parcial genere un compromiso técnico concreto.
 - Al resolver un ítem, registrar el PR/ADR correspondiente y moverlo a un historial de deuda resuelta en este mismo documento.
+
+## Historial de deuda resuelta
+
+- **TD-004 — Controller de habilidades no registrado:** resuelto al incorporar `SkillsModule` en `AppModule` y definir RBAC para `GET /skills` y `POST /skills`.
