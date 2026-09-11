@@ -4,13 +4,13 @@
 
 ---
 
-## 🎯 Objetivo de UNICORE
+## Objetivo de UNICORE
 
 UNICORE es el sistema centralizado de UNICODE para gestionar la estructura organizacional: áreas, miembros, proyectos, equipos, tareas mediante Kanban y trazabilidad de auditoría.
 
 ---
 
-## 🛠️ Requisitos Previos en tu Equipo
+## Requisitos Previos en tu Equipo
 
 Asegúrate de contar con los siguientes programas instalados:
 
@@ -21,7 +21,7 @@ Asegúrate de contar con los siguientes programas instalados:
 
 ---
 
-## 🚀 Pasos para Levantar el Proyecto desde Cero
+## Pasos para Levantar el Proyecto desde Cero
 
 ### 1. Clonar el repositorio e instalar dependencias
 ```bash
@@ -68,7 +68,7 @@ npm run dev --workspace=apps/frontend
 
 ---
 
-## 🔑 Inicialización del Usuario Administrador (Bootstrap)
+## Inicialización del Usuario Administrador (Bootstrap)
 
 La primera vez que levantes el sistema, la base de datos estará vacía. Para crear el primer usuario administrador con rol de **Presidencia**:
 
@@ -95,7 +95,7 @@ La primera vez que levantes el sistema, la base de datos estará vacía. Para cr
 
 ---
 
-## 💡 Flujo de Trabajo Recomendado
+## Flujo de Trabajo Recomendado
 
 1. Revisa las tareas asignadas en Linear / GitHub Issues.
 2. Crea una rama desde `main` siguiendo la convención (`feat/`, `fix/`, `docs/`).

@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -25,6 +26,7 @@ import { UpdateProjectMemberDto } from './dto/update-project-member.dto';
 import { UpdateProjectPhaseDto } from './dto/update-project-phase.dto';
 import { ProjectsService } from './projects.service';
 
+@ApiBearerAuth('bearer')
 @Controller('projects')
 @UseGuards(RolesGuard)
 export class ProjectsController {

@@ -1,4 +1,5 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -9,6 +10,7 @@ import { GetAuditEventsFilterDto } from './dto/get-audit-events-filter.dto';
 import { AuditEvent } from './entities/audit-event.entity';
 import { PaginatedResponse } from '../common/interfaces/paginated-response.interface';
 
+@ApiBearerAuth('bearer')
 @Controller('audit')
 @UseGuards(RolesGuard)
 export class AuditController {
