@@ -293,6 +293,7 @@ describe('AuthService', () => {
 
     queryBuilder.getOne.mockResolvedValue(member);
     jest.mocked(passwordService.verify).mockResolvedValue(true);
+    jest.mocked(tokenService.sign).mockReturnValue('signed-token');
 
     await expect(
       service.login({
