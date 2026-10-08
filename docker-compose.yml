@@ -1,0 +1,20 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: unicore-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: unicore
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - unicore-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d unicore"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  unicore-pgdata:
