@@ -27,6 +27,7 @@ UNICORE/
 │   │   └── .env.example          # Plantilla de variables de entorno para backend
 │   └── frontend/                 # Aplicación Web en Next.js (App Router)
 │       └── src/app/              # Rutas y vistas: /login, /dashboard (Personas, Proyectos, Tareas, Auditoría)
+├── docker-compose.yml            # PostgreSQL 16 para desarrollo local
 ├── docs/                         # Documentación técnica centralizada (STD-DOC-001 v1.0)
 │   ├── arquitectura.md           # Vista general, diagramas Mermaid y flujos
 │   ├── backend.md                # Módulos NestJS, controladores y servicios
@@ -50,7 +51,7 @@ Antes de comenzar, asegúrate de tener instalado:
 
 * **Node.js**: `v20.x` o superior (Recomendado ver `.nvmrc`).
 * **npm**: `v10.x` o superior.
-* **PostgreSQL**: `v15` o `v16` ejecutándose localmente o en un contenedor Docker.
+* **PostgreSQL**: `v15` o `v16` ejecutándose localmente, o usando el `docker-compose.yml` incluido (requiere Docker).
 
 ---
 
@@ -67,7 +68,12 @@ cd UNICORE
 npm install
 ```
 
-### 3. Configurar variables de entorno
+### 3. Levantar la base de datos y configurar variables de entorno
+Inicia PostgreSQL con Docker Compose (usuario/contraseña `postgres`, base `unicore`, puerto 5432):
+```bash
+docker compose up -d --wait
+```
+
 Copia la plantilla `.env.example` en `apps/backend/.env`:
 ```bash
 cp apps/backend/.env.example apps/backend/.env

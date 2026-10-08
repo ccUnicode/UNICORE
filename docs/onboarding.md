@@ -16,7 +16,7 @@ Asegúrate de contar con los siguientes programas instalados:
 
 * [Node.js v20 LTS](https://nodejs.org/) (o versión definida en `.nvmrc`)
 * [Git](https://git-scm.com/)
-* [PostgreSQL 15 o 16](https://www.postgresql.org/) (o Docker con la imagen oficial de postgres)
+* [Docker](https://www.docker.com/) con Docker Compose (recomendado para la base de datos local), o bien [PostgreSQL 15 o 16](https://www.postgresql.org/) instalado en tu máquina
 * Editor recomendado: [Visual Studio Code](https://code.visualstudio.com/)
 
 ---
@@ -30,8 +30,20 @@ cd UNICORE
 npm install
 ```
 
-### 2. Configurar la Base de Datos PostgreSQL
-Asegúrate de que PostgreSQL esté corriendo en tu máquina y crea la base de datos `unicore`:
+### 2. Levantar la Base de Datos PostgreSQL
+**Opción recomendada (Docker Compose)**: desde la raíz del repositorio ejecuta:
+```bash
+docker compose up -d --wait
+```
+Esto inicia un contenedor `unicore-db` (PostgreSQL 16) en el puerto `5432` con usuario `postgres`, contraseña `postgres` y la base de datos `unicore` ya creada. Los datos persisten en un volumen de Docker.
+
+Comandos útiles:
+```bash
+docker compose down        # detiene la base de datos (conserva los datos)
+docker compose down -v     # detiene y elimina los datos (base de datos limpia)
+```
+
+**Alternativa (PostgreSQL instalado localmente)**: asegúrate de que PostgreSQL esté corriendo y crea la base de datos:
 ```sql
 CREATE DATABASE unicore;
 ```
@@ -42,14 +54,17 @@ Copia el archivo `.env.example` dentro de `apps/backend`:
 cp apps/backend/.env.example apps/backend/.env
 ```
 
-Edita `apps/backend/.env` con tus credenciales locales:
+Edita `apps/backend/.env`. Si usas Docker Compose, `DATABASE_URL` ya coincide con el valor por defecto; solo reemplaza los secretos por valores aleatorios (puedes generarlos con `openssl rand -hex 32`):
 ```env
 PORT=3001
-DATABASE_URL=postgresql://postgres:tu_password_local@localhost:5432/unicore
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/unicore
 DATABASE_SSL=false
 AUTH_JWT_SECRET=super_secret_jwt_key_for_development_mode_only
 AUTH_BOOTSTRAP_SECRET=bootstrap_secret_for_development_32_chars_min
 ```
+Si usas una instalación local de PostgreSQL, ajusta usuario y contraseña en `DATABASE_URL`.
+
+El frontend no requiere `.env`: usa `http://localhost:3001` como API por defecto (se puede cambiar con `NEXT_PUBLIC_API_URL`).
 
 ### 4. Iniciar los Servidores en Desarrollo
 Abre dos terminales desde la raíz del proyecto:
