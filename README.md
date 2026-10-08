@@ -69,10 +69,11 @@ npm install
 ```
 
 ### 3. Levantar la base de datos y configurar variables de entorno
-Inicia PostgreSQL con Docker Compose (usuario/contraseña `postgres`, base `unicore`, puerto 5432):
+Si no tienes PostgreSQL instalado localmente, inicia uno con Docker Compose (usuario/contraseña `postgres`, base `unicore`, puerto 5432 solo en `127.0.0.1`):
 ```bash
 docker compose up -d --wait
 ```
+Si prefieres usar tu propio servidor PostgreSQL, omite este comando, crea la base `unicore` y ajusta `DATABASE_URL` (usuario, contraseña, host y puerto) en el `.env`. Si tu servidor ya usa el puerto 5432, Compose no podrá iniciar.
 
 Copia la plantilla `.env.example` en `apps/backend/.env`:
 ```bash
