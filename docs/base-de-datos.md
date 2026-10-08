@@ -40,13 +40,16 @@ erDiagram
         int session_version
         enum activity_status
         enum availability_status
+        timestamptz disabled_at
+        jsonb disabled_access_snapshot
         timestamp created_at
         timestamp updated_at
     }
 
     skills {
         int id PK
-        varchar name UK
+        varchar name
+        varchar normalized_name UK
         timestamp created_at
         timestamp updated_at
     }
@@ -185,8 +188,8 @@ erDiagram
 
 ### Miembros, habilidades y áreas
 
-- `members` identifica de forma única la combinación `institution + student_code`. Usa `first_names`, `last_names`, `major`, `birth_date`, `activity_status` (`active`, `inactive`) y `availability_status` (`available`, `not_available`, `disabled`).
-- `skills.name` es único. La relación muchos-a-muchos se materializa mediante la tabla de unión generada por TypeORM para `Member.skills`.
+- `members` identifica de forma única la combinación `institution + student_code`. Usa `first_names`, `last_names`, `major`, `birth_date`, `activity_status` (`active`, `inactive`) y `availability_status` (`available`, `not_available`, `disabled`). Al desactivar conserva `disabled_at` y un `disabled_access_snapshot` JSONB con rol, área y proyectos visibles.
+- `skills.normalized_name` es único y permite comparar nombres sin distinguir mayúsculas ni acentos. La relación muchos-a-muchos se materializa mediante la tabla de unión generada por TypeORM para `Member.skills`.
 - `area_memberships` es única por `member_id + area_id`; sus roles válidos son `presidencia`, `directiva_de_area` y `miembro`. `area_id` puede ser nulo para una membresía global de Presidencia.
 - `areas.isArchived` implementa archivado lógico.
 
@@ -220,6 +223,11 @@ Migraciones registradas:
 2. `1787788800001-RepairMemberAreaMemberships.ts` — repara relaciones de membresías.
 3. `1787788800002-AddTaskCollaboration.ts` — agrega comentarios e historial de estado.
 4. `1787788800003-CreateAuditEventsTable.ts` — crea auditoría.
+5. `1787788800004-DeriveMemberActivityFromTasks.ts` — deriva actividad desde tareas de proyectos activos.
+6. `1787788800005-DeriveMemberAvailabilityFromTasks.ts` — deriva disponibilidad desde la carga vigente.
+7. `1787788800006-AddMemberDisabledSnapshotCutoff.ts` — conserva alcance y corte temporal al deshabilitar miembros.
+
+`1787788800007-NormalizeSearchableText.ts` existe en el árbol y cuenta con cobertura unitaria, pero todavía no está incluida en el arreglo `migrations` de `AppModule`; por tanto, `migrationsRun` no la ejecuta en el estado actual.
 
 ```bash
 cd apps/backend

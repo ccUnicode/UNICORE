@@ -15,14 +15,14 @@ Cada ítem incluye área, impacto, evidencia actual, consecuencias de no resolve
 - **Solución propuesta:** Usar `synchronize: false` fuera del desarrollo local, crear una migración por cada cambio de esquema y verificar forward/rollback en CI.
 - **Revisión sugerida:** Antes del primer despliegue compartido o productivo; después, revisar en cada cambio de entidad.
 
-### [TD-002] Contrato REST documentado manualmente
+### [TD-002] Cobertura semántica del contrato OpenAPI
 
 - **Área:** Backend / documentación (`docs/endpoints.md`, controllers y DTOs).
 - **Impacto estimado:** Medio.
-- **Evidencia actual:** El catálogo y la colección Postman deben sincronizarse manualmente con decoradores, DTOs, enums y guards.
-- **Consecuencias de no resolverla:** Cambios de rutas, permisos o campos pueden dejar clientes y ejemplos desactualizados sin fallar la compilación.
-- **Solución propuesta:** Incorporar OpenAPI con `@nestjs/swagger`, generar la especificación en CI y derivar de ella la referencia y pruebas de contrato.
-- **Revisión sugerida:** En cada PR que cambie un controller o DTO; evaluar automatización al iniciar V2.
+- **Evidencia actual:** Swagger genera rutas y esquemas desde el código mediante el plugin de Nest, pero las descripciones de reglas de negocio, respuestas específicas y seguridad por operación todavía dependen de anotaciones y de esta referencia humana.
+- **Consecuencias de no resolverla:** El JSON puede ser estructuralmente válido y aun así no explicar restricciones de alcance, conflictos o respuestas particulares necesarias para generar clientes y pruebas completas.
+- **Solución propuesta:** Añadir gradualmente decoradores de operación, respuesta y seguridad; validar el documento generado en pruebas de contrato y usarlo para mantener la colección de API.
+- **Revisión sugerida:** En cada PR que cambie un controller o DTO; exigir cobertura completa antes de generar clientes externos.
 
 ### [TD-003] Contratos TypeScript duplicados entre aplicaciones
 
@@ -32,15 +32,6 @@ Cada ítem incluye área, impacto, evidencia actual, consecuencias de no resolve
 - **Consecuencias de no resolverla:** Un cambio puede compilar en ambos workspaces y aun así romperse en ejecución por nombres o enums divergentes.
 - **Solución propuesta:** Generar tipos de cliente desde OpenAPI o introducir un paquete compartido que no acople entidades persistentes al frontend.
 - **Revisión sugerida:** Junto con TD-002 o cuando se agregue el siguiente módulo transversal.
-
-### [TD-004] Controller de habilidades no registrado
-
-- **Área:** Backend (`apps/backend/src/skills/`).
-- **Impacto estimado:** Bajo/medio.
-- **Evidencia actual:** Existen `SkillsController` y `SkillsService`, pero ningún `SkillsModule` está importado por `AppModule`; por ello `/skills` no se expone.
-- **Consecuencias de no resolverla:** El código aparenta ofrecer un catálogo independiente de habilidades, pero consumidores y documentación no pueden usarlo; aumenta la ambigüedad de mantenimiento.
-- **Solución propuesta:** Decidir si el catálogo debe ser público para usuarios autenticados. Si sí, registrar un módulo y definir RBAC/pruebas; si no, retirar el controller no alcanzable y documentar que las habilidades se administran mediante miembros.
-- **Revisión sugerida:** En el próximo cambio del módulo de miembros/habilidades.
 
 ## Roadmap funcional V2
 
@@ -76,3 +67,7 @@ Los siguientes ítems son requisitos futuros, no defectos ni compromisos subópt
 - Toda nueva deuda debe recibir un identificador `TD-NNN` y completar los seis campos de la plantilla.
 - Una funcionalidad pendiente permanece en Roadmap hasta que una implementación parcial genere un compromiso técnico concreto.
 - Al resolver un ítem, registrar el PR/ADR correspondiente y moverlo a un historial de deuda resuelta en este mismo documento.
+
+## Historial de deuda resuelta
+
+- **TD-004 — Controller de habilidades no registrado:** resuelto al incorporar `SkillsModule` en `AppModule` y definir RBAC para `GET /skills` y `POST /skills`.

@@ -6,13 +6,13 @@
 
 ---
 
-## 💡 Contexto
+## Contexto
 
 UNICORE requiere centralizar la gestión de miembros, áreas, proyectos y tareas de UNICODE en una plataforma web mantenible y escalable. Se eligió un monorepo para mantener ambas aplicaciones y su documentación en un único flujo de instalación y revisión. Actualmente frontend y backend declaran sus contratos TypeScript de forma independiente; no existe todavía un paquete de tipos compartidos.
 
 ---
 
-## 🎯 Decisión
+## Decisión
 
 Se acordó estructurar el proyecto como un **Monorepo** con npm workspaces utilizando el siguiente stack:
 
@@ -25,7 +25,7 @@ Se acordó estructurar el proyecto como un **Monorepo** con npm workspaces utili
 
 ---
 
-## 🚀 Consecuencias
+## Consecuencias
 
 ### Positivas
 * **Tipado local en ambas aplicaciones**: frontend y backend usan TypeScript y validan sus propios contratos.

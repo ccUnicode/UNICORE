@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ConfirmNameDto } from '../common/dto/confirm-name.dto';
@@ -22,6 +23,7 @@ import { UpdateMemberDto } from './dto/update-member.dto';
 import { MembersService } from './members.service';
 import { toMemberResponse } from './utils/member-response.util';
 
+@ApiBearerAuth('bearer')
 @Controller('members')
 @UseGuards(RolesGuard)
 export class MembersController {
