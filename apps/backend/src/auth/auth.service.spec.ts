@@ -280,7 +280,7 @@ describe('AuthService', () => {
     });
   });
 
-  it('rejects login with ForbiddenException MEMBER_INACTIVE for inactive members with valid credentials', async () => {
+  it('allows login for inactive members with valid credentials per FR-21', async () => {
     const member = {
       id: 8,
       institution: 'UNI',
@@ -299,7 +299,9 @@ describe('AuthService', () => {
         studentCode: '20260008',
         password: 'a-secure-password',
       }),
-    ).rejects.toThrow(ForbiddenException);
+    ).resolves.toMatchObject({
+      accessToken: 'signed-token',
+    });
   });
 
   it('rejects login with UnauthorizedException for inactive members with invalid credentials without revealing status', async () => {
