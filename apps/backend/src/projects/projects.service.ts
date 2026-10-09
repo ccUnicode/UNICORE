@@ -572,8 +572,10 @@ export class ProjectsService {
           );
         }
 
-        if (member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE) {
-          return null;
+        if (member.availabilityStatus === MemberAvailabilityStatus.DISABLED) {
+          throw new BadRequestException(
+            'Disabled members cannot be added to a project team',
+          );
         }
 
         const belongsToArea = member.memberships?.some(
@@ -640,12 +642,6 @@ export class ProjectsService {
         }
       },
     );
-
-    if (!membership) {
-      throw new BadRequestException(
-        'Members marked as unavailable are not selectable when building a team',
-      );
-    }
 
     return membership;
   }
