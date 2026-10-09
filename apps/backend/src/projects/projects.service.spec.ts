@@ -899,9 +899,11 @@ describe('ProjectsService', () => {
 
   it('archives projects', async () => {
     const project = createProject();
-    const archivedProject = createProject({ isArchived: true });
+    const archivedProject = { ...project, isArchived: true };
 
-    projectsRepository.findOne?.mockResolvedValue(project);
+    projectsRepository.findOne
+      ?.mockResolvedValueOnce(project)
+      .mockResolvedValueOnce(archivedProject);
     projectsRepository.save?.mockResolvedValue(archivedProject);
 
     await expect(service.archive(1, presidencyActor)).resolves.toEqual(
