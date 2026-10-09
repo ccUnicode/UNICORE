@@ -4,13 +4,13 @@ import {
   Entity,
   ManyToMany,
   PrimaryGeneratedColumn,
-  Unique,
+  Index,
   UpdateDateColumn,
 } from 'typeorm';
 import { Member } from '../members/member.entity';
 
 @Entity({ name: 'skills' })
-@Unique(['normalizedName'])
+@Index('IDX_skills_normalized_name', ['normalizedName'], { unique: true })
 export class Skill {
   @PrimaryGeneratedColumn()
   id: number;

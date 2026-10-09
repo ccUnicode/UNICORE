@@ -2,10 +2,15 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  Index,
   PrimaryGeneratedColumn,
 } from 'typeorm';
 
 @Entity('audit_events')
+@Index('IDX_audit_events_area_id', ['areaId'])
+@Index('IDX_audit_events_actor_id', ['actorId'])
+@Index('IDX_audit_events_entity', ['entityType', 'entityId'])
+@Index('IDX_audit_events_timestamp', ['timestamp'])
 export class AuditEvent {
   @PrimaryGeneratedColumn('increment')
   id: number;
