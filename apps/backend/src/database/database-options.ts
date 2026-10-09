@@ -26,6 +26,7 @@ export const databaseMigrations = [
   FinalizeSearchNormalization1787788800008,
 ];
 
+/** Synchronize only in development; execute registered migrations everywhere else. */
 export function databaseOptions(
   config: ConfigService,
 ): PostgresConnectionOptions {

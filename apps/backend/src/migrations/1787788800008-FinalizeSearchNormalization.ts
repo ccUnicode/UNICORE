@@ -1,6 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class FinalizeSearchNormalization1787788800008 implements MigrationInterface {
+  /** Remove transitional columns and restore migration-owned indexes and checks. */
   async up(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasColumn('skills', 'legacy_normalized_name')) {
       await queryRunner.query(
@@ -47,6 +48,7 @@ export class FinalizeSearchNormalization1787788800008 implements MigrationInterf
       END $$;
     `);
   }
+  /** Keep restored integrity objects when reverting this compatibility step. */
   down(): Promise<void> {
     return Promise.resolve();
   }

@@ -3,6 +3,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 // Fixed SQL baseline for installations that previously depended on synchronize.
 // Existing installations are upgraded by the subsequent historical migrations.
 export class InitializeSchema1787788799998 implements MigrationInterface {
+  /** Create a fixed baseline on empty databases; adopt existing member schemas. */
   async up(queryRunner: QueryRunner): Promise<void> {
     if (await queryRunner.hasTable('members')) return;
     const existing = (await queryRunner.query(
@@ -67,6 +68,7 @@ export class InitializeSchema1787788799998 implements MigrationInterface {
     for (const sql of statements) await queryRunner.query(sql);
   }
 
+  /** Refuse destructive rollback because existing installations may be adopted. */
   down(): Promise<void> {
     // This baseline can adopt an existing database. Never delete its data on rollback.
     return Promise.reject(
