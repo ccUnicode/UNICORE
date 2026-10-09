@@ -1005,7 +1005,7 @@ function TeamPanel({
       projectAreaId !== undefined &&
       memberAreaIds(member).includes(projectAreaId) &&
       !assignedIds.has(member.id) &&
-      member.availabilityStatus === "available",
+      member.availabilityStatus !== "disabled",
   );
   const skills = Array.from(
     new Set(areaCandidates.flatMap((member) => member.skills?.map((skill) => skill.name) ?? [])),
@@ -1062,7 +1062,7 @@ function TeamPanel({
         <div>
           <h2 className="text-xl font-black">Equipo del proyecto</h2>
           <p className="mt-1 text-xs text-white/45">
-            Solo se seleccionan miembros disponibles de esta área.
+            Selecciona miembros de esta área para incorporar al equipo.
           </p>
         </div>
         {canManage && (
@@ -1265,6 +1265,9 @@ function TeamPanel({
                   <span className="mt-1 block text-xs text-white/45">
                     {member.major}
                     {member.cycle ? ` · Ciclo ${member.cycle}` : ""}
+                    {member.availabilityStatus === "not_available"
+                      ? " · No disponible"
+                      : ""}
                     {member.activityStatus === "inactive" ? " · Inactivo" : ""}
                   </span>
                 </span>
@@ -1275,8 +1278,8 @@ function TeamPanel({
             ))}
             {candidates.length === 0 && (
               <p className="rounded-md border border-dashed border-white/10 p-5 text-center text-xs text-white/40">
-                No hay miembros disponibles que cumplan los filtros. Los no
-                disponibles están excluidos.
+                No hay miembros que cumplan los filtros. Los miembros
+                inhabilitados están excluidos.
               </p>
             )}
           </div>

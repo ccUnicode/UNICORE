@@ -1300,13 +1300,19 @@ describe('ProjectsService', () => {
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
     });
 
-    it('rejects unavailable members', async () => {
+    it('allows NOT_AVAILABLE members to be added to a project team per FR-23 and FR-32', async () => {
       const member = createMember({
         availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
       });
+      const membership = createProjectMembership({ member });
 
       projectsRepository.findOne?.mockResolvedValue(createProject());
       membersRepository.findOne?.mockResolvedValue(member);
+      projectMembershipsRepository.findOne
+        ?.mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(membership);
+      projectMembershipsRepository.create?.mockReturnValue(membership);
+      projectMembershipsRepository.save?.mockResolvedValue(membership);
 
       await expect(
         service.addTeamMember(
@@ -1314,21 +1320,7 @@ describe('ProjectsService', () => {
           { memberId: 1, role: ProjectRole.MEMBER },
           presidencyActor,
         ),
-      ).rejects.toThrow(
-        new BadRequestException(
-          'Members marked as unavailable are not selectable when building a team',
-        ),
-      );
-      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
-      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
-        [1],
-        expect.anything(),
-      );
-      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
-        [1],
-        expect.anything(),
-      );
-      expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+      ).resolves.toEqual(membership);
     });
 
     it('allows inactive members when their derived availability is available', async () => {
@@ -1355,13 +1347,10 @@ describe('ProjectsService', () => {
       ).resolves.toEqual(membership);
     });
 
-    it.each([
-      MemberAvailabilityStatus.NOT_AVAILABLE,
-      MemberAvailabilityStatus.DISABLED,
-    ])('rejects a member with %s derived availability', async (status) => {
+    it('rejects a member with DISABLED availability status', async () => {
       projectsRepository.findOne?.mockResolvedValue(createProject());
       membersRepository.findOne?.mockResolvedValue(
-        createMember({ availabilityStatus: status }),
+        createMember({ availabilityStatus: MemberAvailabilityStatus.DISABLED }),
       );
 
       await expect(
@@ -1370,7 +1359,11 @@ describe('ProjectsService', () => {
           { memberId: 1, role: ProjectRole.MEMBER },
           presidencyActor,
         ),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Disabled members cannot be added to a project team',
+        ),
+      );
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
     });
 
