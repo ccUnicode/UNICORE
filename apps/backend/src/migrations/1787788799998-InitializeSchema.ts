@@ -5,14 +5,31 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class InitializeSchema1787788799998 implements MigrationInterface {
   /** Create a fixed baseline on empty databases; adopt existing member schemas. */
   async up(queryRunner: QueryRunner): Promise<void> {
-    if (await queryRunner.hasTable('members')) return;
+    const requiredBaseTables = [
+      'areas',
+      'members',
+      'skills',
+      'projects',
+      'project_labels',
+      'project_links',
+      'project_phases',
+      'project_memberships',
+      'tasks',
+      'task_assignees',
+      'project_label_assignments',
+      'members_skills_skills',
+    ];
     const existing = (await queryRunner.query(
       `SELECT table_name FROM information_schema.tables
        WHERE table_schema = current_schema() AND table_name <> 'migrations'`,
-    )) as unknown[];
+    )) as { table_name: string }[];
+    const tables = new Set(existing.map((row) => row.table_name));
+    const missing = requiredBaseTables.filter((table) => !tables.has(table));
+    if (!missing.length) return;
     if (existing.length) {
       throw new Error(
-        'Initial schema requires an empty database or an existing members table',
+        'Initial schema requires an empty database or a complete existing baseline schema; missing: ' +
+          missing.join(', '),
       );
     }
     const statements = [

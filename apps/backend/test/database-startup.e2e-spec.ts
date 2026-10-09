@@ -187,6 +187,28 @@ describe('production database startup (PostgreSQL)', () => {
     ).toBe(true);
   });
 
+  it('rejects an existing installation missing project_links before recording the baseline', async () => {
+    const url = await createDatabase();
+    const legacy = await connect(url, true);
+    await legacy.query('DROP TABLE project_links');
+    await legacy.destroy();
+    await expect(connect(url)).rejects.toThrow(
+      'complete existing baseline schema; missing: project_links',
+    );
+    const history = await admin.query<{ name: string }[]>(
+      'SELECT datname AS name FROM pg_database WHERE datname = $1',
+      [new URL(url).pathname.slice(1)],
+    );
+    expect(history).toHaveLength(1);
+    const inspection = new DataSource({ type: 'postgres', url });
+    connections.push(inspection);
+    await inspection.initialize();
+    expect(await inspection.query('SELECT name FROM migrations')).toEqual([]);
+    expect(
+      await inspection.query('SELECT COUNT(*)::int AS count FROM members'),
+    ).toEqual([{ count: 0 }]);
+  });
+
   it('adopts installations that already applied normalization before synchronization', async () => {
     const url = await createDatabase();
     const legacy = await connect(url, true);
