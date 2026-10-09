@@ -22,6 +22,7 @@ describe('production database startup (PostgreSQL)', () => {
   const originalEnv = { ...process.env };
   const entities = [join(__dirname, '../src/**/*.entity.ts')];
 
+  /** Allocate an isolated database and register it for cleanup after the suite. */
   async function createDatabase(): Promise<string> {
     const name = 'unicore_migration_' + Date.now() + '_' + databases.length;
     await admin.query('CREATE DATABASE "' + name + '"');
@@ -30,6 +31,7 @@ describe('production database startup (PostgreSQL)', () => {
     url.pathname = '/' + name;
     return url.toString();
   }
+  /** Open a tracked connection using either legacy synchronization or production migrations. */
   async function connect(
     url: string,
     synchronize = false,
@@ -49,6 +51,7 @@ describe('production database startup (PostgreSQL)', () => {
     await ds.initialize();
     return ds;
   }
+  /** Assert that the migrated schema requires no changes to match the current entities. */
   async function expectNoDrift(ds: DataSource): Promise<void> {
     const sql = await ds.driver.createSchemaBuilder().log();
     expect(sql.upQueries.map((query) => query.query)).toEqual([]);
@@ -120,10 +123,20 @@ describe('production database startup (PostgreSQL)', () => {
     await legacy.query(`INSERT INTO members (student_code, first_names, last_names, major, birth_date)
       VALUES ('migration-test', 'Test', 'Member', 'Systems', '2000-01-01')`);
     await legacy.query(
-      `INSERT INTO skills (name, normalized_name) VALUES ('Gestión', 'gestión'), ('gestion', 'gestion')`,
+      `INSERT INTO skills (name, normalized_name) VALUES ('Gestión', 'gestión'), ('gestion', 'gestion'), (' GESTION ', 'legacy-third')`,
     );
     await legacy.query(
-      'INSERT INTO members_skills_skills ("membersId", "skillsId") VALUES (1, 1), (1, 2)',
+      'INSERT INTO members_skills_skills ("membersId", "skillsId") VALUES (1, 3)',
+    );
+    await legacy.query("INSERT INTO areas (name) VALUES ('Test area')");
+    await legacy.query(
+      "INSERT INTO projects (name, area_id) VALUES ('Only highest', 1), ('All variants', 1)",
+    );
+    await legacy.query(
+      "INSERT INTO project_labels (name, normalized_name) VALUES ('Gestión', 'legacy-1'), ('gestion', 'legacy-2'), (' GESTION ', 'legacy-3')",
+    );
+    await legacy.query(
+      'INSERT INTO project_label_assignments (project_id, label_id) VALUES (1, 3), (2, 1), (2, 2), (2, 3)',
     );
     // Existing installations have already run migrations 0000 through 0006.
     await legacy.query(
@@ -150,6 +163,17 @@ describe('production database startup (PostgreSQL)', () => {
         'SELECT "membersId", "skillsId" FROM members_skills_skills',
       ),
     ).toEqual([{ membersId: 1, skillsId: 1 }]);
+    expect(
+      await upgraded.query('SELECT id, normalized_name FROM project_labels'),
+    ).toEqual([{ id: 1, normalized_name: 'gestion' }]);
+    expect(
+      await upgraded.query(
+        'SELECT project_id, label_id FROM project_label_assignments ORDER BY project_id',
+      ),
+    ).toEqual([
+      { project_id: 1, label_id: 1 },
+      { project_id: 2, label_id: 1 },
+    ]);
     await expectNoDrift(upgraded);
     expect(await upgraded.runMigrations()).toEqual([]);
   });
