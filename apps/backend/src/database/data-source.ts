@@ -1,10 +1,13 @@
 import 'reflect-metadata';
 import { join } from 'node:path';
-import { ConfigService } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
 import { databaseOptions } from './database-options';
 
-// CLI uses environment variables explicitly; it never enables synchronization.
+// Match the application .env setup, preserving precedence of injected variables.
+void ConfigModule.forRoot({ envFilePath: join(__dirname, '../../.env') });
+
+// The CLI never synchronizes the schema or runs migrations implicitly.
 export default new DataSource({
   ...databaseOptions(new ConfigService()),
   entities: [join(__dirname, '../**/*.entity.{ts,js}')],
