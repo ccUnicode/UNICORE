@@ -56,6 +56,7 @@ cp apps/backend/.env.example apps/backend/.env
 
 Edita `apps/backend/.env`. Si usas Docker Compose, `DATABASE_URL` ya coincide con el valor por defecto; solo reemplaza los secretos por valores aleatorios (puedes generarlos con `openssl rand -hex 32`):
 ```env
+NODE_ENV=development
 PORT=3001
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/unicore
 DATABASE_SSL=false
@@ -73,7 +74,7 @@ Abre dos terminales desde la raíz del proyecto:
 ```bash
 npm run start:dev --workspace=apps/backend
 ```
-*(Al iniciar, TypeORM creará automáticamente las tablas e imprimirá los logs de inicio en el puerto 3001).*
+*(Con `NODE_ENV=development`, TypeORM crea las tablas locales sin ejecutar migraciones. En los demás entornos el esquema se crea mediante migraciones; consulte `docs/base-de-datos.md`).*
 
 **Terminal 2 (Frontend - Next.js)**:
 ```bash
