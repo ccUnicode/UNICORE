@@ -889,7 +889,9 @@ describe('TasksService', () => {
     tasksRepository.findOne.mockResolvedValue(task);
     projectsRepository.findOne.mockResolvedValue(task.project);
     taskAssigneesRepository.find.mockResolvedValue([]);
-    projectMembershipsRepository.find.mockResolvedValue([unavailableMembership]);
+    projectMembershipsRepository.find.mockResolvedValue([
+      unavailableMembership,
+    ]);
 
     await expect(
       service.setAssignees(1, { memberIds: [2] }, presidencyActor),
