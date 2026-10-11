@@ -234,4 +234,118 @@ describe("TaskManagement collaboration flow", () => {
       cleanup();
     }
   });
+
+  it("allows unavailable members and excludes disabled members when assigning tasks per FR-55", async () => {
+    const [{ cleanup, fireEvent, render }, { default: TaskManagement }] =
+      await Promise.all([
+        import("@testing-library/react"),
+        import("./task-management"),
+      ]);
+    const calls: FetchCall[] = [];
+    const repMember = {
+      id: 1,
+      firstNames: "Ana",
+      lastNames: "Torres",
+      major: "Ingeniería de Sistemas",
+      role: "presidencia",
+      availabilityStatus: "available",
+    };
+    const unavailableMember = {
+      id: 2,
+      firstNames: "Luis",
+      lastNames: "García",
+      major: "Ingeniería de Software",
+      role: "miembro",
+      availabilityStatus: "not_available",
+    };
+    const disabledMember = {
+      id: 3,
+      firstNames: "Carlos",
+      lastNames: "Mendoza",
+      major: "Ciencias de la Computación",
+      role: "miembro",
+      availabilityStatus: "disabled",
+    };
+    const project = {
+      id: 1,
+      name: "Proyecto Feria",
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: "active" as const,
+      isArchived: false,
+      phases: [],
+      memberships: [
+        {
+          id: 1,
+          memberId: repMember.id,
+          role: "representative" as const,
+          member: repMember,
+        },
+        {
+          id: 2,
+          memberId: unavailableMember.id,
+          role: "member" as const,
+          member: unavailableMember,
+        },
+        {
+          id: 3,
+          memberId: disabledMember.id,
+          role: "member" as const,
+          member: disabledMember,
+        },
+      ],
+    };
+
+    globalThis.fetch = async (input, init) => {
+      const requestUrl = new URL(
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url,
+      );
+      const method = init?.method ?? "GET";
+      const body =
+        typeof init?.body === "string" ? JSON.parse(init.body) : undefined;
+      calls.push({ method, pathname: requestUrl.pathname, body });
+
+      if (requestUrl.pathname === "/projects/1") {
+        return jsonResponse(project);
+      }
+      if (requestUrl.pathname === "/tasks" && method === "GET") {
+        return jsonResponse({
+          data: [],
+          meta: { total: 0, page: 1, limit: 10, lastPage: 0 },
+        });
+      }
+
+      return jsonResponse({ message: "Unexpected request" }, 500);
+    };
+
+    const view = render(
+      <TaskManagement
+        projects={[project]}
+        accessToken="mock-token"
+        apiUrl="http://api.test"
+        currentMember={repMember}
+      />,
+    );
+
+    try {
+      fireEvent.click(
+        await view.findByRole("button", { name: "+ Nueva Tarea" }),
+      );
+      await view.findByText("Crear Nueva Tarea");
+
+      // Verify unavailable member (Luis) is present and visible as selectable option with badge
+      assert.match(view.container.textContent ?? "", /Luis García/);
+      assert.match(view.container.textContent ?? "", /No disponible/);
+
+      // Verify disabled member (Carlos) is NOT present in the candidate assignees list
+      assert.doesNotMatch(view.container.textContent ?? "", /Carlos Mendoza/);
+    } finally {
+      cleanup();
+    }
+  });
 });

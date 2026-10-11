@@ -498,25 +498,26 @@ export default function TaskManagement({
         .filter((m) => projectMemberIds.has(m.id))
         .map((m) => ({
           ...m,
-          isEligible: m.availabilityStatus === "available",
+          isEligible: m.availabilityStatus !== "disabled",
         }));
     }
 
     return (
       projectToUse.memberships
         ?.map((m) => m.member)
-        .filter((m): m is Member => !!m) ?? []
+        .filter((m): m is Member => !!m)
+        .map((m) => ({
+          ...m,
+          isEligible: m.availabilityStatus !== "disabled",
+        })) ?? []
     );
   }, [activeProjectDetails, selectedProject, allMembers]);
 
   // Activity is derived from current work and does not gate assignment.
+  // Disabled members cannot be assigned tasks per FR-55.
   const eligibleMembers = useMemo(() => {
-    return projectMembers.filter(
-      (m) =>
-        m.isEligible !== false ||
-        (editing && formValues.assigneeIds.includes(m.id)),
-    );
-  }, [projectMembers, editing, formValues.assigneeIds]);
+    return projectMembers.filter((m) => m.isEligible !== false);
+  }, [projectMembers]);
 
   // Default project selection
   useEffect(() => {
@@ -1242,7 +1243,7 @@ export default function TaskManagement({
               <div className="mt-2 max-h-[160px] overflow-y-auto rounded bg-[#151522] border border-[#1e1f2e]/80 p-3 space-y-2">
                 {eligibleMembers.length === 0 ? (
                   <p className="text-xs text-zinc-500 text-center py-4">
-                    No hay miembros activos y disponibles para asignar en este proyecto.
+                    No hay miembros elegibles para asignar en este proyecto. Los miembros inhabilitados están excluidos.
                   </p>
                 ) : (
                   eligibleMembers.map((m) => {
@@ -1267,7 +1268,12 @@ export default function TaskManagement({
                           <p className="text-sm font-semibold text-white">
                             {memberName(m)}
                           </p>
-                          <p className="text-xs text-zinc-500">{m.major}</p>
+                          <p className="text-xs text-zinc-500">
+                            {m.major}
+                            {m.availabilityStatus === "not_available"
+                              ? " · No disponible"
+                              : ""}
+                          </p>
                         </div>
                       </label>
                     );
