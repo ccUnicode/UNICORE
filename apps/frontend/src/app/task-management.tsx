@@ -517,13 +517,15 @@ export default function TaskManagement({
   }, [activeProjectDetails, selectedProject, allMembers]);
 
   // Activity is derived from current work and does not gate assignment.
-  // Disabled members cannot be assigned tasks per FR-55.
+  // Disabled members cannot be assigned as new assignees, but current assignees
+  // remain visible during editing to allow deselecting them.
   const eligibleMembers = useMemo(() => {
     return projectMembers.filter(
       (m) =>
-        m.isEligible !== false && m.availabilityStatus !== "disabled",
+        (m.isEligible !== false && m.availabilityStatus !== "disabled") ||
+        (editing && formValues.assigneeIds.includes(m.id)),
     );
-  }, [projectMembers]);
+  }, [projectMembers, editing, formValues.assigneeIds]);
 
   // Default project selection
   useEffect(() => {
@@ -1278,7 +1280,9 @@ export default function TaskManagement({
                             {m.major}
                             {m.availabilityStatus === "not_available"
                               ? " · No disponible"
-                              : ""}
+                              : m.availabilityStatus === "disabled"
+                                ? " · Inhabilitado"
+                                : ""}
                           </p>
                         </div>
                       </label>
