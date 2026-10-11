@@ -756,12 +756,10 @@ describe('ProjectsService', () => {
       id: membership.member.id,
       firstNames: membership.member.firstNames,
       lastNames: membership.member.lastNames,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       isEligible: true,
     });
     expect(result.memberships[0].member).not.toHaveProperty('activityStatus');
-    expect(result.memberships[0].member).not.toHaveProperty(
-      'availabilityStatus',
-    );
     expect(projectsRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1 },
       relations: [

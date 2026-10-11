@@ -508,7 +508,10 @@ export default function TaskManagement({
         .filter((m): m is Member => !!m)
         .map((m) => ({
           ...m,
-          isEligible: m.availabilityStatus !== "disabled",
+          isEligible:
+            m.isEligible !== undefined
+              ? m.isEligible
+              : m.availabilityStatus !== "disabled",
         })) ?? []
     );
   }, [activeProjectDetails, selectedProject, allMembers]);
@@ -516,7 +519,10 @@ export default function TaskManagement({
   // Activity is derived from current work and does not gate assignment.
   // Disabled members cannot be assigned tasks per FR-55.
   const eligibleMembers = useMemo(() => {
-    return projectMembers.filter((m) => m.isEligible !== false);
+    return projectMembers.filter(
+      (m) =>
+        m.isEligible !== false && m.availabilityStatus !== "disabled",
+    );
   }, [projectMembers]);
 
   // Default project selection
