@@ -18,6 +18,7 @@ import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AuditModule } from './audit/audit.module';
 import { AddMemberDisabledSnapshotCutoff1787788800006 } from './migrations/1787788800006-AddMemberDisabledSnapshotCutoff';
+import { MigrateDefaultProjectPhasesToSpanish1787788800008 } from './migrations/1787788800008-MigrateDefaultProjectPhasesToSpanish';
 import { SnapshotResponseInterceptor } from './common/interceptors/snapshot-response.interceptor';
 import { SkillsModule } from './skills/skills.module';
 
@@ -51,6 +52,7 @@ import { SkillsModule } from './skills/skills.module';
             DeriveMemberActivityFromTasks1787788800004,
             DeriveMemberAvailabilityFromTasks1787788800005,
             AddMemberDisabledSnapshotCutoff1787788800006,
+            MigrateDefaultProjectPhasesToSpanish1787788800008,
           ],
           migrationsRun: true,
         };
