@@ -43,7 +43,7 @@ const createProjectPhase = (
   overrides: Partial<ProjectPhase> = {},
 ): ProjectPhase => ({
   id: 1,
-  name: 'Planning',
+  name: 'Planificación',
   description: null,
   orderIndex: 1,
   projectId: 1,

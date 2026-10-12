@@ -193,7 +193,7 @@ erDiagram
 ### Proyectos
 
 - `projects.status` acepta `planned`, `active`, `on_hold`, `completed` y `cancelled`. El archivado es independiente y se expresa con `is_archived = true`.
-- Al crear un proyecto se generan, en orden, las fases `Planning`, `Execution`, `Review` y `Launch`.
+- Al crear un proyecto se generan, en orden, las fases `Planificación`, `Ejecución`, `Revisión` y `Lanzamiento`.
 - `project_memberships` es única por `member_id + project_id`; sus roles persistidos son `representative`, `subrepresentative` y `member`.
 - `project_labels` normaliza nombres y se asocia mediante `project_label_assignments`. `project_links` almacena enlaces absolutos pertenecientes a un proyecto.
 

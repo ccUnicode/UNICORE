@@ -91,7 +91,7 @@ Gestiona el catálogo de personas.
 ### 4. Módulo Projects (`projects/`)
 Administra los proyectos de la organización.
 * Cada proyecto pertenece a una sola área.
-* Soporta **Fases del Proyecto** (fases predeterminadas: `Planning`, `Execution`, `Review`, `Launch`).
+* Soporta **Fases del Proyecto** (fases predeterminadas: `Planificación`, `Ejecución`, `Revisión`, `Lanzamiento`).
 * Soporta **Equipos por Proyecto** con roles: `representative`, `subrepresentative`, `member`.
 
 ### 5. Módulo Tasks (`tasks/`)
