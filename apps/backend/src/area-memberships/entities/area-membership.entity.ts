@@ -21,7 +21,7 @@ export class AreaMembership {
   @Column({ type: 'varchar', length: 30, default: AreaRole.MIEMBRO })
   role: AreaRole;
 
-  @Column({ name: 'member_id', insert: false, update: false })
+  @Column({ name: 'member_id' })
   memberId: number;
 
   @ManyToOne(() => Member, (member) => member.memberships, {
@@ -30,7 +30,7 @@ export class AreaMembership {
   @JoinColumn({ name: 'member_id' })
   member: Member;
 
-  @Column({ name: 'area_id', insert: false, update: false, nullable: true })
+  @Column({ name: 'area_id', nullable: true })
   areaId: number | null;
 
   @ManyToOne(() => Area, (area) => area.memberships, {
