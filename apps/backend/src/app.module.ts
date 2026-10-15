@@ -1,3 +1,4 @@
+import { databaseOptions } from './database/database-options';
 import { Module } from '@nestjs/common';
 import { APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -8,16 +9,9 @@ import { AppService } from './app.service';
 import { MembersModule } from './members/members.module';
 import { AreaMembershipsModule } from './area-memberships/area-memberships.module';
 import { ProjectsModule } from './projects/projects.module';
-import { MigrateMemberRolesAndAreas1787788800000 } from './migrations/1787788800000-MigrateMemberRolesAndAreas';
-import { RepairMemberAreaMemberships1787788800001 } from './migrations/1787788800001-RepairMemberAreaMemberships';
-import { AddTaskCollaboration1787788800002 } from './migrations/1787788800002-AddTaskCollaboration';
-import { CreateAuditEventsTable1787788800003 } from './migrations/1787788800003-CreateAuditEventsTable';
-import { DeriveMemberAvailabilityFromTasks1787788800005 } from './migrations/1787788800005-DeriveMemberAvailabilityFromTasks';
-import { DeriveMemberActivityFromTasks1787788800004 } from './migrations/1787788800004-DeriveMemberActivityFromTasks';
 import { AuthModule } from './auth/auth.module';
 import { TasksModule } from './tasks/tasks.module';
 import { AuditModule } from './audit/audit.module';
-import { AddMemberDisabledSnapshotCutoff1787788800006 } from './migrations/1787788800006-AddMemberDisabledSnapshotCutoff';
 import { SnapshotResponseInterceptor } from './common/interceptors/snapshot-response.interceptor';
 import { SkillsModule } from './skills/skills.module';
 
@@ -29,32 +23,10 @@ import { SkillsModule } from './skills/skills.module';
     }),
     TypeOrmModule.forRootAsync({
       inject: [ConfigService],
-      useFactory: (config: ConfigService) => {
-        const databaseSslEnabled =
-          config.get<string>('DATABASE_SSL') === 'true';
-
-        return {
-          type: 'postgres' as const,
-          url: config.get<string>('DATABASE_URL'),
-          autoLoadEntities: true,
-          synchronize: true,
-          ssl: databaseSslEnabled
-            ? {
-                rejectUnauthorized: false,
-              }
-            : false,
-          migrations: [
-            MigrateMemberRolesAndAreas1787788800000,
-            RepairMemberAreaMemberships1787788800001,
-            AddTaskCollaboration1787788800002,
-            CreateAuditEventsTable1787788800003,
-            DeriveMemberActivityFromTasks1787788800004,
-            DeriveMemberAvailabilityFromTasks1787788800005,
-            AddMemberDisabledSnapshotCutoff1787788800006,
-          ],
-          migrationsRun: true,
-        };
-      },
+      useFactory: (config: ConfigService) => ({
+        ...databaseOptions(config),
+        autoLoadEntities: true,
+      }),
     }),
     AreaModule,
     MembersModule,

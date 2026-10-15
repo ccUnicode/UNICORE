@@ -47,7 +47,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:17
+        image: postgres:16
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -74,5 +74,5 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run migration integration test
+      - name: Verify migration startup, upgrades and schema drift
         run: npm run test:migrations --workspace apps/backend

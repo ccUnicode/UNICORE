@@ -6,14 +6,12 @@ Este documento separa compromisos subóptimos del sistema actual (**deuda técni
 
 Cada ítem incluye área, impacto, evidencia actual, consecuencias de no resolverla, solución propuesta y revisión sugerida.
 
-### [TD-001] TypeORM mantiene `synchronize: true`
+### [TD-001] Sincronización automática fuera del entorno local — Resuelta
 
-- **Área:** Backend / base de datos (`apps/backend/src/app.module.ts`).
-- **Impacto estimado:** Alto antes de desplegar en producción.
-- **Evidencia actual:** La conexión configura simultáneamente `synchronize: true` y `migrationsRun: true`.
-- **Consecuencias de no resolverla:** TypeORM puede alterar el esquema fuera del historial revisado de migraciones, producir divergencias entre ambientes y elevar el riesgo de pérdida o incompatibilidad de datos.
-- **Solución propuesta:** Usar `synchronize: false` fuera del desarrollo local, crear una migración por cada cambio de esquema y verificar forward/rollback en CI.
-- **Revisión sugerida:** Antes del primer despliegue compartido o productivo; después, revisar en cada cambio de entidad.
+- **Área:** Backend / base de datos (`apps/backend/src/database/database-options.ts`).
+- **Solución:** Solo `NODE_ENV=development` permite sincronización local. Los demás entornos aplican el historial registrado sin sincronización automática.
+- **Evidencia:** CI ejecuta las ocho migraciones históricas y los pasos de inicialización/compatibilidad sobre PostgreSQL, verifica el arranque de la aplicación y su reinicio, preservación de datos existentes y diferencias entre esquema y entidades.
+- **Mantenimiento:** Cada cambio de esquema requiere una migración registrada y revisada; procedimiento en `docs/base-de-datos.md`.
 
 ### [TD-002] Contrato REST documentado manualmente
 
