@@ -1041,12 +1041,13 @@ export class ProjectsService {
         membership.member;
 
       const isEligible =
-        availabilityStatus === MemberAvailabilityStatus.AVAILABLE;
+        availabilityStatus !== MemberAvailabilityStatus.DISABLED;
 
       membership.member = {
         id,
         firstNames,
         lastNames,
+        availabilityStatus,
         isEligible,
       } as unknown as Member;
     });
