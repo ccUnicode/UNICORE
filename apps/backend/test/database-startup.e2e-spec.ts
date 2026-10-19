@@ -146,6 +146,21 @@ describe('production database startup (PostgreSQL)', () => {
       };
       expect(session.accessToken).toEqual(expect.any(String));
       expect(session.member.role).toBe('presidencia');
+      const login = await fetch(baseUrl + '/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentCode: payload.member.studentCode,
+          password: payload.password,
+        }),
+      });
+      expect(login.status).toBe(201);
+      const loginSession = (await login.json()) as {
+        accessToken: string;
+        member: { id: number };
+      };
+      expect(loginSession.accessToken).toEqual(expect.any(String));
+      expect(loginSession.member.id).toBe(session.member.id);
       const ds = app.get(DataSource);
       expect(
         await ds.query('SELECT member_id, area_id, role FROM area_memberships'),
@@ -154,7 +169,7 @@ describe('production database startup (PostgreSQL)', () => {
       ]);
       const headers = {
         'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + session.accessToken,
+        Authorization: 'Bearer ' + loginSession.accessToken,
       };
       const areaResponse = await fetch(baseUrl + '/areas', {
         method: 'POST',
