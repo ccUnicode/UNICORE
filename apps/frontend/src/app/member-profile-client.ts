@@ -65,7 +65,8 @@ export function normalizeMemberProfile(
   if (!id || !Number.isInteger(id)) return null;
 
   const canViewInternal = canViewInternalMemberProfileFields(viewerRole);
-  const rawSkills = Array.isArray(value.skills) ? value.skills : [];
+  const rawSkills =
+    canViewInternal && Array.isArray(value.skills) ? value.skills : [];
   const rawMemberships = Array.isArray(value.memberships)
     ? value.memberships
     : [];
