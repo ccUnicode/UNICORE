@@ -30,13 +30,11 @@ export const toMemberResponse = (
   const response: MemberResponse = {
     id: member.id,
     institution: member.institution,
-    studentCode: member.studentCode,
     firstNames: member.firstNames,
     lastNames: member.lastNames,
     major: member.major,
     birthDate: member.birthDate,
     cycle: member.cycle,
-    skills: member.skills,
     createdAt: member.createdAt,
     updatedAt: member.updatedAt,
     role: effectiveRole,
@@ -58,6 +56,8 @@ export const toMemberResponse = (
   }
 
   if (canViewInternalMemberFields(role)) {
+    response.studentCode = member.studentCode;
+    response.skills = member.skills;
     response.activityStatus = member.activityStatus;
     response.availabilityStatus = member.availabilityStatus;
   }
