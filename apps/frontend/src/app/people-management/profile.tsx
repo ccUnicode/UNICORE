@@ -114,22 +114,24 @@ export function MemberProfileManagementView({
             )}
             <ProfileRow label="Rol" value={displayRole(member.role)} />
           </div>
-          <div className="mt-6">
-            <p className="mb-3 text-xs text-white/55">Skills</p>
-            <div className="flex flex-wrap gap-2">
-              {member.skills?.map((skill) => (
-                <span
-                  key={skill.id ?? skill.name}
-                  className="rounded bg-[#6777bb] px-2 py-1 text-xs"
-                >
-                  {skill.name}
-                </span>
-              ))}
-              {!member.skills?.length && (
-                <span className="text-sm text-white/40">Sin skills</span>
-              )}
+          {canViewInternal && (
+            <div className="mt-6">
+              <p className="mb-3 text-xs text-white/55">Skills</p>
+              <div className="flex flex-wrap gap-2">
+                {member.skills?.map((skill) => (
+                  <span
+                    key={skill.id ?? skill.name}
+                    className="rounded bg-[#6777bb] px-2 py-1 text-xs"
+                  >
+                    {skill.name}
+                  </span>
+                ))}
+                {!member.skills?.length && (
+                  <span className="text-sm text-white/40">Sin skills</span>
+                )}
+              </div>
             </div>
-          </div>
+          )}
           {canEdit && (
             <button
               type="button"

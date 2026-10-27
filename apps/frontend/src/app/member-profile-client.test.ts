@@ -130,5 +130,22 @@ test("normalization strips internal fields for roles without visibility", () => 
   assert.equal(member.birthDate, undefined);
   assert.equal(member.activityStatus, undefined);
   assert.equal(member.availabilityStatus, undefined);
-  assert.equal(member.skills?.[0].name, "TypeScript");
+  assert.deepEqual(member.skills, []);
+});
+
+test("normalization accepts a member response without internal fields", () => {
+  const member = normalizeMemberProfile(
+    {
+      id: 7,
+      firstNames: "Ana",
+      lastNames: "Rojas",
+      role: "miembro",
+    },
+    "miembro",
+  );
+
+  assert.ok(member);
+  assert.equal(member.firstNames, "Ana");
+  assert.equal(member.studentCode, undefined);
+  assert.deepEqual(member.skills, []);
 });

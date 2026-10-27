@@ -191,13 +191,17 @@ export class AuthService {
   }
 
   private createAuthResponse(member: Member): AuthResponse {
+    const role =
+      member.availabilityStatus === MemberAvailabilityStatus.DISABLED
+        ? (member.disabledAccessSnapshot?.role ?? member.role)
+        : member.role;
     return {
       accessToken: this.tokenService.sign(
         member.id,
         member.sessionVersion ?? 0,
       ),
       tokenType: 'Bearer',
-      member: toMemberResponse(member, member.role),
+      member: toMemberResponse(member, role),
     };
   }
 
