@@ -1,6 +1,7 @@
 import { join } from 'node:path';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
 import {
@@ -98,6 +99,144 @@ describe('production database startup (PostgreSQL)', () => {
       } finally {
         await app.close();
       }
+    }
+  });
+
+  it('bootstraps Presidencia and persists member area assignments on an empty migrated database', async () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = await createDatabase();
+    process.env.DATABASE_SSL = 'false';
+    process.env.AUTH_JWT_SECRET =
+      'bootstrap-test-jwt-secret-at-least-32-characters';
+    process.env.AUTH_BOOTSTRAP_SECRET =
+      'bootstrap-test-secret-at-least-32-characters';
+    const app = await NestFactory.create(AppModule, {
+      logger: false,
+      abortOnError: false,
+    });
+    app.useGlobalPipes(
+      new ValidationPipe({ whitelist: true, transform: true }),
+    );
+    try {
+      await app.listen(0, '127.0.0.1');
+      const baseUrl = await app.getUrl();
+      const payload = {
+        bootstrapSecret: process.env.AUTH_BOOTSTRAP_SECRET,
+        password: 'BootstrapTest123!',
+        member: {
+          institution: 'UNI',
+          studentCode: '20260000',
+          firstNames: 'Admin',
+          lastNames: 'Presidencia',
+          major: 'Ingenieria de Sistemas',
+          birthDate: '2000-01-01',
+          role: 'presidencia',
+          skills: ['gestion'],
+        },
+      };
+      const bootstrap = await fetch(baseUrl + '/auth/bootstrap', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      expect(bootstrap.status).toBe(201);
+      const session = (await bootstrap.json()) as {
+        accessToken: string;
+        member: { id: number; role: string };
+      };
+      expect(session.accessToken).toEqual(expect.any(String));
+      expect(session.member.role).toBe('presidencia');
+      const login = await fetch(baseUrl + '/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          studentCode: payload.member.studentCode,
+          password: payload.password,
+        }),
+      });
+      expect(login.status).toBe(201);
+      const loginSession = (await login.json()) as {
+        accessToken: string;
+        member: { id: number };
+      };
+      expect(loginSession.accessToken).toEqual(expect.any(String));
+      expect(loginSession.member.id).toBe(session.member.id);
+      const ds = app.get(DataSource);
+      expect(
+        await ds.query('SELECT member_id, area_id, role FROM area_memberships'),
+      ).toEqual([
+        { member_id: session.member.id, area_id: null, role: 'presidencia' },
+      ]);
+      const headers = {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + loginSession.accessToken,
+      };
+      const areaResponse = await fetch(baseUrl + '/areas', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: 'Tecnologia' }),
+      });
+      expect(areaResponse.status).toBe(201);
+      const area = (await areaResponse.json()) as { id: number };
+      const memberResponse = await fetch(baseUrl + '/members', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          ...payload.member,
+          studentCode: '20260001',
+          role: 'miembro',
+          areaId: area.id,
+        }),
+      });
+      expect(memberResponse.status).toBe(201);
+      const member = (await memberResponse.json()) as { id: number };
+      expect(
+        await ds.query(
+          'SELECT member_id, area_id, role FROM area_memberships WHERE member_id = $1',
+          [member.id],
+        ),
+      ).toEqual([{ member_id: member.id, area_id: area.id, role: 'miembro' }]);
+      const nextAreaResponse = await fetch(baseUrl + '/areas', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: 'Investigacion' }),
+      });
+      expect(nextAreaResponse.status).toBe(201);
+      const nextArea = (await nextAreaResponse.json()) as { id: number };
+      const memberships = await ds.query<{ id: number }[]>(
+        'SELECT id FROM area_memberships WHERE member_id = $1',
+        [member.id],
+      );
+      // Exercise both update services and inspect the stored foreign key.
+      for (const change of [
+        {
+          path: '/area-memberships/' + memberships[0].id,
+          areaId: nextArea.id,
+        },
+        { path: '/members/' + member.id, areaId: area.id },
+        { path: '/members/' + member.id, areaId: null },
+      ]) {
+        const response = await fetch(baseUrl + change.path, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ areaId: change.areaId }),
+        });
+        expect(response.status).toBe(200);
+        expect(
+          await ds.query(
+            'SELECT area_id FROM area_memberships WHERE member_id = $1',
+            [member.id],
+          ),
+        ).toEqual([{ area_id: change.areaId }]);
+      }
+      const repeated = await fetch(baseUrl + '/auth/bootstrap', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+      });
+      expect(repeated.status).toBe(409);
+    } finally {
+      await app.close();
     }
   });
 

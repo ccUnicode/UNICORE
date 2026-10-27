@@ -97,6 +97,7 @@ export class AreaMembershipsService {
         );
       }
       membership.area = area;
+      membership.areaId = area.id;
     }
 
     if (updateAreaMembershipDto.role !== undefined) {
