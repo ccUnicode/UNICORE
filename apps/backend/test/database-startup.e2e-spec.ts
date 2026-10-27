@@ -196,6 +196,39 @@ describe('production database startup (PostgreSQL)', () => {
           [member.id],
         ),
       ).toEqual([{ member_id: member.id, area_id: area.id, role: 'miembro' }]);
+      const nextAreaResponse = await fetch(baseUrl + '/areas', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ name: 'Investigacion' }),
+      });
+      expect(nextAreaResponse.status).toBe(201);
+      const nextArea = (await nextAreaResponse.json()) as { id: number };
+      const memberships = await ds.query<{ id: number }[]>(
+        'SELECT id FROM area_memberships WHERE member_id = $1',
+        [member.id],
+      );
+      // Exercise both update services and inspect the stored foreign key.
+      for (const change of [
+        {
+          path: '/area-memberships/' + memberships[0].id,
+          areaId: nextArea.id,
+        },
+        { path: '/members/' + member.id, areaId: area.id },
+        { path: '/members/' + member.id, areaId: null },
+      ]) {
+        const response = await fetch(baseUrl + change.path, {
+          method: 'PATCH',
+          headers,
+          body: JSON.stringify({ areaId: change.areaId }),
+        });
+        expect(response.status).toBe(200);
+        expect(
+          await ds.query(
+            'SELECT area_id FROM area_memberships WHERE member_id = $1',
+            [member.id],
+          ),
+        ).toEqual([{ area_id: change.areaId }]);
+      }
       const repeated = await fetch(baseUrl + '/auth/bootstrap', {
         method: 'POST',
         headers,

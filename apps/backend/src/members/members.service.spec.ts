@@ -770,6 +770,7 @@ describe('MembersService', () => {
         expect.objectContaining({
           id: 50,
           area: { id: 5 },
+          areaId: 5,
         }),
       );
     });
