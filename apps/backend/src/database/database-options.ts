@@ -11,6 +11,7 @@ import { DeriveMemberActivityFromTasks1787788800004 } from '../migrations/178778
 import { AddMemberDisabledSnapshotCutoff1787788800006 } from '../migrations/1787788800006-AddMemberDisabledSnapshotCutoff';
 import { NormalizeSearchableText1787788800007 } from '../migrations/1787788800007-NormalizeSearchableText';
 import { FinalizeSearchNormalization1787788800008 } from '../migrations/1787788800008-FinalizeSearchNormalization';
+import { MigrateDefaultProjectPhasesToSpanish1787788800009 } from '../migrations/1787788800009-MigrateDefaultProjectPhasesToSpanish';
 
 export const databaseMigrations = [
   InitializeSchema1787788799998,
@@ -24,6 +25,7 @@ export const databaseMigrations = [
   AddMemberDisabledSnapshotCutoff1787788800006,
   NormalizeSearchableText1787788800007,
   FinalizeSearchNormalization1787788800008,
+  MigrateDefaultProjectPhasesToSpanish1787788800009,
 ];
 
 /** Synchronize only in development; execute registered migrations everywhere else. */

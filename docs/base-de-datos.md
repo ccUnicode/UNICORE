@@ -193,7 +193,7 @@ erDiagram
 ### Proyectos
 
 - `projects.status` acepta `planned`, `active`, `on_hold`, `completed` y `cancelled`. El archivado es independiente y se expresa con `is_archived = true`.
-- Al crear un proyecto se generan, en orden, las fases `Planning`, `Execution`, `Review` y `Launch`.
+- Al crear un proyecto se generan, en orden, las fases `Planificación`, `Ejecución`, `Revisión` y `Lanzamiento`.
 - `project_memberships` es única por `member_id + project_id`; sus roles persistidos son `representative`, `subrepresentative` y `member`.
 - `project_labels` normaliza nombres y se asocia mediante `project_label_assignments`. `project_links` almacena enlaces absolutos pertenecientes a un proyecto.
 
@@ -218,6 +218,8 @@ El registro único está en `apps/backend/src/database/database-options.ts`. Con
 - `1787788799998-InitializeSchema`: crea con SQL fijo el esquema inicial en una base vacía; adopta instalaciones que conservan todas las tablas del esquema base sin recrearlas y rechaza esquemas parciales indicando las tablas faltantes. Su fecha precede al historial existente para que las ocho migraciones tengan sus tablas disponibles.
 - `1787788799999-PrepareSearchNormalization`: conserva temporalmente la columna calculada que pudo haber creado la sincronización antes de la migración de normalización.
 - `1787788800008-FinalizeSearchNormalization`: elimina esa copia calculada tras completar la normalización y restaura los índices y la restricción de miembros inhabilitados que la sincronización anterior podía quitar. Los nombres originales y sus asociaciones se conservan; las ocho migraciones anteriores no se reescriben.
+
+La migración `1787788800009-MigrateDefaultProjectPhasesToSpanish` traduce solo fases iniciales verificables: nombre y posición originales, descripción vacía y fechas de creación iguales a la del proyecto, sin ediciones posteriores. El servicio crea el proyecto y sus fases en una misma transacción, por lo que comparten la fecha de PostgreSQL. Las fases añadidas, editadas, reordenadas o importadas sin esa evidencia quedan intactas aunque conserven un nombre en inglés; requieren revisión manual. La tabla auxiliar guarda los IDs y nombres anteriores y el rollback conserva cualquier edición posterior al despliegue.
 
 La migración inicial no permite rollback automático porque puede adoptar una instalación con datos. Antes de actualizar una base compartida, conserve un respaldo; para volver a una versión anterior restaure el respaldo. Las migraciones nuevas posteriores deben definir una reversión adecuada a sus cambios.
 
