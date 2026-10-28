@@ -214,6 +214,80 @@ describe('AuthService', () => {
     );
   });
 
+  it.each([AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO])(
+    'limits internal fields in the login response for %s',
+    async (role) => {
+      queryBuilder.getOne.mockResolvedValue({
+        id: 8,
+        institution: 'UNI',
+        studentCode: '20260008',
+        passwordHash: 'stored-hash',
+        activityStatus: MemberActivityStatus.INACTIVE,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        skills: [{ id: 1, name: 'typescript' }],
+        role,
+      } as Member);
+      jest.mocked(passwordService.verify).mockResolvedValue(true);
+      jest.mocked(tokenService.sign).mockReturnValue('signed-token');
+
+      const response = await service.login({
+        studentCode: '20260008',
+        password: 'a-secure-password',
+      });
+
+      expect(response.accessToken).toBe('signed-token');
+      expect(response.member).not.toHaveProperty('passwordHash');
+      if (role === AreaRole.MIEMBRO) {
+        for (const field of [
+          'studentCode',
+          'skills',
+          'activityStatus',
+          'availabilityStatus',
+        ]) {
+          expect(response.member).not.toHaveProperty(field);
+        }
+      } else {
+        expect(response.member).toMatchObject({
+          studentCode: '20260008',
+          skills: [{ id: 1, name: 'typescript' }],
+          activityStatus: MemberActivityStatus.INACTIVE,
+          availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+        });
+      }
+    },
+  );
+
+  it('filters disabled login responses using the frozen member role', async () => {
+    queryBuilder.getOne.mockResolvedValue({
+      id: 8,
+      institution: 'UNI',
+      studentCode: '20260008',
+      passwordHash: 'stored-hash',
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      skills: [{ id: 1, name: 'typescript' }],
+      availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      disabledAccessSnapshot: {
+        role: AreaRole.MIEMBRO,
+        areaId: 3,
+        projectIds: [],
+      },
+    } as unknown as Member);
+    jest.mocked(passwordService.verify).mockResolvedValue(true);
+    jest.mocked(tokenService.sign).mockReturnValue('signed-token');
+
+    const response = await service.login({
+      studentCode: '20260008',
+      password: 'a-secure-password',
+    });
+
+    expect(response.member).toMatchObject({
+      role: AreaRole.MIEMBRO,
+      readOnly: true,
+    });
+    expect(response.member).not.toHaveProperty('studentCode');
+    expect(response.member).not.toHaveProperty('skills');
+  });
+
   it('performs password verification when the student code is unknown', async () => {
     queryBuilder.getOne.mockResolvedValue(null);
     jest.mocked(passwordService.verify).mockResolvedValue(false);

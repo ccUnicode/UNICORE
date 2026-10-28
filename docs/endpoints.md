@@ -38,6 +38,8 @@ Fuente de verdad revisada: controllers, DTOs, enums y guards de `apps/backend/sr
 
 ## Miembros
 
+`MemberResponse` omite `studentCode`, `skills`, `activityStatus` y `availabilityStatus` para el rol `miembro`, incluso en login y `GET /auth/me`. Presidencia y Directiva conservan esos campos dentro de su alcance. Las cuentas deshabilitadas usan el rol de su snapshot de acceso para filtrar su propia respuesta.
+
 `CreateMemberDto` requiere `firstNames`, `lastNames`, `major`, `birthDate` ISO y un arreglo no vacío de nombres de habilidades. `institution` vale `UNI` por defecto; para UNI, `studentCode` es obligatorio. `role` vale `miembro` por defecto. `directiva_de_area` exige `areaId`; `presidencia` no permite `areaId`.
 
 | Método y ruta                   | Auth / roles                       | Entrada                                                                                                             | Respuesta                                             | Errores y reglas de negocio                                                                                                                                                                                                                               |
