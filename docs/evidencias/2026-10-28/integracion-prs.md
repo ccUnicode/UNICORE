@@ -49,3 +49,21 @@ Durante la preparación del worktree, Turbopack rechazó un `node_modules` enlaz
 ## Límites y siguiente paso
 
 La combinación es una auditoría previa a fusión. Antes de actualizar o integrar PRs, comprobar que sus heads siguen coincidiendo con las referencias anteriores. Después de las fusiones reales, actualizar main y ejecutar el guion de humo en navegador para cerrar UNI2-75. Los tests automáticos anteriores no certifican por sí solos ese flujo manual.
+
+## Compatibilidad final con documentación histórica
+
+Después de actualizar #56 y alinear las tablas de #109, se comprobó también la
+combinación virtual `18b5a102ca5388739508066ee65524e629a91c42`: combinación funcional
+`e82c9fb`, #109 `353e1ed`, #56 `15149da` y #141 `042cbe5`.
+Los merges terminaron sin conflictos. Con `npm ci` limpio pasaron **339/339 pruebas
+backend (44 suites)** y **8/8 de PostgreSQL (3 suites)**.
+
+#56 aislado pasó type-check, lint y build de ambos componentes, 329/329 backend,
+60/60 frontend y 7/7 PostgreSQL. Su lock fue reparado sin cambiar versiones ni
+manifests: la ubicación del adaptador HTTP y dependencias impedía resolverlo desde
+NestJS después de instalar. La implementación Swagger heredada se conserva y sigue
+requiriendo revisión de alcance antes de fusionar #56.
+
+La nota de fases españolas de #109 se trasladó al final de endpoints.md para evitar
+conflictos contiguos con las correcciones de tablas de #56; no cambia comportamiento.
+La guía #142 solo agrega un archivo nuevo y no solapa ninguno de estos cambios.
