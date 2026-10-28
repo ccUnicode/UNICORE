@@ -28,6 +28,7 @@ import {
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
+import { canViewInternalMemberFields } from '../members/utils/member-response.util';
 import { MemberAvailabilityService } from '../members/member-availability.service';
 import { MemberActivityService } from '../members/member-activity.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
@@ -166,6 +167,7 @@ export class ProjectsService {
   async findOne(id: number, accessActor: RequestAccessActor): Promise<Project> {
     const project = await this.findProjectDetails(id);
     this.assertProjectReadAccess(project, accessActor);
+    this.limitProjectTeamMemberFields(project, accessActor);
 
     return project;
   }
@@ -193,7 +195,6 @@ export class ProjectsService {
     }
 
     this.sortMembershipsByActivity(project);
-    this.limitProjectTeamMemberFields(project);
 
     return project;
   }
@@ -1031,7 +1032,10 @@ export class ProjectsService {
     });
   }
 
-  private limitProjectTeamMemberFields(project: Project): void {
+  private limitProjectTeamMemberFields(
+    project: Project,
+    accessActor: RequestAccessActor,
+  ): void {
     project.memberships?.forEach((membership) => {
       if (!membership.member) {
         return;
@@ -1047,7 +1051,9 @@ export class ProjectsService {
         id,
         firstNames,
         lastNames,
-        availabilityStatus,
+        ...(canViewInternalMemberFields(accessActor.role)
+          ? { availabilityStatus }
+          : {}),
         isEligible,
       } as unknown as Member;
     });
