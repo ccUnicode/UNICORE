@@ -209,19 +209,26 @@ erDiagram
 
 `audit_events` usa un `id` entero e incluye `actor_id`, `actor_name`, `actor_role`, `action`, `entity_type`, `entity_id` (varchar), `area_id`, `timestamp` y `metadata` serializada.
 
-## Migraciones y `synchronize`
+## Migraciones y configuración por entorno
 
-> [!WARNING]
-> `app.module.ts` mantiene actualmente `synchronize: true` y `migrationsRun: true`. Esta combinación facilita desarrollo local, pero `synchronize` debe desactivarse antes de operar en producción y los cambios de esquema deben quedar en migraciones revisadas.
+Solo `NODE_ENV=development` permite `synchronize: true` y omite las migraciones automáticas: las entidades crean el esquema local actual. En producción, pruebas, staging o si no se especifica el entorno, `synchronize` está apagado y el arranque aplica las migraciones pendientes. Configure `NODE_ENV` en el entorno del despliegue; el ejemplo local usa `development`.
 
-Migraciones registradas:
+El registro único está en `apps/backend/src/database/database-options.ts`. Conserva las ocho migraciones históricas, incluida `NormalizeSearchableText`, y agrega tres pasos de compatibilidad:
 
-1. `1787788800000-MigrateMemberRolesAndAreas.ts` — normaliza roles y crea membresías de área.
-2. `1787788800001-RepairMemberAreaMemberships.ts` — repara relaciones de membresías.
-3. `1787788800002-AddTaskCollaboration.ts` — agrega comentarios e historial de estado.
-4. `1787788800003-CreateAuditEventsTable.ts` — crea auditoría.
+- `1787788799998-InitializeSchema`: crea con SQL fijo el esquema inicial en una base vacía; adopta instalaciones que conservan todas las tablas del esquema base sin recrearlas y rechaza esquemas parciales indicando las tablas faltantes. Su fecha precede al historial existente para que las ocho migraciones tengan sus tablas disponibles.
+- `1787788799999-PrepareSearchNormalization`: conserva temporalmente la columna calculada que pudo haber creado la sincronización antes de la migración de normalización.
+- `1787788800008-FinalizeSearchNormalization`: elimina esa copia calculada tras completar la normalización y restaura los índices y la restricción de miembros inhabilitados que la sincronización anterior podía quitar. Los nombres originales y sus asociaciones se conservan; las ocho migraciones anteriores no se reescriben.
 
-```bash
-cd apps/backend
-npm run test:migrations
-```
+La migración inicial no permite rollback automático porque puede adoptar una instalación con datos. Antes de actualizar una base compartida, conserve un respaldo; para volver a una versión anterior restaure el respaldo. Las migraciones nuevas posteriores deben definir una reversión adecuada a sus cambios.
+
+El CLI carga automáticamente `apps/backend/.env`; las variables inyectadas en el entorno tienen prioridad (CI y producción). No hace falta volver a configurarlas en la terminal.
+
+### Crear una migración
+
+1. Use una base de desarrollo desechable, configure `DATABASE_URL` y `DATABASE_SSL=false` en `apps/backend/.env` y ejecute `npm run migration:run --workspace apps/backend`.
+2. Modifique las entidades y ejecute desde `apps/backend`: `npm run migration:generate -- src/migrations/NombreDelCambio`; el CLI nunca sincroniza la base.
+3. Revise el SQL de `up` y `down`, y registre la clase en `databaseMigrations` de `src/database/database-options.ts`.
+4. Ejecute `npm run test:migrations --workspace apps/backend` con `TEST_DATABASE_URL` apuntando a PostgreSQL de pruebas; el usuario necesita permiso para crear bases desechables.
+5. Incluya entidad, migración y evidencia en la misma PR: CI comprueba arranque vacío, segundo arranque, actualización con datos y ausencia de diferencias entre entidades y esquema.
+
+La prueba de integración crea bases con nombres `unicore_migration_*` y las elimina al terminar; no vacía la base indicada por `TEST_DATABASE_URL`. El fallo de creación de membresías de UNI2-60 es independiente de la inicialización del esquema.
