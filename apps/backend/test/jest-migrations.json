@@ -2,7 +2,7 @@
   "moduleFileExtensions": ["js", "json", "ts"],
   "rootDir": ".",
   "testEnvironment": "node",
-  "testRegex": "(task-collaboration-migration|database-startup).e2e-spec.ts$",
+  "testRegex": "(task-collaboration-migration|database-startup|default-project-phases-migration).e2e-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"
   },

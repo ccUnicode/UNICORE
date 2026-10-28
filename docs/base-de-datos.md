@@ -219,6 +219,8 @@ El registro único está en `apps/backend/src/database/database-options.ts`. Con
 - `1787788799999-PrepareSearchNormalization`: conserva temporalmente la columna calculada que pudo haber creado la sincronización antes de la migración de normalización.
 - `1787788800008-FinalizeSearchNormalization`: elimina esa copia calculada tras completar la normalización y restaura los índices y la restricción de miembros inhabilitados que la sincronización anterior podía quitar. Los nombres originales y sus asociaciones se conservan; las ocho migraciones anteriores no se reescriben.
 
+La migración `1787788800009-MigrateDefaultProjectPhasesToSpanish` traduce solo fases iniciales verificables: nombre y posición originales, descripción vacía y fechas de creación iguales a la del proyecto, sin ediciones posteriores. El servicio crea el proyecto y sus fases en una misma transacción, por lo que comparten la fecha de PostgreSQL. Las fases añadidas, editadas, reordenadas o importadas sin esa evidencia quedan intactas aunque conserven un nombre en inglés; requieren revisión manual. La tabla auxiliar guarda los IDs y nombres anteriores y el rollback conserva cualquier edición posterior al despliegue.
+
 La migración inicial no permite rollback automático porque puede adoptar una instalación con datos. Antes de actualizar una base compartida, conserve un respaldo; para volver a una versión anterior restaure el respaldo. Las migraciones nuevas posteriores deben definir una reversión adecuada a sus cambios.
 
 El CLI carga automáticamente `apps/backend/.env`; las variables inyectadas en el entorno tienen prioridad (CI y producción). No hace falta volver a configurarlas en la terminal.
