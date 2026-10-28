@@ -90,10 +90,12 @@ Estados: `todo`, `in_progress`, `in_review`, `done`. Prioridades: `low`, `medium
 | `GET /tasks/:id/comments`       | Todos los roles; acceso al proyecto      | Sin body                                                                                                               | `TaskComment[]`                       | Orden cronológico según el servicio.                                     |
 | `GET /tasks/:id/status-history` | Todos los roles; acceso al proyecto      | Sin body                                                                                                               | `TaskStatusHistory[]`                 | Incluye `previousStatus`, `newStatus`, `actorId`, `createdAt`.           |
 
-Los proyectos nuevos comienzan con las fases Planificación, Ejecución, Revisión y Lanzamiento.
-
 ## Auditoría
 
 | Método y ruta | Auth / roles                       | Entrada                                                                               | Respuesta                                                        | Errores y reglas de negocio                                                                  |
 | :------------ | :--------------------------------- | :------------------------------------------------------------------------------------ | :--------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
 | `GET /audit`  | `presidencia`, `directiva_de_area` | Query `page?`, `limit?`, `actorId?`, `action?`, `entityType?`, `dateFrom?`, `dateTo?` | `{ data: AuditEvent[], meta: { total, page, limit, lastPage } }` | El filtro correcto es `entityType`, no `targetEntity`; Directiva solo ve eventos de su área. |
+
+### Fases iniciales de proyectos
+
+Los proyectos nuevos comienzan con las fases Planificación, Ejecución, Revisión y Lanzamiento.
