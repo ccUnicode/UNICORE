@@ -1,5 +1,6 @@
 import {
   Column,
+  Check,
   CreateDateColumn,
   Entity,
   JoinTable,
@@ -23,6 +24,10 @@ export interface DisabledAccessSnapshot {
 }
 
 @Entity({ name: 'members' })
+@Check(
+  'chk_members_disabled_snapshot',
+  "availability_status::text <> 'disabled' OR (disabled_at IS NOT NULL AND disabled_access_snapshot IS NOT NULL)",
+)
 @Unique(['institution', 'studentCode'])
 export class Member {
   @PrimaryGeneratedColumn()

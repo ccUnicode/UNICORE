@@ -123,6 +123,7 @@ describe('AreaMembershipsService', () => {
     ).resolves.toEqual(
       expect.objectContaining({
         area: nextArea,
+        areaId: nextArea.id,
         role: AreaRole.DIRECTIVA_DE_AREA,
       }),
     );

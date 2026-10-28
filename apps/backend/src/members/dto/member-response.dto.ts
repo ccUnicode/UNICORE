@@ -2,6 +2,8 @@ import { AreaMembership } from '../../area-memberships/entities/area-membership.
 import { Member } from '../member.entity';
 
 type InternalMemberField =
+  | 'studentCode'
+  | 'skills'
   | 'activityStatus'
   | 'availabilityStatus'
   | 'disabledAccessSnapshot';
