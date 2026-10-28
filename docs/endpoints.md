@@ -12,7 +12,7 @@ Este archivo es la referencia humana complementaria: resume permisos, reglas y e
 - `200`: consulta o actualización exitosa; `201`: creación exitosa; los métodos `void` pueden responder sin cuerpo.
 - `400`: parámetros enteros inválidos o body/query que no cumple el DTO. La `ValidationPipe` transforma valores y elimina propiedades no declaradas.
 - `401`: token ausente, inválido, expirado o revocado; snapshot de una cuenta deshabilitada incompleto; credenciales o secreto de bootstrap inválidos.
-- `403`: rol o alcance de área/proyecto insuficiente; cuenta inactiva al iniciar sesión; intento de escritura de una cuenta deshabilitada.
+- `403`: rol o alcance de área/proyecto insuficiente; intento de escritura de una cuenta deshabilitada.
 - `404`: recurso relacionado inexistente.
 - `409`: unicidad, estado o regla de negocio en conflicto.
 - Las respuestas de entidades usan los nombres de las entidades/DTOs TypeScript (`studentCode`, `firstNames`, `isArchived`, `orderIndex`, etc.).
@@ -23,7 +23,7 @@ Este archivo es la referencia humana complementaria: resume permisos, reglas y e
 | :------------------------------------- | :------------------------------- | :------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GET /`                                | Pública                          | —                                                                                                                                | Texto de health check                          | Sin reglas adicionales.                                                                                                                      |
 | `POST /auth/bootstrap`                 | Pública                          | `BootstrapAuthDto`: `bootstrapSecret` (mín. 32), `password` (12–128) y exactamente uno de `memberId` o `member: CreateMemberDto` | `{ accessToken, tokenType: "Bearer", member }` | `401` secreto inválido; `409` si ya hay contraseña; el miembro debe ser UNI, activo, de `presidencia`, con `studentCode` y no deshabilitado. |
-| `POST /auth/login`                     | Pública                          | `{ studentCode: string(1..20), password: string(12..128) }`                                                                      | `{ accessToken, tokenType: "Bearer", member }` | Rate limiting por IP/cuenta; `401` para credenciales inválidas y `403 MEMBER_INACTIVE` si no registra actividad. Una cuenta deshabilitada puede entrar en modo de solo lectura. |
+| `POST /auth/login`                     | Pública                          | `{ studentCode: string(1..20), password: string(12..128) }`                                                                      | `{ accessToken, tokenType: "Bearer", member }` | Rate limiting por IP/cuenta; `401` para credenciales inválidas. Las cuentas inactivas pueden iniciar sesión. Una cuenta deshabilitada puede entrar en modo de solo lectura. |
 | `GET /auth/me`                         | Bearer; usuario autenticado       | —                                                                                                                                | `MemberResponse` con membresías                | El token debe coincidir con `sessionVersion`; para una cuenta deshabilitada incluye `readOnly: true` y respeta su snapshot temporal. |
 | `PUT /auth/members/:memberId/password` | `presidencia`                    | Path `memberId` entero; body `{ password: string(12..128) }`                                                                     | Sin cuerpo                                     | Incrementa `sessionVersion` y revoca sesiones anteriores; `404` si no existe.                                                                |
 
@@ -42,6 +42,8 @@ Este archivo es la referencia humana complementaria: resume permisos, reglas y e
 | `GET /area-memberships`        | `presidencia`                      | Query `page?` (>=1), `limit?` (1..100)                   | `{ data: AreaMembership[], meta: { total, page, limit, lastPage } }` | Paginación por defecto `page=1`, `limit=10`.                                      |
 
 ## Miembros
+
+`MemberResponse` omite `studentCode`, `skills`, `activityStatus` y `availabilityStatus` para el rol `miembro`, incluso en login y `GET /auth/me`. Presidencia y Directiva conservan esos campos dentro de su alcance. Las cuentas deshabilitadas usan el rol de su snapshot de acceso para filtrar su propia respuesta.
 
 `CreateMemberDto` requiere `firstNames`, `lastNames`, `major`, `birthDate` ISO y un arreglo no vacío de nombres de habilidades. `institution` vale `UNI` por defecto; para UNI, `studentCode` es obligatorio. `role` vale `miembro` por defecto. `directiva_de_area` exige `areaId`; `presidencia` no permite `areaId`.
 

@@ -49,4 +49,18 @@ describe('AuthController', () => {
     );
     expect(release).toHaveBeenCalledTimes(1);
   });
+
+  it('uses the authenticated role when filtering the own profile', () => {
+    const member = {
+      id: 1,
+      role: AreaRole.DIRECTIVA_DE_AREA,
+      studentCode: '20260001',
+      skills: [{ id: 1, name: 'typescript' }],
+    } as Member;
+    const response = controller.me(member, { role: AreaRole.MIEMBRO });
+
+    expect(response.id).toBe(1);
+    expect(response).not.toHaveProperty('studentCode');
+    expect(response).not.toHaveProperty('skills');
+  });
 });

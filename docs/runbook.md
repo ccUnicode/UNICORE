@@ -91,7 +91,7 @@ Acciones:
 
 ### Una migración falla al iniciar
 
-El backend ejecuta las migraciones registradas mediante `migrationsRun: true`. También mantiene `synchronize: true`; esta combinación está registrada como deuda técnica y no debe usarse en producción sin revisión.
+La configuración de `src/database/database-options.ts` habilita `synchronize` únicamente con `NODE_ENV=development`, sin migraciones automáticas. En producción, pruebas o con el entorno sin definir, desactiva la sincronización y aplica las migraciones registradas al iniciar. El registro único incluye inicialización del esquema y compatibilidad con las migraciones históricas.
 
 Acciones:
 
@@ -103,13 +103,13 @@ Acciones:
    npm run test --workspace=apps/backend -- --runInBand src/migrations/<archivo>.spec.ts
    ```
 
-4. Si falla `AddTaskCollaboration1787788800002`, ejecutar además su integración real con PostgreSQL en una base desechable:
+4. Ejecutar la integración real con PostgreSQL, usando `TEST_DATABASE_URL` de pruebas y un usuario con permiso para crear bases desechables:
 
    ```bash
    npm run test:migrations --workspace=apps/backend
    ```
 
-   Este comando solo valida esa migración. Para cualquier otra, crear o ejecutar una prueba de integración equivalente antes de aplicar la corrección.
+   Este comando incluye `task-collaboration-migration` y `database-startup`: valida colaboración de tareas y la cadena registrada mediante arranque vacío, reinicio, actualización con datos y comparación del esquema con las entidades. No sustituye pruebas dirigidas a casos específicos de la migración que falló; añadirlas cuando la causa no esté cubierta.
 
 5. Comparar el esquema con la versión anterior y revisar el método `down` de la migración.
 6. Restaurar una copia de seguridad si hubo una modificación parcial no recuperable.
@@ -124,15 +124,11 @@ Acciones:
 3. Considerar que un cambio de contraseña incrementa `sessionVersion` e invalida tokens anteriores.
 4. Si la cuenta está deshabilitada, comprobar que conserva `disabledAt` y `disabledAccessSnapshot`; sin ambos datos el guard no puede reconstruir el acceso histórico.
 
-### El login devuelve `403 MEMBER_INACTIVE`
+### Una cuenta inactiva inicia sesión o una inhabilitada no puede escribir
 
-La actividad se deriva de asignaciones vigentes en tareas de proyectos activos. Una cuenta inactiva no puede iniciar sesión, salvo que esté deshabilitada y deba entrar en modo de solo lectura.
+Una cuenta con `activityStatus=inactive` puede iniciar sesión con credenciales válidas. La actividad se deriva de tareas y no es una condición de autenticación. No asignar tareas ni cambiar actividad para habilitar el login.
 
-Acciones:
-
-1. Revisar las tareas, asignaciones y estados de los proyectos del miembro.
-2. No editar `activityStatus` manualmente: corregir la relación de dominio que determina el estado.
-3. Si la cuenta está deshabilitada, verificar su snapshot en lugar de reactivarla solo para permitir una consulta.
+Las cuentas con disponibilidad `disabled` conservan acceso de solo lectura al alcance guardado en su snapshot; una escritura devuelve `403 DISABLED_READ_ONLY`. Verificar `disabledAt` y `disabledAccessSnapshot` si falla una consulta histórica. Ante un `403` distinto, revisar el rol y alcance del recurso, no la actividad del miembro.
 
 ### El login devuelve `429`
 

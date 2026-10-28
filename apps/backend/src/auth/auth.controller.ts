@@ -19,6 +19,8 @@ import type { MemberResponse } from '../members/dto/member-response.dto';
 import { toMemberResponse } from '../members/utils/member-response.util';
 import { AuthResponse, AuthService } from './auth.service';
 import { CurrentMember } from './current-member.decorator';
+import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
+import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 import { BootstrapAuthDto } from './dto/bootstrap-auth.dto';
 import { LoginDto } from './dto/login.dto';
 import { LoginRateLimitService } from './login-rate-limit.service';
@@ -57,8 +59,11 @@ export class AuthController {
 
   @ApiBearerAuth('bearer')
   @Get('me')
-  me(@CurrentMember() member: Member): MemberResponse {
-    return toMemberResponse(member, member.role);
+  me(
+    @CurrentMember() member: Member,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ): MemberResponse {
+    return toMemberResponse(member, accessActor.role);
   }
 
   @ApiBearerAuth('bearer')

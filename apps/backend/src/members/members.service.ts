@@ -221,12 +221,14 @@ export class MembersService {
             await areaMembershipsRepository.remove(existingMembership);
           } else {
             existingMembership.area = null;
+            existingMembership.areaId = null;
             await areaMembershipsRepository.save(existingMembership);
           }
         }
       } else {
         if (existingMembership) {
           existingMembership.area = { id: areaId } as Area;
+          existingMembership.areaId = areaId;
           await areaMembershipsRepository.save(existingMembership);
         } else {
           const newMembership = areaMembershipsRepository.create({

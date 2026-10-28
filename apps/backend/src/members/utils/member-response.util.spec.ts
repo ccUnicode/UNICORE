@@ -60,11 +60,12 @@ describe('toMemberResponse', () => {
     expect(response).not.toHaveProperty('activityStatus');
     expect(response).not.toHaveProperty('availabilityStatus');
     expect(response).not.toHaveProperty('disabledAccessSnapshot');
+    expect(response).not.toHaveProperty('studentCode');
+    expect(response).not.toHaveProperty('skills');
     expect(response).toMatchObject({
       id: member.id,
       firstNames: member.firstNames,
       lastNames: member.lastNames,
-      skills: member.skills,
       role: AreaRole.MIEMBRO,
       areaId: 3,
     });

@@ -25,7 +25,7 @@ Para las pruebas de migraciones:
 - PostgreSQL disponible.
 - Una base exclusiva y desechable.
 - `TEST_DATABASE_URL` apuntando a esa base.
-- Permiso para crear, alterar y eliminar objetos dentro de ella.
+- Permiso para crear, alterar y eliminar objetos dentro de ella, y permiso `CREATEDB` para las bases temporales de `database-startup`.
 
 No ejecutar pruebas de migraciones contra una base compartida, de desarrollo con datos importantes o de producción.
 
@@ -95,7 +95,12 @@ npm run test -- --runInBand src/auth/auth.service.spec.ts
 
 ### Pruebas de migraciones
 
-`npm run test:migrations` usa `apps/backend/test/jest-migrations.json` para ejecutar únicamente `task-collaboration-migration.e2e-spec.ts` contra `TEST_DATABASE_URL`. Este comando permite validar las migraciones de forma focalizada, aunque esa suite también forme parte de `test:e2e`.
+`npm run test:migrations` usa `apps/backend/test/jest-migrations.json` y ejecuta dos suites, también incluidas en `test:e2e`:
+
+- `task-collaboration-migration.e2e-spec.ts`: valida avance y reversión de la migración de colaboración contra `TEST_DATABASE_URL`.
+- `database-startup.e2e-spec.ts`: crea bases temporales `unicore_migration_*`, prueba toda la cadena registrada desde una base vacía, reinicio, actualización con datos y ausencia de diferencias entre entidades y esquema, y elimina esas bases al terminar.
+
+El setup exige `TEST_DATABASE_URL` y la copia a `DATABASE_URL` antes de importar la aplicación. Usar exclusivamente PostgreSQL desechable; las E2E generales pueden escribir y limpiar datos de la base indicada.
 
 La suite debe comprobar tanto el avance como la reversión del esquema que cubre. Cuando se agregue una migración nueva, debe añadirse o extenderse una prueba que parta de un estado representativo del esquema anterior.
 
