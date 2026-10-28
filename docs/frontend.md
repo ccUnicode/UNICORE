@@ -72,11 +72,12 @@ La navegación usa rutas persistentes: `/dashboard/areas`, `/dashboard/areas/:id
 * **Alta contextual**: Directiva puede abrir `/dashboard/members/new?areaId=<id>` desde su propia área para crear un miembro ya vinculado a ella.
 * **Perfil seguro**: `member-profile-client.ts` separa la carga y actualización del perfil; la interfaz no muestra mensajes internos crudos de la API.
 
+Las etiquetas admiten texto libre y reutilizan sugerencias sin duplicados por diferencias de mayúsculas o acentos.
+
 #### B. Gestión de Proyectos (`project-management.tsx`)
 * **Listado y Filtros**: Proyectos organizados por área, archivado y estado (`planned`, `active`, `on_hold`, `completed`, `cancelled`).
 * **Fases del Proyecto**: Vista para reordenar, agregar o eliminar fases del proyecto.
-* **Conformación de Equipos**: Modal para agregar miembros al equipo filtrando por elegibilidad derivada de actividad, disponibilidad, membresía de área y habilidades requeridas.
-* **Etiquetas**: admite texto libre y reutiliza sugerencias sin duplicados por diferencias de mayúsculas o acentos.
+* **Conformación de Equipos**: Modal para agregar miembros al equipo filtrando exclusivamente por disponibilidad y habilidades requeridas.
 
 #### C. Gestión de Tareas / Tablero Kanban (`task-management.tsx`)
 * Tablero por columnas: **Por hacer (ToDo)**, **En progreso**, **En revisión**, **Hecho**.
