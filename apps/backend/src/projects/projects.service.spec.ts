@@ -34,8 +34,10 @@ import { ProjectMembership } from './entities/project-membership.entity';
 import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
-import { ProjectsService } from './projects.service';
+import { calculateTaskProgress, ProjectsService } from './projects.service';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { Task } from '../tasks/entities/task.entity';
+import { TaskStatus } from '../tasks/enums/task-status.enum';
 import { AuditService } from '../audit/audit.service';
 
 type RepositoryMethodMocks<T extends ObjectLiteral> = Partial<
@@ -57,6 +59,7 @@ type ProjectLinkRepositoryMock = RepositoryMethodMocks<ProjectLink>;
 type ProjectMembershipRepositoryMock = RepositoryMethodMocks<ProjectMembership>;
 type MemberRepositoryMock = RepositoryMethodMocks<Member>;
 type TaskAssigneeRepositoryMock = RepositoryMethodMocks<TaskAssignee>;
+type TaskRepositoryMock = RepositoryMethodMocks<Task>;
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -78,6 +81,13 @@ const createProjectPhase = (
   orderIndex: 1,
   projectId: 1,
   project: {} as Project,
+  totalTasks: 0,
+  completedTasks: 0,
+  progress: 0,
+  progressPercentage: 0,
+  isCompleted: false,
+  isComplete: false,
+  hasTasks: false,
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,
@@ -124,6 +134,13 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     labels: [],
     links: [],
     memberships: [],
+    totalTasks: 0,
+    completedTasks: 0,
+    progress: 0,
+    progressPercentage: 0,
+    isCompleted: false,
+    isComplete: false,
+    hasTasks: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -206,6 +223,7 @@ describe('ProjectsService', () => {
   let projectMembershipsRepository: ProjectMembershipRepositoryMock;
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
+  let tasksRepository: TaskRepositoryMock;
   let auditService: jest.Mocked<AuditService>;
   let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
   let memberActivityService: jest.Mocked<MemberActivityService>;
@@ -273,6 +291,9 @@ describe('ProjectsService', () => {
     taskAssigneesRepository = {
       findOne: jest.fn(),
     };
+    tasksRepository = {
+      find: jest.fn().mockResolvedValue([]),
+    };
     const getRepository = jest.fn(
       (
         entity:
@@ -282,7 +303,8 @@ describe('ProjectsService', () => {
           | typeof ProjectLink
           | typeof ProjectMembership
           | typeof Member
-          | typeof TaskAssignee,
+          | typeof TaskAssignee
+          | typeof Task,
       ) => {
         if (entity === Project) return projectsRepository;
         if (entity === ProjectPhase) return projectPhasesRepository;
@@ -290,6 +312,7 @@ describe('ProjectsService', () => {
         if (entity === ProjectMembership) return projectMembershipsRepository;
         if (entity === Member) return membersRepository;
         if (entity === TaskAssignee) return taskAssigneesRepository;
+        if (entity === Task) return tasksRepository;
         return projectLinksRepository;
       },
     );
@@ -340,6 +363,10 @@ describe('ProjectsService', () => {
         {
           provide: getRepositoryToken(TaskAssignee),
           useValue: taskAssigneesRepository,
+        },
+        {
+          provide: getRepositoryToken(Task),
+          useValue: tasksRepository,
         },
         {
           provide: AreaService,
@@ -1518,6 +1545,226 @@ describe('ProjectsService', () => {
         ),
       );
       expect(projectMembershipsRepository.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('progress calculation per phase and project [FR-43, FR-44]', () => {
+    describe('calculateTaskProgress formula', () => {
+      it('Case 1: Fase con 4 tareas, 3 en "Hecho" -> 75 %, no completa', () => {
+        const tasks = [
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.IN_PROGRESS },
+        ];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 4,
+          completedTasks: 3,
+          progress: 75,
+          progressPercentage: 75,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: true,
+        });
+      });
+
+      it('Case 2: Fase con 4 tareas, 4 en "Hecho" -> 100 %, completa', () => {
+        const tasks = [
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+        ];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 4,
+          completedTasks: 4,
+          progress: 100,
+          progressPercentage: 100,
+          isCompleted: true,
+          isComplete: true,
+          hasTasks: true,
+        });
+      });
+
+      it('Case 3: Fase sin tareas -> 0 %, marcada como "sin tareas", no completa', () => {
+        const tasks: Array<{ status: TaskStatus }> = [];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 0,
+          completedTasks: 0,
+          progress: 0,
+          progressPercentage: 0,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: false,
+        });
+      });
+
+      it('Case 4: Proyecto con 10 tareas, 2 sin fase, 5 en "Hecho" -> 50 %', () => {
+        const tasks = [
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.TODO },
+          { status: TaskStatus.TODO },
+          { status: TaskStatus.IN_PROGRESS },
+          { status: TaskStatus.IN_PROGRESS },
+          { status: TaskStatus.IN_REVIEW },
+        ];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 10,
+          completedTasks: 5,
+          progress: 50,
+          progressPercentage: 50,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: true,
+        });
+      });
+
+      it('Case 5: Proyecto sin tareas -> 0 %, "sin tareas"', () => {
+        const tasks: Array<{ status: TaskStatus }> = [];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 0,
+          completedTasks: 0,
+          progress: 0,
+          progressPercentage: 0,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: false,
+        });
+      });
+    });
+
+    describe('service integration: phases and projects progress', () => {
+      it('calculates phase progress correctly for Case 1, 2, and 3 via findPhases', async () => {
+        const phase1 = createProjectPhase({ id: 10, name: 'Planificación' });
+        const phase2 = createProjectPhase({ id: 20, name: 'Ejecución' });
+        const phase3 = createProjectPhase({ id: 30, name: 'Revisión' });
+
+        projectsRepository.findOne?.mockResolvedValue(createProject({ id: 1 }));
+        projectPhasesRepository.find?.mockResolvedValue([
+          phase1,
+          phase2,
+          phase3,
+        ]);
+
+        const mockTasks = [
+          // Phase 1 (Case 1: 4 tasks, 3 DONE)
+          { id: 1, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 2, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 3, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 4, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          // Phase 2 (Case 2: 4 tasks, 4 DONE)
+          { id: 5, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          { id: 6, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          { id: 7, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          { id: 8, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          // Phase 3 (Case 3: 0 tasks)
+        ] as Task[];
+
+        tasksRepository.find?.mockResolvedValue(mockTasks);
+
+        const result = await service.findPhases(1, presidencyActor);
+
+        // Case 1 verification
+        expect(result[0].totalTasks).toBe(4);
+        expect(result[0].completedTasks).toBe(3);
+        expect(result[0].progress).toBe(75);
+        expect(result[0].isCompleted).toBe(false);
+        expect(result[0].hasTasks).toBe(true);
+
+        // Case 2 verification
+        expect(result[1].totalTasks).toBe(4);
+        expect(result[1].completedTasks).toBe(4);
+        expect(result[1].progress).toBe(100);
+        expect(result[1].isCompleted).toBe(true);
+        expect(result[1].hasTasks).toBe(true);
+
+        // Case 3 verification
+        expect(result[2].totalTasks).toBe(0);
+        expect(result[2].completedTasks).toBe(0);
+        expect(result[2].progress).toBe(0);
+        expect(result[2].isCompleted).toBe(false);
+        expect(result[2].hasTasks).toBe(false);
+      });
+
+      it('Case 4: calculates project progress with 10 tasks, 2 without phase, 5 DONE', async () => {
+        const phase1 = createProjectPhase({ id: 10, name: 'Fase 1' });
+        const project = createProject({
+          id: 1,
+          phases: [phase1],
+        });
+
+        projectsRepository.findOne?.mockResolvedValue(project);
+
+        const mockTasks = [
+          // 8 tasks in Phase 1 (3 DONE, 5 IN_PROGRESS)
+          { id: 1, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 2, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 3, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 4, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 5, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 6, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 7, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 8, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          // 2 tasks without phase (phaseId: null) (2 DONE) -> total 5 DONE out of 10
+          { id: 9, phaseId: null, projectId: 1, status: TaskStatus.DONE },
+          { id: 10, phaseId: null, projectId: 1, status: TaskStatus.DONE },
+        ] as Task[];
+
+        tasksRepository.find?.mockResolvedValue(mockTasks);
+
+        const result = await service.findOne(1, presidencyActor);
+
+        // Project totals include unphased tasks
+        expect(result.totalTasks).toBe(10);
+        expect(result.completedTasks).toBe(5);
+        expect(result.progress).toBe(50);
+        expect(result.hasTasks).toBe(true);
+        expect(result.isCompleted).toBe(false);
+
+        // Phase 1 totals DO NOT include unphased tasks
+        expect(result.phases[0].totalTasks).toBe(8);
+        expect(result.phases[0].completedTasks).toBe(3);
+        expect(result.phases[0].progress).toBe(38); // 3/8 = 37.5% -> rounded to 38%
+        expect(result.phases[0].hasTasks).toBe(true);
+        expect(result.phases[0].isCompleted).toBe(false);
+      });
+
+      it('Case 5: calculates project progress with 0 tasks (empty project)', async () => {
+        const project = createProject({
+          id: 1,
+          phases: [],
+        });
+
+        projectsRepository.findOne?.mockResolvedValue(project);
+        tasksRepository.find?.mockResolvedValue([]);
+
+        const result = await service.findOne(1, presidencyActor);
+
+        expect(result.totalTasks).toBe(0);
+        expect(result.completedTasks).toBe(0);
+        expect(result.progress).toBe(0);
+        expect(result.hasTasks).toBe(false);
+        expect(result.isCompleted).toBe(false);
+      });
     });
   });
 });
