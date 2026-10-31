@@ -433,10 +433,28 @@ describe('TasksService', () => {
       expect(tasksRepository.save).not.toHaveBeenCalled();
     });
 
-    it('rejects unavailable assignees', async () => {
+    it('allows assignees with NOT_AVAILABLE availability status per FR-55', async () => {
       const membership = createMembership({
         member: createMember({
           availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
+        }),
+      });
+
+      projectsRepository.findOne.mockResolvedValue(createProject());
+      projectPhasesRepository.findOne.mockResolvedValue(createPhase());
+      projectMembershipsRepository.find.mockResolvedValue([membership]);
+      tasksRepository.findOne.mockResolvedValue(createTask());
+
+      await expect(
+        service.create(createTaskDto, presidencyActor),
+      ).resolves.toEqual(expect.objectContaining({ id: 1 }));
+      expect(tasksRepository.save).toHaveBeenCalled();
+    });
+
+    it('rejects assignees with DISABLED availability status', async () => {
+      const membership = createMembership({
+        member: createMember({
+          availabilityStatus: MemberAvailabilityStatus.DISABLED,
         }),
       });
 
@@ -857,9 +875,9 @@ describe('TasksService', () => {
     ]);
   });
 
-  it('keeps existing unavailable assignees when editing a task', async () => {
+  it('allows reassigning/adding assignees with NOT_AVAILABLE status to a task per FR-55', async () => {
     const task = createTask();
-    const existingMembership = createMembership({
+    const unavailableMembership = createMembership({
       id: 2,
       memberId: 2,
       member: createMember({
@@ -870,10 +888,10 @@ describe('TasksService', () => {
 
     tasksRepository.findOne.mockResolvedValue(task);
     projectsRepository.findOne.mockResolvedValue(task.project);
-    taskAssigneesRepository.find.mockResolvedValue([
-      { taskId: task.id, memberId: 2 } as TaskAssignee,
+    taskAssigneesRepository.find.mockResolvedValue([]);
+    projectMembershipsRepository.find.mockResolvedValue([
+      unavailableMembership,
     ]);
-    projectMembershipsRepository.find.mockResolvedValue([existingMembership]);
 
     await expect(
       service.setAssignees(1, { memberIds: [2] }, presidencyActor),
@@ -881,6 +899,106 @@ describe('TasksService', () => {
     expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
       expect.objectContaining({ taskId: 1, memberId: 2 }),
     ]);
+  });
+
+  it('rejects reassigning to an assignee with DISABLED status', async () => {
+    const task = createTask();
+    const disabledMembership = createMembership({
+      id: 2,
+      memberId: 2,
+      member: createMember({
+        id: 2,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      }),
+    });
+
+    tasksRepository.findOne.mockResolvedValue(task);
+    projectsRepository.findOne.mockResolvedValue(task.project);
+    taskAssigneesRepository.find.mockResolvedValue([]);
+    projectMembershipsRepository.find.mockResolvedValue([disabledMembership]);
+
+    await expect(
+      service.setAssignees(1, { memberIds: [2] }, presidencyActor),
+    ).rejects.toThrow(
+      new BadRequestException('Member 2 is not eligible for task assignment'),
+    );
+    expect(taskAssigneesRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('conserva al responsable existente inhabilitado', async () => {
+    const task = createTask();
+    const existingDisabledMembership = createMembership({
+      id: 2,
+      memberId: 2,
+      member: createMember({
+        id: 2,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      }),
+    });
+    const newMembership = createMembership({
+      id: 3,
+      memberId: 3,
+      member: createMember({
+        id: 3,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+      }),
+    });
+
+    tasksRepository.findOne.mockResolvedValue(task);
+    projectsRepository.findOne.mockResolvedValue(task.project);
+    taskAssigneesRepository.find.mockResolvedValue([
+      { taskId: task.id, memberId: 2 } as TaskAssignee,
+    ]);
+    projectMembershipsRepository.find.mockResolvedValue([
+      existingDisabledMembership,
+      newMembership,
+    ]);
+
+    await expect(
+      service.setAssignees(1, { memberIds: [2, 3] }, presidencyActor),
+    ).resolves.toEqual(expect.objectContaining({ id: 1 }));
+    expect(taskAssigneesRepository.delete).toHaveBeenCalledWith({ taskId: 1 });
+    expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
+      expect.objectContaining({ taskId: 1, memberId: 2 }),
+      expect.objectContaining({ taskId: 1, memberId: 3 }),
+    ]);
+  });
+
+  it('rechaza a un inhabilitado nuevo', async () => {
+    const task = createTask();
+    const existingMembership = createMembership({
+      id: 1,
+      memberId: 1,
+      member: createMember({
+        id: 1,
+        availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
+      }),
+    });
+    const newDisabledMembership = createMembership({
+      id: 2,
+      memberId: 2,
+      member: createMember({
+        id: 2,
+        availabilityStatus: MemberAvailabilityStatus.DISABLED,
+      }),
+    });
+
+    tasksRepository.findOne.mockResolvedValue(task);
+    projectsRepository.findOne.mockResolvedValue(task.project);
+    taskAssigneesRepository.find.mockResolvedValue([
+      { taskId: task.id, memberId: 1 } as TaskAssignee,
+    ]);
+    projectMembershipsRepository.find.mockResolvedValue([
+      existingMembership,
+      newDisabledMembership,
+    ]);
+
+    await expect(
+      service.setAssignees(1, { memberIds: [1, 2] }, presidencyActor),
+    ).rejects.toThrow(
+      new BadRequestException('Member 2 is not eligible for task assignment'),
+    );
+    expect(taskAssigneesRepository.save).not.toHaveBeenCalled();
   });
 
   it('rejects mutations on archived projects', async () => {
