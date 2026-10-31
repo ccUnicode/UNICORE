@@ -43,4 +43,12 @@ export class ProjectPhase {
 
   @UpdateDateColumn({ name: 'updated_at' })
   updatedAt: Date;
+
+  totalTasks?: number;
+  completedTasks?: number;
+  progress?: number;
+  progressPercentage?: number;
+  isCompleted?: boolean;
+  isComplete?: boolean;
+  hasTasks?: boolean;
 }
