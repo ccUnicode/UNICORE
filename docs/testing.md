@@ -2,14 +2,16 @@
 
 Este documento detalla la estrategia de pruebas automatizadas, los tipos de prueba implementados y los comandos para ejecutarlas en **UNICORE**.
 
+La [referencia detallada de pruebas](pruebas-detalladas.md) explica requisitos de PostgreSQL desechable, aislamiento E2E, alcance de migraciones, OpenAPI y limitaciones. Antes de ejecutar `test:migrations`, configurar `TEST_DATABASE_URL` con un usuario con permiso `CREATEDB`; nunca usar bases compartidas.
+
 ---
 
 ## 🧪 Estrategia y Cobertura de Pruebas
 
 El proyecto cuenta con un entorno de pruebas automatizado dividido en dos niveles:
 
-1. **Backend (NestJS)**: Pruebas unitarias, de integración y de migraciones con **Jest** (33 Test Suites, 280 pruebas).
-2. **Frontend (Next.js)**: Pruebas unitarias e integración con el **Node.js Test Runner** nativo y `jsdom` (5 Test Suites, 20 pruebas).
+1. **Backend (NestJS)**: Pruebas unitarias, de integración y de migraciones con **Jest** (el total vigente se obtiene del reporte de Jest).
+2. **Frontend (Next.js)**: Pruebas unitarias e integración con el **Node.js Test Runner** nativo y `jsdom` (el total vigente se obtiene del reporte del runner).
 
 ---
 
@@ -77,5 +79,5 @@ npm run test
 Ningún Pull Request debe integrarse a la rama `main` sin cumplir lo siguiente:
 
 1. **Compilación Limpia**: `npm run type-check` debe terminar con código de salida `0`.
-2. **0 Fallos en Pruebas**: Todas las 38 suites de prueba deben pasar al 100%.
+2. **0 Fallos en Pruebas**: Todas las suites ejecutadas deben pasar al 100%; las pruebas PostgreSQL requieren una base desechable explícita.
 3. **No Regresiones**: Si se agrega un nuevo endpoint o regla de negocio en backend, se debe incluir su archivo `.spec.ts` correspondiente.

@@ -9,6 +9,7 @@ import {
   Put,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { Public } from '../common/decorators/public.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -56,6 +57,7 @@ export class AuthController {
     }
   }
 
+  @ApiBearerAuth('bearer')
   @Get('me')
   me(
     @CurrentMember() member: Member,
@@ -64,6 +66,7 @@ export class AuthController {
     return toMemberResponse(member, accessActor.role);
   }
 
+  @ApiBearerAuth('bearer')
   @Put('members/:memberId/password')
   @UseGuards(RolesGuard)
   @Roles(AreaRole.PRESIDENCIA)

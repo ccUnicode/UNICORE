@@ -40,13 +40,16 @@ erDiagram
         int session_version
         enum activity_status
         enum availability_status
+        timestamptz disabled_at
+        jsonb disabled_access_snapshot
         timestamp created_at
         timestamp updated_at
     }
 
     skills {
         int id PK
-        varchar name UK
+        varchar name
+        varchar normalized_name UK
         timestamp created_at
         timestamp updated_at
     }
@@ -185,8 +188,8 @@ erDiagram
 
 ### Miembros, habilidades y áreas
 
-- `members` identifica de forma única la combinación `institution + student_code`. Usa `first_names`, `last_names`, `major`, `birth_date`, `activity_status` (`active`, `inactive`) y `availability_status` (`available`, `not_available`, `disabled`).
-- `skills.name` es único. La relación muchos-a-muchos se materializa mediante la tabla de unión generada por TypeORM para `Member.skills`.
+- `members` identifica de forma única la combinación `institution + student_code`. Usa `first_names`, `last_names`, `major`, `birth_date`, `activity_status` (`active`, `inactive`) y `availability_status` (`available`, `not_available`, `disabled`). Al desactivar conserva `disabled_at` y un `disabled_access_snapshot` JSONB con rol, área y proyectos visibles.
+- `skills.normalized_name` es único y permite comparar nombres sin distinguir mayúsculas ni acentos. La relación muchos-a-muchos se materializa mediante la tabla de unión generada por TypeORM para `Member.skills`.
 - `area_memberships` es única por `member_id + area_id`; sus roles válidos son `presidencia`, `directiva_de_area` y `miembro`. `area_id` puede ser nulo para una membresía global de Presidencia.
 - `areas.isArchived` implementa archivado lógico.
 
