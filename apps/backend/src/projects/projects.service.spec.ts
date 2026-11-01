@@ -756,12 +756,10 @@ describe('ProjectsService', () => {
       id: membership.member.id,
       firstNames: membership.member.firstNames,
       lastNames: membership.member.lastNames,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       isEligible: true,
     });
     expect(result.memberships[0].member).not.toHaveProperty('activityStatus');
-    expect(result.memberships[0].member).not.toHaveProperty(
-      'availabilityStatus',
-    );
     expect(projectsRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1 },
       relations: [
@@ -779,6 +777,50 @@ describe('ProjectsService', () => {
       },
     });
   });
+
+  it.each([
+    MemberAvailabilityStatus.AVAILABLE,
+    MemberAvailabilityStatus.NOT_AVAILABLE,
+    MemberAvailabilityStatus.DISABLED,
+  ])(
+    'hides availability from project members while retaining eligibility for %s',
+    async (availabilityStatus) => {
+      const membership = createProjectMembership({
+        member: createMember({ availabilityStatus }),
+      });
+      projectsRepository.findOne?.mockResolvedValue(
+        createProject({ memberships: [membership] }),
+      );
+
+      const result = await service.findOne(1, {
+        ...memberActor,
+        projectIds: ['1'],
+      });
+
+      expect(result.memberships[0].member).not.toHaveProperty(
+        'availabilityStatus',
+      );
+      expect(
+        (result.memberships[0].member as unknown as { isEligible: boolean })
+          .isEligible,
+      ).toBe(availabilityStatus !== MemberAvailabilityStatus.DISABLED);
+    },
+  );
+
+  it.each([presidencyActor, areaLeaderActor])(
+    'retains availability for internal-field viewers with role $role',
+    async (actor) => {
+      projectsRepository.findOne?.mockResolvedValue(
+        createProject({ memberships: [createProjectMembership()] }),
+      );
+
+      const result = await service.findOne(1, actor);
+
+      expect(result.memberships[0].member.availabilityStatus).toBe(
+        MemberAvailabilityStatus.AVAILABLE,
+      );
+    },
+  );
 
   it('rejects project detail when the project does not exist', async () => {
     projectsRepository.findOne?.mockResolvedValue(null);
