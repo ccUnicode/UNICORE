@@ -67,7 +67,7 @@ Dispone de una barra de navegación superior con el perfil del usuario logueado 
 #### B. Gestión de Proyectos (`project-management.tsx`)
 * **Listado y Filtros**: Proyectos organizados por área, archivado y estado (`planned`, `active`, `on_hold`, `completed`, `cancelled`).
 * **Fases del Proyecto**: Vista para reordenar, agregar o eliminar fases del proyecto.
-* **Conformación de Equipos**: Modal para agregar miembros al equipo filtrando exclusivamente por disponibilidad y habilidades requeridas.
+* **Conformación de Equipos**: Modal para agregar miembros al equipo filtrando por habilidades requeridas; se permiten miembros *No disponible* (con su etiqueta visible) y solo se excluye a los *Inhabilitados*.
 
 #### C. Gestión de Tareas / Tablero Kanban (`task-management.tsx`)
 * Tablero por columnas: **Por hacer (ToDo)**, **En progreso**, **En revisión**, **Hecho**.
