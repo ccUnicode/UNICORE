@@ -10,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { AreaMembershipsService } from './area-memberships.service';
 import { CreateAreaMembershipDto } from './dto/create-area-membership.dto';
 import { PaginationDto } from '../common/dto/pagination.dto';
@@ -22,6 +23,7 @@ import { UpdateAreaMembershipDto } from './dto/update-area-membership.dto';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import type { RequestAccessActor } from '../common/interfaces/request-access-actor.interface';
 
+@ApiBearerAuth('bearer')
 @Controller('area-memberships')
 @UseGuards(RolesGuard)
 export class AreaMembershipsController {
