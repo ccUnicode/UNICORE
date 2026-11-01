@@ -73,7 +73,7 @@ const createProjectPhase = (
   overrides: Partial<ProjectPhase> = {},
 ): ProjectPhase => ({
   id: 1,
-  name: 'Planning',
+  name: 'Planificación',
   description: null,
   orderIndex: 1,
   projectId: 1,
@@ -422,25 +422,25 @@ describe('ProjectsService', () => {
     expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
     expect(projectPhasesRepository.save).toHaveBeenCalledWith([
       expect.objectContaining({
-        name: 'Planning',
+        name: 'Planificación',
         description: null,
         orderIndex: 1,
         projectId: project.id,
       }),
       expect.objectContaining({
-        name: 'Execution',
+        name: 'Ejecución',
         description: null,
         orderIndex: 2,
         projectId: project.id,
       }),
       expect.objectContaining({
-        name: 'Review',
+        name: 'Revisión',
         description: null,
         orderIndex: 3,
         projectId: project.id,
       }),
       expect.objectContaining({
-        name: 'Launch',
+        name: 'Lanzamiento',
         description: null,
         orderIndex: 4,
         projectId: project.id,
