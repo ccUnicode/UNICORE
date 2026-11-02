@@ -31,6 +31,7 @@ Fuente de verdad revisada: controllers, DTOs, enums y guards de `apps/backend/sr
 | `GET /areas/:id`               | `presidencia`, `directiva_de_area` | Path `id` entero                                         | `Area`                                                               | Directiva solo puede consultar su propia área.                                    |
 | `PATCH /areas/:id`             | `presidencia`                      | Body parcial `{ name?, description? }`                   | `Area`                                                               | El nombre continúa siendo único.                                                  |
 | `PATCH /areas/:id/archive`     | `presidencia`                      | `{ confirmName: string(1..255) }`                        | `Area` con `isArchived: true`                                        | `confirmName` debe coincidir exactamente con el nombre del área.                  |
+| `PATCH /areas/:id/restore` | `presidencia` | Path `id` entero; sin body | `Area` con `isArchived: false` | `404` si no existe; `403` para Directiva y Miembro. Conserva las membresías y no restaura proyectos en cascada. Si ya está activa, no genera otra escritura ni evento. |
 | `POST /area-memberships`       | `presidencia`                      | `{ memberId: int>0, areaId: int>0, role: AreaRole }`     | `AreaMembership` (`201`)                                             | Combinación miembro/área única; valida existencia y reglas del rol.               |
 | `PATCH /area-memberships/:id`  | `presidencia`                      | `{ areaId?: int>0, role?: AreaRole }`                    | `AreaMembership`                                                     | Actualización parcial; conserva unicidad miembro/área.                            |
 | `DELETE /area-memberships/:id` | `presidencia`                      | Path `id` entero; sin body                               | `AreaMembership` eliminado                                           | No usa `confirmName`; valida que la eliminación no viole reglas organizacionales. |
@@ -65,6 +66,7 @@ Estados de proyecto válidos: `planned`, `active`, `on_hold`, `completed`, `canc
 | `GET /projects/:id`                           | Todos los roles                    | Path `id` entero                                                                                         | Proyecto con relaciones de detalle      | `miembro` debe pertenecer al proyecto; Directiva, al área.                                                                |
 | `PATCH /projects/:id`                         | `presidencia`, `directiva_de_area` | Parcial `{ name?, description?: string                                                                   | null, startDate?: string                | null, endDate?: string                                                                                                    | null, areaId?, status?, labels?, links? }` | Proyecto actualizado | Campos no anulables rechazan `null`; Directiva queda limitada a su área. |
 | `PATCH /projects/:id/archive`                 | `presidencia`, `directiva_de_area` | Sin body                                                                                                 | `Project` con `isArchived: true`        | No cambia `status` ni requiere `confirmName`.                                                                             |
+| `PATCH /projects/:id/restore` | `presidencia` | Path `id` entero; sin body | `Project` con `isArchived: false` | `404` si no existe; `403` para Directiva y Miembro. Conserva estado, fases, tareas y equipo; recalcula actividad y disponibilidad. No restaura su área. Si ya está activo, no genera otra escritura ni evento. |
 | `GET /projects/:projectId/phases`             | Todos los roles                    | Path `projectId` entero                                                                                  | `ProjectPhase[]` ordenado               | Requiere acceso al proyecto.                                                                                              |
 | `POST /projects/:projectId/phases`            | `presidencia`, `directiva_de_area` | `{ name: string(1..255), description?: string(<=2000) }`                                                 | `ProjectPhase` (`201`)                  | `orderIndex` se asigna en el servicio.                                                                                    |
 | `PATCH /projects/:projectId/phases/reorder`   | `presidencia`, `directiva_de_area` | `{ phaseIds: int[] }`, no vacío y sin duplicados                                                         | `ProjectPhase[]`                        | Debe incluir una secuencia válida del proyecto.                                                                           |
@@ -92,6 +94,8 @@ Estados: `todo`, `in_progress`, `in_review`, `done`. Prioridades: `low`, `medium
 
 ## Auditoría
 
+Las restauraciones de áreas y proyectos registran la acción `restore`, con `entityType` igual a `Area` o `Project` y el ID de la entidad restaurada, mediante el mecanismo de auditoría existente.
+
 | Método y ruta | Auth / roles                       | Entrada                                                                               | Respuesta                                                        | Errores y reglas de negocio                                                                  |
 | :------------ | :--------------------------------- | :------------------------------------------------------------------------------------ | :--------------------------------------------------------------- | :------------------------------------------------------------------------------------------- |
 | `GET /audit`  | `presidencia`, `directiva_de_area` | Query `page?`, `limit?`, `actorId?`, `action?`, `entityType?`, `dateFrom?`, `dateTo?` | `{ data: AuditEvent[], meta: { total, page, limit, lastPage } }` | El filtro correcto es `entityType`, no `targetEntity`; Directiva solo ve eventos de su área. |
@@ -99,16 +103,3 @@ Estados: `todo`, `in_progress`, `in_review`, `done`. Prioridades: `low`, `medium
 ### Fases iniciales de proyectos
 
 Los proyectos nuevos comienzan con las fases Planificación, Ejecución, Revisión y Lanzamiento.
-
-
-## Restauración de archivados (UNI2-81)
-
-- `PATCH /areas/:id/restore` y `PATCH /projects/:id/restore`, sin cuerpo.
-- Solo Presidencia. Directiva y Miembro reciben `403`; se requiere autenticación.
-- Devuelven `200` con la entidad restaurada (`isArchived: false`); ID inexistente: `404`.
-- Repetir la petición sobre una entidad activa no genera otra escritura ni otro evento.
-- Conserva IDs, estado del proyecto, fases, tareas, responsables y equipo; no recrea contenido.
-- Restaurar un área no restaura sus proyectos archivados en cascada. Restaurar un proyecto no modifica el archivado de su área.
-- La restauración del proyecto recalcula actividad y disponibilidad de sus responsables dentro de la transacción.
-- Auditoría: acción `restore`, tipo `Area` o `Project` e ID de entidad, mediante el mecanismo existente.
-- No requiere migración ni incluye pantalla de restauración.
