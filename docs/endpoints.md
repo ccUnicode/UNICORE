@@ -99,3 +99,16 @@ Estados: `todo`, `in_progress`, `in_review`, `done`. Prioridades: `low`, `medium
 ### Fases iniciales de proyectos
 
 Los proyectos nuevos comienzan con las fases Planificación, Ejecución, Revisión y Lanzamiento.
+
+
+## Restauración de archivados (UNI2-81)
+
+- `PATCH /areas/:id/restore` y `PATCH /projects/:id/restore`, sin cuerpo.
+- Solo Presidencia. Directiva y Miembro reciben `403`; se requiere autenticación.
+- Devuelven `200` con la entidad restaurada (`isArchived: false`); ID inexistente: `404`.
+- Repetir la petición sobre una entidad activa no genera otra escritura ni otro evento.
+- Conserva IDs, estado del proyecto, fases, tareas, responsables y equipo; no recrea contenido.
+- Restaurar un área no restaura sus proyectos archivados en cascada. Restaurar un proyecto no modifica el archivado de su área.
+- La restauración del proyecto recalcula actividad y disponibilidad de sus responsables dentro de la transacción.
+- Auditoría: acción `restore`, tipo `Area` o `Project` e ID de entidad, mediante el mecanismo existente.
+- No requiere migración ni incluye pantalla de restauración.

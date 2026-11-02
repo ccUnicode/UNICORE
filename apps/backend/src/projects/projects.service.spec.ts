@@ -939,6 +939,71 @@ describe('ProjectsService', () => {
     );
   });
 
+  it('restores projects while preserving phases, team and status', async () => {
+    const project = createProject({
+      isArchived: true,
+      phases: [createProjectPhase()],
+      memberships: [createProjectMembership()],
+      tasks: [{ id: 42 } as import('../tasks/entities/task.entity').Task],
+    });
+    const tasks = project.tasks;
+    const phases = project.phases;
+    const memberships = project.memberships;
+    const status = project.status;
+    projectsRepository.findOne?.mockResolvedValue(project);
+    projectsRepository.save?.mockResolvedValue(project);
+    await expect(service.restore(1, presidencyActor)).resolves.toMatchObject({
+      isArchived: false,
+      status,
+    });
+    expect(project.tasks).toBe(tasks);
+    expect(project.phases).toBe(phases);
+    expect(project.memberships).toBe(memberships);
+    expect(memberActivityService.refreshProjectMembers).toHaveBeenCalledWith(
+      1,
+      expect.anything(),
+    );
+    expect(
+      memberAvailabilityService.refreshProjectMembers,
+    ).toHaveBeenCalledWith(1, expect.anything());
+    expect(auditService.record).toHaveBeenCalledWith(
+      presidencyActor,
+      expect.objectContaining({
+        action: 'restore',
+        entityType: 'Project',
+        entityId: 1,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it.each([AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO])(
+    'rejects project restoration by %s',
+    async (role) => {
+      await expect(service.restore(1, { role })).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(projectsRepository.save).not.toHaveBeenCalled();
+      expect(projectsRepository.findOne).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns 404 for missing projects on restoration', async () => {
+    projectsRepository.findOne?.mockResolvedValue(null);
+    await expect(service.restore(99, presidencyActor)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(projectsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate restoration or audit for active projects', async () => {
+    projectsRepository.findOne?.mockResolvedValue(createProject());
+    await service.restore(1, presidencyActor);
+    expect(projectsRepository.save).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
+    expect(memberActivityService.refreshProjectMembers).not.toHaveBeenCalled();
+  });
+
   it('archives projects', async () => {
     const project = createProject();
     const archivedProject = { ...project, isArchived: true };

@@ -354,6 +354,46 @@ export class ProjectsService {
     return this.findOne(id, accessActor);
   }
 
+  async restore(id: number, accessActor: RequestAccessActor): Promise<Project> {
+    if (accessActor.role !== AreaRole.PRESIDENCIA) {
+      throw new ForbiddenException('Only Presidencia can restore projects');
+    }
+    await this.projectsRepository.manager.transaction(async (entityManager) => {
+      const projectsRepository = entityManager.getRepository(Project);
+      const project = await this.findProjectForUpdate(
+        id,
+        projectsRepository,
+        accessActor,
+      );
+      if (!project.isArchived) return;
+      project.isArchived = false;
+
+      const savedProject = await projectsRepository.save(project);
+      await this.memberActivityService.refreshProjectMembers(
+        savedProject.id,
+        entityManager,
+      );
+      await this.memberAvailabilityService.refreshProjectMembers(
+        savedProject.id,
+        entityManager,
+      );
+
+      await this.auditService.record(
+        accessActor,
+        {
+          action: 'restore',
+          entityType: 'Project',
+          entityId: savedProject.id,
+          areaId: savedProject.areaId,
+          metadata: { name: savedProject.name },
+        },
+        entityManager,
+      );
+    });
+
+    return this.findOne(id, accessActor);
+  }
+
   async findPhases(
     projectId: number,
     accessActor: RequestAccessActor,
