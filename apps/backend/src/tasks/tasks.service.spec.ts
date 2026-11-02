@@ -860,6 +860,10 @@ describe('TasksService', () => {
     await expect(
       service.setAssignees(1, { memberIds: [2, 3] }, presidencyActor),
     ).resolves.toEqual(expect.objectContaining({ id: 1 }));
+    expect(projectsRepository.findOne).toHaveBeenCalledWith({
+      where: { id: task.projectId },
+      lock: { mode: 'pessimistic_write' },
+    });
     expect(taskAssigneesRepository.delete).toHaveBeenCalledWith({ taskId: 1 });
     expect(taskAssigneesRepository.save).toHaveBeenCalledWith([
       expect.objectContaining({

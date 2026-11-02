@@ -172,8 +172,11 @@ export class ProjectsService {
     return project;
   }
 
-  private async findProjectDetails(id: number): Promise<Project> {
-    const project = await this.projectsRepository.findOne({
+  private async findProjectDetails(
+    id: number,
+    repository: Repository<Project> = this.projectsRepository,
+  ): Promise<Project> {
+    const project = await repository.findOne({
       where: { id },
       relations: [
         'area',
@@ -352,6 +355,48 @@ export class ProjectsService {
     });
 
     return this.findOne(id, accessActor);
+  }
+
+  async restore(id: number, accessActor: RequestAccessActor): Promise<Project> {
+    if (accessActor.role !== AreaRole.PRESIDENCIA) {
+      throw new ForbiddenException('Only Presidencia can restore projects');
+    }
+    return this.projectsRepository.manager.transaction(
+      async (entityManager) => {
+        const projectsRepository = entityManager.getRepository(Project);
+        const project = await this.findProjectForUpdate(
+          id,
+          projectsRepository,
+          accessActor,
+        );
+        if (project.isArchived) {
+          project.isArchived = false;
+
+          const savedProject = await projectsRepository.save(project);
+          await this.memberActivityService.refreshProjectMembers(
+            savedProject.id,
+            entityManager,
+          );
+          await this.memberAvailabilityService.refreshProjectMembers(
+            savedProject.id,
+            entityManager,
+          );
+
+          await this.auditService.record(
+            accessActor,
+            {
+              action: 'restore',
+              entityType: 'Project',
+              entityId: savedProject.id,
+              areaId: savedProject.areaId,
+              metadata: { name: savedProject.name },
+            },
+            entityManager,
+          );
+        }
+        return this.findProjectDetails(id, projectsRepository);
+      },
+    );
   }
 
   async findPhases(

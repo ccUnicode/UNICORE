@@ -135,6 +135,37 @@ export class AreaService {
     return savedArea;
   }
 
+  async restore(id: number, accessActor: RequestAccessActor): Promise<Area> {
+    if (accessActor.role !== AreaRole.PRESIDENCIA) {
+      throw new ForbiddenException('Only Presidencia can restore areas');
+    }
+    return this.areaRepository.manager.transaction(async (entityManager) => {
+      const repository = entityManager.getRepository(Area);
+      const area = await repository.findOne({
+        where: { id },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!area) {
+        throw new NotFoundException(`Area with ID "${id}" not found`);
+      }
+      if (!area.isArchived) return area;
+      area.isArchived = false;
+      const savedArea = await repository.save(area);
+      await this.auditService.record(
+        accessActor,
+        {
+          action: 'restore',
+          entityType: 'Area',
+          entityId: savedArea.id,
+          areaId: savedArea.id,
+          metadata: { name: savedArea.name },
+        },
+        entityManager,
+      );
+      return savedArea;
+    });
+  }
+
   async findAccessible(
     accessActor: RequestAccessActor,
     includeArchived = false,
