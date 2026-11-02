@@ -72,6 +72,9 @@ describe('AreaService', () => {
     await expect(service.restore(1, actor)).resolves.toMatchObject({
       isArchived: false,
     });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: area.id, isArchived: false }),
+    );
     expect(area.memberships).toBe(memberships);
     expect(mockAuditService.record).toHaveBeenCalledWith(
       actor,
@@ -108,6 +111,32 @@ describe('AreaService', () => {
     await service.restore(1, { role: AreaRole.PRESIDENCIA });
     expect(repository.save).not.toHaveBeenCalled();
     expect(mockAuditService.record).not.toHaveBeenCalled();
+  });
+
+  it('propagates audit failure and writes only inside the restoration transaction', async () => {
+    let active = false;
+    repository.manager.transaction.mockImplementation(
+      async (work: (manager: unknown) => Promise<unknown>) => {
+        active = true;
+        try {
+          return await work({ getRepository: () => repository });
+        } finally {
+          active = false;
+        }
+      },
+    );
+    repository.findOne.mockResolvedValue(createArea({ isArchived: true }));
+    repository.save.mockImplementation((area: Area) => {
+      expect(active).toBe(true);
+      return Promise.resolve(area);
+    });
+    const error = new Error('Audit unavailable');
+    mockAuditService.record.mockRejectedValueOnce(error);
+    await expect(
+      service.restore(1, { role: AreaRole.PRESIDENCIA }),
+    ).rejects.toBe(error);
+    expect(repository.save).toHaveBeenCalledTimes(1);
+    expect(active).toBe(false);
   });
 
   it('should be defined', () => {

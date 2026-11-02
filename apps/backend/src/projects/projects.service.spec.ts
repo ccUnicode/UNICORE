@@ -206,6 +206,7 @@ describe('ProjectsService', () => {
   let projectMembershipsRepository: ProjectMembershipRepositoryMock;
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
+  let transactionManager: unknown;
   let auditService: jest.Mocked<AuditService>;
   let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
   let memberActivityService: jest.Mocked<MemberActivityService>;
@@ -298,7 +299,11 @@ describe('ProjectsService', () => {
         callback: (entityManager: {
           getRepository: typeof getRepository;
         }) => Promise<unknown>,
-      ) => callback({ getRepository }),
+      ) => {
+        const manager = { getRepository };
+        transactionManager = manager;
+        return callback(manager);
+      },
     );
     projectsRepository.manager.transaction = transaction;
     projectPhasesRepository.manager.transaction = transaction;
@@ -956,16 +961,20 @@ describe('ProjectsService', () => {
       isArchived: false,
       status,
     });
+    expect(projectsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, isArchived: false }),
+    );
+    expect(auditService.record.mock.calls[0][2]).toBe(transactionManager);
     expect(project.tasks).toBe(tasks);
     expect(project.phases).toBe(phases);
     expect(project.memberships).toBe(memberships);
     expect(memberActivityService.refreshProjectMembers).toHaveBeenCalledWith(
       1,
-      expect.anything(),
+      transactionManager,
     );
     expect(
       memberAvailabilityService.refreshProjectMembers,
-    ).toHaveBeenCalledWith(1, expect.anything());
+    ).toHaveBeenCalledWith(1, transactionManager);
     expect(auditService.record).toHaveBeenCalledWith(
       presidencyActor,
       expect.objectContaining({
@@ -973,7 +982,7 @@ describe('ProjectsService', () => {
         entityType: 'Project',
         entityId: 1,
       }),
-      expect.anything(),
+      transactionManager,
     );
   });
 
@@ -1002,6 +1011,43 @@ describe('ProjectsService', () => {
     expect(projectsRepository.save).not.toHaveBeenCalled();
     expect(auditService.record).not.toHaveBeenCalled();
     expect(memberActivityService.refreshProjectMembers).not.toHaveBeenCalled();
+  });
+
+  it('loads the restored response before the transaction completes', async () => {
+    const project = createProject({ isArchived: true });
+    const detail = createProject({ phases: [createProjectPhase()] });
+    let active = false;
+    const transactionalRepository = {
+      findOne: jest.fn((options: { relations?: string[] }) => {
+        expect(active).toBe(true);
+        return Promise.resolve(options.relations ? detail : project);
+      }),
+      save: jest.fn().mockResolvedValue(detail),
+    };
+    projectsRepository.manager.transaction.mockImplementation(
+      async (work: (manager: unknown) => Promise<unknown>) => {
+        active = true;
+        try {
+          return await work({ getRepository: () => transactionalRepository });
+        } finally {
+          active = false;
+        }
+      },
+    );
+    await expect(service.restore(1, presidencyActor)).resolves.toBe(detail);
+    expect(transactionalRepository.findOne).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        relations: [
+          'area',
+          'phases',
+          'labels',
+          'links',
+          'memberships',
+          'memberships.member',
+        ],
+      }),
+    );
+    expect(projectsRepository.findOne).not.toHaveBeenCalled();
   });
 
   it('archives projects', async () => {
