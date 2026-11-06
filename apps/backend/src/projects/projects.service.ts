@@ -161,7 +161,10 @@ export class ProjectsService {
     if (data.length > 0) {
       const projectIds = data.map((project) => project.id);
       const tasks = await this.tasksRepository.find({
-        where: { projectId: In(projectIds) },
+        where: this.buildTaskProgressWhere(
+          { projectId: In(projectIds) },
+          accessActor?.snapshotAt,
+        ),
         select: ['id', 'status', 'phaseId', 'projectId'],
       });
       const tasksByProject = new Map<number, Task[]>();
@@ -190,14 +193,17 @@ export class ProjectsService {
   }
 
   async findOne(id: number, accessActor: RequestAccessActor): Promise<Project> {
-    const project = await this.findProjectDetails(id);
+    const project = await this.findProjectDetails(id, accessActor);
     this.assertProjectReadAccess(project, accessActor);
     this.limitProjectTeamMemberFields(project, accessActor);
 
     return project;
   }
 
-  private async findProjectDetails(id: number): Promise<Project> {
+  private async findProjectDetails(
+    id: number,
+    accessActor?: RequestAccessActor,
+  ): Promise<Project> {
     const project = await this.projectsRepository.findOne({
       where: { id },
       relations: [
@@ -222,7 +228,10 @@ export class ProjectsService {
     this.sortMembershipsByActivity(project);
 
     const tasks = await this.tasksRepository.find({
-      where: { projectId: id },
+      where: this.buildTaskProgressWhere(
+        { projectId: id },
+        accessActor?.snapshotAt,
+      ),
       select: ['id', 'status', 'phaseId', 'projectId'],
     });
     this.attachProjectProgress(project, tasks);
@@ -393,7 +402,10 @@ export class ProjectsService {
 
     const phases = await this.findProjectPhases(projectId);
     const tasks = await this.tasksRepository.find({
-      where: { projectId },
+      where: this.buildTaskProgressWhere(
+        { projectId },
+        accessActor?.snapshotAt,
+      ),
       select: ['id', 'status', 'phaseId', 'projectId'],
     });
     this.attachPhasesProgress(phases, tasks);
@@ -479,7 +491,7 @@ export class ProjectsService {
 
     const phase = await this.findPhaseOrThrow(projectId, phaseId);
     const tasks = await this.tasksRepository.find({
-      where: { phaseId },
+      where: this.buildTaskProgressWhere({ phaseId }, accessActor?.snapshotAt),
       select: ['id', 'status', 'phaseId', 'projectId'],
     });
     this.attachPhaseProgress(phase, tasks);
@@ -533,7 +545,10 @@ export class ProjectsService {
           projectPhasesRepository,
         );
         const tasks = await this.tasksRepository.find({
-          where: { projectId },
+          where: this.buildTaskProgressWhere(
+            { projectId },
+            accessActor?.snapshotAt,
+          ),
           select: ['id', 'status', 'phaseId', 'projectId'],
         });
         this.attachPhasesProgress(updatedPhases, tasks);
@@ -797,6 +812,19 @@ export class ProjectsService {
         'startDate must be before or equal to endDate',
       );
     }
+  }
+
+  private buildTaskProgressWhere(
+    where: FindOptionsWhere<Task>,
+    snapshotAt?: Date,
+  ): FindOptionsWhere<Task> {
+    return {
+      ...where,
+      ...(snapshotAt && {
+        createdAt: LessThanOrEqual(snapshotAt),
+        updatedAt: LessThanOrEqual(snapshotAt),
+      }),
+    };
   }
 
   private buildProjectFilters(

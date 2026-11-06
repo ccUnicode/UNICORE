@@ -8,8 +8,9 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
-  In,
   FindOperator,
+  FindOptionsWhere,
+  In,
   LessThanOrEqual,
   MoreThanOrEqual,
   ObjectLiteral,
@@ -1799,6 +1800,145 @@ describe('ProjectsService', () => {
         expect(result.progress).toBe(0);
         expect(result.hasTasks).toBe(false);
         expect(result.isCompleted).toBe(false);
+      });
+
+      it('excludes tasks created or updated after snapshotAt when calculating progress for disabled members', async () => {
+        const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+        const disabledActor: RequestAccessActor = {
+          role: AreaRole.MIEMBRO,
+          projectIds: ['1'],
+          readOnly: true,
+          snapshotAt,
+        };
+
+        const phase1 = createProjectPhase({ id: 10, name: 'Fase 1' });
+        const project = createProject({
+          id: 1,
+          phases: [phase1],
+          memberships: [
+            createProjectMembership({
+              memberId: 1,
+              projectId: 1,
+            }),
+          ],
+        });
+
+        projectsRepository.findOne?.mockResolvedValue(project);
+
+        const allTasks = [
+          // Tarea 1: anterior al corte, DONE
+          {
+            id: 1,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.DONE,
+            createdAt: new Date('2026-07-10T10:00:00.000Z'),
+            updatedAt: new Date('2026-07-10T10:00:00.000Z'),
+          },
+          // Tarea 2: anterior al corte, IN_PROGRESS
+          {
+            id: 2,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.IN_PROGRESS,
+            createdAt: new Date('2026-07-15T10:00:00.000Z'),
+            updatedAt: new Date('2026-07-15T10:00:00.000Z'),
+          },
+          // Tarea 3: creada después del corte (posterior al corte), DONE
+          {
+            id: 3,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.DONE,
+            createdAt: new Date('2026-08-10T10:00:00.000Z'),
+            updatedAt: new Date('2026-08-10T10:00:00.000Z'),
+          },
+          // Tarea 4: creada antes pero modificada después del corte, DONE
+          {
+            id: 4,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.DONE,
+            createdAt: new Date('2026-07-10T10:00:00.000Z'),
+            updatedAt: new Date('2026-08-05T10:00:00.000Z'),
+          },
+        ] as Task[];
+
+        tasksRepository.find?.mockImplementation(
+          (options?: { where?: FindOptionsWhere<Task> }) => {
+            const where = options?.where;
+            const createdAtFilter = where?.createdAt as
+              | FindOperator<Date>
+              | undefined;
+            const cutoff = createdAtFilter?.value;
+            if (cutoff instanceof Date) {
+              return Promise.resolve(
+                allTasks.filter(
+                  (t) => t.createdAt <= cutoff && t.updatedAt <= cutoff,
+                ),
+              );
+            }
+            return Promise.resolve(allTasks);
+          },
+        );
+
+        // 1. Verificación en findOne (detalle del proyecto y sus fases)
+        const projectResult = await service.findOne(1, disabledActor);
+
+        expect(projectResult.totalTasks).toBe(2);
+        expect(projectResult.completedTasks).toBe(1);
+        expect(projectResult.progress).toBe(50);
+        expect(projectResult.hasTasks).toBe(true);
+        expect(projectResult.isCompleted).toBe(false);
+
+        expect(projectResult.phases[0].totalTasks).toBe(2);
+        expect(projectResult.phases[0].completedTasks).toBe(1);
+        expect(projectResult.phases[0].progress).toBe(50);
+        expect(projectResult.phases[0].isCompleted).toBe(false);
+
+        expect(tasksRepository.find).toHaveBeenCalledWith({
+          where: {
+            projectId: 1,
+            createdAt: LessThanOrEqual(snapshotAt),
+            updatedAt: LessThanOrEqual(snapshotAt),
+          },
+          select: ['id', 'status', 'phaseId', 'projectId'],
+        });
+
+        // 2. Verificación en findPhases
+        projectPhasesRepository.find?.mockResolvedValue([phase1]);
+        const phasesResult = await service.findPhases(1, disabledActor);
+
+        expect(phasesResult[0].totalTasks).toBe(2);
+        expect(phasesResult[0].completedTasks).toBe(1);
+        expect(phasesResult[0].progress).toBe(50);
+        expect(phasesResult[0].isCompleted).toBe(false);
+
+        expect(tasksRepository.find).toHaveBeenCalledWith({
+          where: {
+            projectId: 1,
+            createdAt: LessThanOrEqual(snapshotAt),
+            updatedAt: LessThanOrEqual(snapshotAt),
+          },
+          select: ['id', 'status', 'phaseId', 'projectId'],
+        });
+
+        // 3. Verificación en findAll
+        projectsRepository.findAndCount?.mockResolvedValue([[project], 1]);
+        const listResult = await service.findAll({}, disabledActor);
+
+        expect(listResult.data[0].totalTasks).toBe(2);
+        expect(listResult.data[0].completedTasks).toBe(1);
+        expect(listResult.data[0].progress).toBe(50);
+
+        expect(tasksRepository.find).toHaveBeenCalledWith({
+          where: {
+            projectId: In([1]),
+            createdAt: LessThanOrEqual(snapshotAt),
+            updatedAt: LessThanOrEqual(snapshotAt),
+          },
+          select: ['id', 'status', 'phaseId', 'projectId'],
+        });
       });
     });
   });
