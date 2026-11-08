@@ -4,7 +4,7 @@
 
 ---
 
-## 🌿 Convención de Ramas
+## Convención de Ramas
 
 Las ramas deben seguir la estructura `tipo/descripcion-corta-kebab-case`:
 
@@ -19,7 +19,7 @@ Las ramas deben seguir la estructura `tipo/descripcion-corta-kebab-case`:
 
 ---
 
-## 💬 Convención de Commits
+## Convención de Commits
 
 Seguimos la convención de [Conventional Commits](https://www.conventionalcommits.org/es/v1.0.0/):
 
@@ -35,7 +35,7 @@ Ejemplos:
 
 ---
 
-## 🔄 Flujo de Trabajo en Git
+## Flujo de Trabajo en Git
 
 1. **Crear una rama** a partir de `main`:
    ```bash
@@ -59,7 +59,7 @@ Ejemplos:
 
 ---
 
-## 📋 Requisitos Antes de Abrir un Pull Request
+## Requisitos Antes de Abrir un Pull Request
 
 Todo PR debe estructurarse obligatoriamente con las siguientes 5 secciones ([`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md)):
 
@@ -71,7 +71,7 @@ Todo PR debe estructurarse obligatoriamente con las siguientes 5 secciones ([`.g
 
 ---
 
-## 📝 Criterios para Comentarios y Documentación en Código
+## Criterios para Comentarios y Documentación en Código
 
 * **Idioma de Documentación**: La documentación en Markdown (`.md`) y los comentarios explicativos dentro de `docs/` deben escribirse en **español**.
 * **Idioma de Código**: El código fuente, variables, tipos, nombres de clases/funciones y comentarios TSDoc/JSDoc deben escribirse en **inglés**.

@@ -9,6 +9,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBearerAuth } from '@nestjs/swagger';
 import { CurrentAccessActor } from '../common/decorators/current-access-actor.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { AreaRole } from '../common/enums/area-role.enum';
@@ -28,6 +29,7 @@ const TASK_ROLES = [
   AreaRole.MIEMBRO,
 ];
 
+@ApiBearerAuth('bearer')
 @Controller('tasks')
 @UseGuards(RolesGuard)
 export class TasksController {
