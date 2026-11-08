@@ -87,6 +87,7 @@ describe('ProjectsController', () => {
     findOne: jest.fn(),
     update: jest.fn(),
     archive: jest.fn(),
+    restore: jest.fn(),
     findPhases: jest.fn(),
     createPhase: jest.fn(),
     updatePhase: jest.fn(),
@@ -119,6 +120,21 @@ describe('ProjectsController', () => {
     }).compile();
 
     controller = module.get<ProjectsController>(ProjectsController);
+  });
+
+  it('restricts restoration to Presidencia and delegates the actor', async () => {
+    expect(
+      Reflect.getMetadata(ROLES_KEY, getProjectsControllerMethod('restore')),
+    ).toEqual([AreaRole.PRESIDENCIA]);
+    mockProjectsService.restore.mockResolvedValue({ id: 1, isArchived: false });
+    await expect(controller.restore(1, presidencyActor)).resolves.toEqual({
+      id: 1,
+      isArchived: false,
+    });
+    expect(mockProjectsService.restore).toHaveBeenCalledWith(
+      1,
+      presidencyActor,
+    );
   });
 
   it('creates projects through the service', async () => {

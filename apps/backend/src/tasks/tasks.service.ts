@@ -486,6 +486,7 @@ export class TasksService {
       const project = await this.findProjectOrThrow(
         task.projectId,
         entityManager.getRepository(Project),
+        true,
       );
 
       await this.assertProjectAccess(
