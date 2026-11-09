@@ -65,6 +65,15 @@ export class AreaController {
     return this.areaService.update(id, updateAreaDto, accessActor);
   }
 
+  @Patch(':id/restore')
+  @Roles(AreaRole.PRESIDENCIA)
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.areaService.restore(id, accessActor);
+  }
+
   @Patch(':id/archive')
   @Roles(AreaRole.PRESIDENCIA)
   archive(
