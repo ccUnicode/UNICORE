@@ -3,17 +3,23 @@ import { databaseOptions } from './database-options';
 import { deploymentOptions } from './deployment-options';
 
 describe('database environment policy', () => {
-  const originalEnvironment = process.env.NODE_ENV;
+  let originalEnvironment: NodeJS.ProcessEnv;
+
+  beforeEach(() => {
+    originalEnvironment = { ...process.env };
+    delete process.env.NODE_ENV;
+    delete process.env.DATABASE_POOL_MAX;
+    delete process.env.DATABASE_URL_UNPOOLED;
+    delete process.env.DATABASE_MIGRATIONS_RUN;
+  });
+
   afterEach(() => {
-    if (originalEnvironment === undefined) delete process.env.NODE_ENV;
-    else process.env.NODE_ENV = originalEnvironment;
+    process.env = originalEnvironment;
   });
   it.each(['production', 'test', 'staging', undefined])(
     'uses only migrations for %s',
     (environment) => {
       const config = new ConfigService({ NODE_ENV: environment });
-      // Do not let the calling shell override the explicit test configuration.
-      delete process.env.NODE_ENV;
       expect(databaseOptions(config)).toMatchObject({
         synchronize: false,
         migrationsRun: true,
@@ -22,7 +28,6 @@ describe('database environment policy', () => {
   );
   it('preserves local synchronization only for explicit development', () => {
     const config = new ConfigService({ NODE_ENV: 'development' });
-    delete process.env.NODE_ENV;
     expect(databaseOptions(config)).toMatchObject({
       synchronize: true,
       migrationsRun: false,

@@ -7,12 +7,14 @@
 | Root Directory | `apps/backend` |
 | Framework Preset | NestJS |
 | Node.js | 22.x |
+| Install Command | `npm ci --include=dev` |
 | Build Command | `npm run build:vercel` |
 | Output Directory | Predeterminado |
 | Duración máxima | 60 segundos |
 
 Habilitar el acceso a archivos fuera del directorio raíz para los workspaces y
-el lockfile. Instalar con `npm ci` desde la raíz del repositorio.
+el lockfile. Instalar desde la raíz del repositorio. `--include=dev` conserva
+Nest CLI y TypeScript cuando `NODE_ENV=production`.
 
 Vercel usa `src/main.ts` como [entrada de NestJS](https://vercel.com/docs/frameworks/backend/nestjs).
 Las rutas mantienen sus nombres, por ejemplo `/auth/login` y `/areas`.
