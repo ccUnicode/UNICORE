@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nestjs",
+  "buildCommand": "npm run build:vercel",
+  "functions": {
+    "src/main.ts": { "maxDuration": 60 }
+  }
+}

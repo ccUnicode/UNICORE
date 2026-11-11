@@ -4,6 +4,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { AppModule } from '../src/app.module';
+import { deploymentOptions } from '../src/database/deployment-options';
 import {
   databaseOptions,
   databaseMigrations,
@@ -99,6 +100,54 @@ describe('production database startup (PostgreSQL)', () => {
       } finally {
         await app.close();
       }
+    }
+  });
+
+  it('migrates through the deployment connection once and starts runtime without migrations', async () => {
+    const url = await createDatabase();
+    const config = new ConfigService({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://unreachable-runtime.invalid/unused',
+      DATABASE_URL_UNPOOLED: url,
+      DATABASE_SSL: 'false',
+      DATABASE_MIGRATIONS_RUN: 'false',
+      DATABASE_POOL_MAX: '1',
+    });
+    const deploy = new DataSource({ ...deploymentOptions(config), entities });
+    connections.push(deploy);
+    await deploy.initialize();
+    expect(await deploy.runMigrations()).toHaveLength(
+      databaseMigrations.length,
+    );
+    expect(await deploy.runMigrations()).toEqual([]);
+    await expectNoDrift(deploy);
+    await deploy.destroy();
+
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = url;
+    process.env.DATABASE_SSL = 'false';
+    process.env.DATABASE_MIGRATIONS_RUN = 'false';
+    process.env.DATABASE_POOL_MAX = '1';
+    process.env.AUTH_JWT_SECRET =
+      'deploy-test-jwt-secret-at-least-32-characters';
+    process.env.AUTH_BOOTSTRAP_SECRET =
+      'deploy-test-bootstrap-secret-at-least-32-characters';
+    const app = await NestFactory.create(AppModule, {
+      logger: false,
+      abortOnError: false,
+    });
+    try {
+      await app.listen(0, '127.0.0.1');
+      expect((await fetch(await app.getUrl())).status).toBe(200);
+      expect(app.get(DataSource).options).toMatchObject({
+        synchronize: false,
+        migrationsRun: false,
+        extra: { max: 1 },
+      });
+    } finally {
+      await app.close();
+      delete process.env.DATABASE_MIGRATIONS_RUN;
+      delete process.env.DATABASE_POOL_MAX;
     }
   });
 
