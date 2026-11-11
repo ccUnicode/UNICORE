@@ -10,6 +10,7 @@ import { Project } from './entities/project.entity';
 import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { Task } from '../tasks/entities/task.entity';
 import { AuditModule } from '../audit/audit.module';
 import { MembersModule } from '../members/members.module';
 
@@ -25,6 +26,7 @@ import { MembersModule } from '../members/members.module';
       ProjectMembership,
       Member,
       TaskAssignee,
+      Task,
     ]),
     AuditModule,
   ],

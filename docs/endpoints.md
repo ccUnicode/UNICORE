@@ -59,11 +59,27 @@ El árbol fuente contiene `SkillsController` con `GET /skills` y `POST /skills`,
 
 Estados de proyecto válidos: `planned`, `active`, `on_hold`, `completed`, `cancelled`. Roles de proyecto válidos: `representative`, `subrepresentative`, `member`. Directiva solo administra proyectos de su área; los miembros solo consultan proyectos en los que participan.
 
+### Cálculo de avance por fase y por proyecto (FR-43, FR-44)
+
+El servicio calcula y adjunta automáticamente métricas de avance sobre tareas tanto a nivel de fase (`ProjectPhase`) como a nivel de proyecto (`Project`):
+- `totalTasks`: Cantidad total de tareas asociadas.
+- `completedTasks`: Cantidad de tareas con estado `done` (`TaskStatus.DONE`).
+- `progress`: Porcentaje entero de avance entre 0 y 100 (`Math.round((completedTasks / totalTasks) * 100)` si `totalTasks > 0`, o `0` si no tiene tareas).
+- `isCompleted`: Boolean que indica si la fase o proyecto está completa (`true` si `totalTasks > 0` y `completedTasks === totalTasks`; `false` si no tiene tareas o faltan tareas por completar).
+- `hasTasks`: Boolean que indica si existen tareas asignadas (`true` si `totalTasks > 0`, `false` si no tiene tareas).
+
+Reglas canónicas de cálculo:
+1. **Fase con tareas parciales:** 4 tareas, 3 en "Hecho" -> `progress: 75`, `isCompleted: false`, `hasTasks: true`.
+2. **Fase con todas las tareas hechas:** 4 tareas, 4 en "Hecho" -> `progress: 100`, `isCompleted: true`, `hasTasks: true`.
+3. **Fase sin tareas:** 0 tareas -> `progress: 0`, `hasTasks: false`, `isCompleted: false`.
+4. **Proyecto con tareas sin fase:** Las tareas sin fase (`phaseId = null`) cuentan para el total y avance del proyecto, pero no se computan en ninguna fase. El avance del proyecto se calcula directamente sobre la totalidad de tareas del proyecto, no como promedio de fases (ej. 10 tareas totales, 2 sin fase, 5 en "Hecho" -> `progress: 50`, `hasTasks: true`, `isCompleted: false`).
+5. **Proyecto sin tareas:** 0 tareas -> `progress: 0`, `hasTasks: false`, `isCompleted: false`.
+
 | Método y ruta                                 | Auth / roles                       | Entrada                                                                                                  | Respuesta                               | Errores y reglas de negocio                                                                                               |
 | :-------------------------------------------- | :--------------------------------- | :------------------------------------------------------------------------------------------------------- | :-------------------------------------- | :------------------------------------------------------------------------------------------------------------------------ |
-| `POST /projects`                              | `presidencia`, `directiva_de_area` | `{ name, description?, startDate?, endDate?, areaId, labels?, links?: [{ name, url }] }`                 | `Project` con fases por defecto (`201`) | URL absoluta; máx. 20 labels/enlaces; Directiva solo crea en su área. |
-| `GET /projects`                               | Todos los roles                    | Query `page?`, `limit?`, `status?`, `areaId?`, `dateFrom?`, `dateTo?`, `labels?`, `search?`, `archived?` | Respuesta paginada de proyectos         | Aplica alcance por rol; `archived` es boolean independiente de `status`.                                                  |
-| `GET /projects/:id`                           | Todos los roles                    | Path `id` entero                                                                                         | Proyecto con relaciones de detalle      | `miembro` debe pertenecer al proyecto; Directiva, al área.                                                                |
+| `POST /projects`                              | `presidencia`, `directiva_de_area` | `{ name, description?, startDate?, endDate?, areaId, labels?, links?: [{ name, url }] }`                 | `Project` con fases por defecto y métricas de avance (`201`) | URL absoluta; máx. 20 labels/enlaces; Directiva solo crea en su área. |
+| `GET /projects`                               | Todos los roles                    | Query `page?`, `limit?`, `status?`, `areaId?`, `dateFrom?`, `dateTo?`, `labels?`, `search?`, `archived?` | Respuesta paginada de proyectos con métricas de avance | Aplica alcance por rol; `archived` es boolean independiente de `status`.                                                  |
+| `GET /projects/:id`                           | Todos los roles                    | Path `id` entero                                                                                         | Proyecto con relaciones y avance (proyecto y fases) | `miembro` debe pertenecer al proyecto; Directiva, al área.                                                                |
 | `PATCH /projects/:id`                         | `presidencia`, `directiva_de_area` | Parcial `{ name?, description?: string                                                                   | null, startDate?: string                | null, endDate?: string                                                                                                    | null, areaId?, status?, labels?, links? }` | Proyecto actualizado | Campos no anulables rechazan `null`; Directiva queda limitada a su área. |
 | `PATCH /projects/:id/archive`                 | `presidencia`, `directiva_de_area` | Sin body                                                                                                 | `Project` con `isArchived: true`        | No cambia `status` ni requiere `confirmName`.                                                                             |
 | `PATCH /projects/:id/restore` | `presidencia` | Path `id` entero; sin body | `Project` con `isArchived: false` | `404` si no existe; `403` para Directiva y Miembro. Conserva estado, fases, tareas y equipo; recalcula actividad y disponibilidad. No restaura su área. Si ya está activo, no genera otra escritura ni evento. |
