@@ -2,7 +2,6 @@ import { ConfigService } from '@nestjs/config';
 import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConnectionOptions';
 import { databaseOptions } from './database-options';
 
-/** Require the environment's direct connection; never fall back to the runtime pooler. */
 export function deploymentOptions(
   config: ConfigService,
 ): PostgresConnectionOptions {

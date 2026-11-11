@@ -38,7 +38,6 @@ class TestController {
 class TestModule {}
 
 describe('shared HTTP configuration', () => {
-  // Booting Nest and serving HTTP can exceed the unit default on cold CI workers.
   jest.setTimeout(15000);
   let app: INestApplication;
   const originalOrigin = process.env.CORS_ORIGIN;
@@ -77,7 +76,6 @@ describe('shared HTTP configuration', () => {
       .set('Access-Control-Request-Headers', 'authorization,content-type')
       .expect(204)
       .expect('Access-Control-Allow-Origin', 'https://frontend.example.com');
-    // A foreign origin never receives permission to read the response.
     const response = await http
       .get('/')
       .set('Origin', 'https://foreign.example.com');

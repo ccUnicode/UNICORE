@@ -28,7 +28,6 @@ export const databaseMigrations = [
   MigrateDefaultProjectPhasesToSpanish1787788800009,
 ];
 
-/** Preserve local defaults, allowing deployments to migrate before function startup. */
 export function databaseOptions(
   config: ConfigService,
 ): PostgresConnectionOptions {

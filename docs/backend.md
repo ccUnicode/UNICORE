@@ -2,8 +2,7 @@
 
 El backend de **UNICORE** es una API REST construida con NestJS 11 y TypeORM sobre PostgreSQL.
 
-Para la entrada nativa de Vercel, variables y migraciones durante la construcción,
-consultar [Despliegue del backend](despliegue.md).
+[Despliegue en Vercel](despliegue.md).
 
 ---
 
