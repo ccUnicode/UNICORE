@@ -2,6 +2,8 @@
 
 El backend de **UNICORE** es una API REST construida con NestJS 11 y TypeORM sobre PostgreSQL.
 
+[Despliegue en Vercel](despliegue.md).
+
 ---
 
 ## 🛠️ Stack del Backend

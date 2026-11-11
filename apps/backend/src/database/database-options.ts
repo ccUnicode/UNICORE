@@ -28,18 +28,32 @@ export const databaseMigrations = [
   MigrateDefaultProjectPhasesToSpanish1787788800009,
 ];
 
-/** Synchronize only in development; execute registered migrations everywhere else. */
 export function databaseOptions(
   config: ConfigService,
 ): PostgresConnectionOptions {
   const local = config.get<string>('NODE_ENV') === 'development';
+  const migrationsRun = config.get<string>('DATABASE_MIGRATIONS_RUN');
+  if (
+    migrationsRun !== undefined &&
+    migrationsRun !== 'true' &&
+    migrationsRun !== 'false'
+  ) {
+    throw new Error('DATABASE_MIGRATIONS_RUN must be true or false');
+  }
+  const poolMax = config.get<string>('DATABASE_POOL_MAX');
+  if (
+    poolMax !== undefined &&
+    (!/^[1-9]\d*$/.test(poolMax) || !Number.isSafeInteger(Number(poolMax)))
+  ) {
+    throw new Error('DATABASE_POOL_MAX must be a positive integer');
+  }
   return {
     type: 'postgres',
     url: config.get<string>('DATABASE_URL'),
     synchronize: local,
-    // Local schema synchronization already represents the latest entities.
-    // Production/test always exercise the complete migration history instead.
-    migrationsRun: !local,
+    migrationsRun:
+      migrationsRun === undefined ? !local : migrationsRun === 'true',
+    ...(poolMax === undefined ? {} : { extra: { max: Number(poolMax) } }),
     migrations: databaseMigrations,
     ssl:
       config.get<string>('DATABASE_SSL') === 'true'
