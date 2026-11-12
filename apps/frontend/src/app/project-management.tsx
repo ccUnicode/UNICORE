@@ -3,10 +3,12 @@
 import {
   DragEvent as ReactDragEvent,
   FormEvent,
+  ReactNode,
   useEffect,
   useMemo,
   useState,
 } from "react";
+import { formatProjectProgress, ProgressBar } from "./project-progress";
 import {
   combineProjectExperience,
   filterAndSortProjectCandidates,
@@ -64,11 +66,18 @@ type ProjectLink = {
   url: string;
 };
 
-type ProjectPhase = {
+export type ProjectPhase = {
   id: number;
   name: string;
   description?: string | null;
   orderIndex: number;
+  totalTasks?: number;
+  completedTasks?: number;
+  progress?: number;
+  progressPercentage?: number;
+  isCompleted?: boolean;
+  isComplete?: boolean;
+  hasTasks?: boolean;
 };
 
 type ProjectMembership = {
@@ -78,7 +87,7 @@ type ProjectMembership = {
   member?: Member;
 };
 
-type Project = {
+export type Project = {
   id: number;
   name: string;
   description: string | null;
@@ -92,6 +101,13 @@ type Project = {
   links?: ProjectLink[];
   phases?: ProjectPhase[];
   memberships?: ProjectMembership[];
+  totalTasks?: number;
+  completedTasks?: number;
+  progress?: number;
+  progressPercentage?: number;
+  isCompleted?: boolean;
+  isComplete?: boolean;
+  hasTasks?: boolean;
 };
 
 type ProjectRole = "representative" | "subrepresentative" | "member";
@@ -833,7 +849,7 @@ function ProjectForm({
   );
 }
 
-function ProjectDetail({
+export function ProjectDetail({
   project,
   portfolioProjects,
   members,
@@ -899,13 +915,23 @@ function ProjectDetail({
         )}
       </header>
 
-      <div className="mt-8 grid gap-5 md:grid-cols-3">
+      <div className="mt-8 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
         <InfoCard label="Inicio" value={project.startDate || "Sin definir"} />
         <InfoCard label="Fin" value={project.endDate || "Sin definir"} />
         <InfoCard
           label="Equipo"
           value={`${project.memberships?.length ?? 0} miembros`}
         />
+        <InfoCard
+          label="Avance"
+          value={formatProjectProgress(project.hasTasks, project.progress)}
+        >
+          {project.hasTasks && (
+            <div className="mt-3">
+              <ProgressBar progress={project.progress ?? 0} />
+            </div>
+          )}
+        </InfoCard>
       </div>
 
       {!!project.labels?.length && (
@@ -1289,7 +1315,7 @@ function TeamPanel({
   );
 }
 
-function PhasesPanel({
+export function PhasesPanel({
   project,
   canManage,
   loading,
@@ -1605,7 +1631,20 @@ function PhasesPanel({
                   {index + 1}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="font-bold">{phase.name}</p>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-bold">{phase.name}</p>
+                    <span
+                      data-testid={`phase-progress-${phase.id}`}
+                      className="text-xs font-bold text-white/60"
+                    >
+                      {formatProjectProgress(phase.hasTasks, phase.progress)}
+                    </span>
+                  </div>
+                  {phase.hasTasks && (
+                    <div className="mt-2 max-w-xs">
+                      <ProgressBar progress={phase.progress ?? 0} />
+                    </div>
+                  )}
                   {phase.description && (
                     <p className="mt-1 text-xs leading-5 text-white/45">
                       {phase.description}
@@ -1668,7 +1707,7 @@ function PhasesPanel({
   );
 }
 
-function ProjectCard({
+export function ProjectCard({
   project,
   onOpen,
 }: {
@@ -1703,6 +1742,19 @@ function ProjectCard({
             {label.name}
           </span>
         ))}
+      </div>
+      <div className="mt-4">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-white/50">Avance</span>
+          <span className="font-bold text-white/80">
+            {formatProjectProgress(project.hasTasks, project.progress)}
+          </span>
+        </div>
+        {project.hasTasks && (
+          <div className="mt-2">
+            <ProgressBar progress={project.progress ?? 0} />
+          </div>
+        )}
       </div>
       <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-4">
         <span className="text-xs text-white/40">
@@ -1759,13 +1811,22 @@ function Field({
   );
 }
 
-function InfoCard({ label, value }: { label: string; value: string }) {
+function InfoCard({
+  label,
+  value,
+  children,
+}: {
+  label: string;
+  value: string;
+  children?: ReactNode;
+}) {
   return (
     <div className="rounded-md border border-white/10 bg-[#20212c] p-5">
       <p className="text-xs font-bold uppercase tracking-wider text-white/35">
         {label}
       </p>
       <p className="mt-2 font-bold">{value}</p>
+      {children}
     </div>
   );
 }
