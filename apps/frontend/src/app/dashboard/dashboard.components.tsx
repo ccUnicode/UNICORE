@@ -7,6 +7,15 @@ import { BrandLogo } from "../components/brand-logo";
 import { BRAND_LOGO_WIDTHS } from "../components/brand-logo.config";
 import { fullName } from "./dashboard.model";
 import type { Member, Project } from "./dashboard.types";
+import {
+  displayCycle,
+  displayRole,
+  StatusPill,
+} from "../people-management/shared";
+import {
+  canViewInternalMemberProfileFields,
+  formatProfileDate,
+} from "../member-profile-client";
 
 const chartDays = [
   { day: "Lun", done: 46, planned: 72 },
@@ -272,15 +281,6 @@ function StackList({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-center justify-between gap-4 border-b border-white/8 pb-3">
-      <span className="text-white/45">{label}</span>
-      <span className="text-right font-semibold text-white/85">{value}</span>
-    </div>
-  );
-}
-
 function EmptyState({
   text,
   compact = false,
@@ -340,34 +340,221 @@ export function RouteStateView({
 
 export function ProfileView({
   member,
+  projects = [],
   onLogout,
 }: {
   member: Member;
+  projects?: Project[];
   onLogout: () => void;
 }) {
+  const canViewInternal = canViewInternalMemberProfileFields(member.role);
+  const memberProjects = projects.filter((project) =>
+    project.memberships?.some((item) => item.memberId === member.id),
+  );
+
+  const memberships =
+    member.memberships && member.memberships.length > 0
+      ? member.memberships
+      : member.areaId || member.area
+      ? [
+          {
+            id: 0,
+            areaId: member.areaId ?? null,
+            area: member.area ?? undefined,
+            role: member.role,
+          },
+        ]
+      : [];
+
   return (
-    <div>
-      <SectionTitle title="Perfil" />
-      <Panel title="Sesión actual">
-        <div className="grid gap-4 md:grid-cols-3">
-          <InfoRow label="Miembro" value={fullName(member)} />
-          <InfoRow label="Rol" value={member.role} />
-          <InfoRow
-            label="Área"
-            value={
-              member.area?.name ??
-              (member.areaId ? `Área ${member.areaId}` : "Todas")
-            }
+    <div className="space-y-8">
+      <SectionTitle
+        title="Mi perfil"
+        subtitle="Consulta tus datos de membresía, áreas y proyectos asignados."
+      />
+
+      <div className="grid gap-8 lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[360px_minmax(0,1fr)]">
+        <aside className="self-start rounded-md border border-white/8 bg-[#191822] p-6 text-center lg:p-8">
+          <Image
+            src="/unicore/member-avatar.png"
+            alt={`Foto de ${fullName(member)}`}
+            width={140}
+            height={140}
+            className="mx-auto h-32 w-32 rounded-full border-2 border-white/10 object-cover"
+            priority
           />
+          <h1 className="mt-5 text-xl font-bold">{fullName(member)}</h1>
+          <p className="mt-1 text-sm text-white/70">
+            {member.major}
+            {member.cycle ? ` · ${displayCycle(member.cycle)}` : ""}
+          </p>
+
+          {canViewInternal && (
+            <div className="mt-4 flex flex-wrap justify-center gap-2">
+              {member.activityStatus && (
+                <StatusPill value={member.activityStatus} />
+              )}
+              {member.availabilityStatus && (
+                <StatusPill value={member.availabilityStatus} />
+              )}
+            </div>
+          )}
+
+          <div className="mt-6 w-full space-y-3 border-t border-white/10 pt-5 text-left text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-white/45">Rol principal</span>
+              <span className="font-semibold text-white/90">
+                {displayRole(member.role)}
+              </span>
+            </div>
+
+            {canViewInternal && member.studentCode && (
+              <div className="flex items-center justify-between">
+                <span className="text-white/45">Código UNI</span>
+                <span className="font-semibold text-white/90">
+                  {member.studentCode}
+                </span>
+              </div>
+            )}
+
+            {canViewInternal && member.institution && (
+              <div className="flex items-center justify-between">
+                <span className="text-white/45">Institución</span>
+                <span className="font-semibold text-white/90">
+                  {member.institution}
+                </span>
+              </div>
+            )}
+          </div>
+
+          {canViewInternal && member.skills && member.skills.length > 0 && (
+            <div className="mt-6 w-full border-t border-white/10 pt-5 text-left">
+              <p className="mb-2 text-xs font-semibold text-white/55">
+                Competencias
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {member.skills.map((skill) => (
+                  <span
+                    key={skill.id ?? skill.name}
+                    className="rounded bg-[#6777bb]/60 px-2 py-0.5 text-xs text-white"
+                  >
+                    {skill.name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={onLogout}
+            className="mt-8 w-full rounded-md bg-white/8 px-4 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/12 hover:text-white"
+          >
+            Cerrar sesión
+          </button>
+        </aside>
+
+        <div className="grid gap-8">
+          <section className="rounded-md border border-white/8 bg-[#191822] p-6 lg:p-8">
+            <h2 className="mb-4 text-lg font-bold">Áreas y roles</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[400px] text-left text-sm">
+                <thead>
+                  <tr className="bg-[#212330] text-white/75">
+                    <th className="rounded-l-md px-4 py-3">Área</th>
+                    <th className="rounded-r-md px-4 py-3">Rol en el área</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/8">
+                  {memberships.map((item) => (
+                    <tr key={item.id ?? `${item.areaId}-${item.role}`}>
+                      <td className="px-4 py-3.5 font-medium">
+                        {item.area?.name ??
+                          (item.areaId ? `Área ${item.areaId}` : "Todas las áreas")}
+                      </td>
+                      <td className="px-4 py-3.5 text-white/80">
+                        {displayRole(item.role)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {memberships.length === 0 && (
+                <p className="px-4 py-8 text-center text-sm text-white/40">
+                  Sin pertenencias de área registradas.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-white/8 bg-[#191822] p-6 lg:p-8">
+            <h2 className="mb-4 text-lg font-bold">Proyectos en los que participo</h2>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[500px] text-left text-sm">
+                <thead>
+                  <tr className="bg-[#212330] text-white/75">
+                    <th className="rounded-l-md px-4 py-3">Proyecto</th>
+                    <th className="px-4 py-3">Área</th>
+                    <th className="px-4 py-3">Rol</th>
+                    <th className="rounded-r-md px-4 py-3">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/8">
+                  {memberProjects.map((project) => {
+                    const projectMembership = project.memberships?.find(
+                      (item) => item.memberId === member.id,
+                    );
+                    return (
+                      <tr key={project.id}>
+                        <td className="px-4 py-3.5 font-medium">{project.name}</td>
+                        <td className="px-4 py-3.5 text-white/70">
+                          {project.area?.name ??
+                            (project.areaId ? `Área ${project.areaId}` : "Sin área")}
+                        </td>
+                        <td className="px-4 py-3.5 text-white/80">
+                          {displayRole(projectMembership?.role)}
+                        </td>
+                        <td className="px-4 py-3.5">
+                          <StatusPill
+                            value={
+                              project.isArchived
+                                ? "archived"
+                                : (project.status ?? "active")
+                            }
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {memberProjects.length === 0 && (
+                <p className="px-4 py-8 text-center text-sm text-white/40">
+                  No participas en ningún proyecto actualmente.
+                </p>
+              )}
+            </div>
+          </section>
+
+          <section className="rounded-md border border-white/8 bg-[#191822] p-6 lg:p-8">
+            <h2 className="mb-4 text-lg font-bold">Historial de cuenta</h2>
+            <div className="grid gap-4 sm:grid-cols-2 text-sm">
+              <div className="rounded-md border border-white/5 bg-[#171822] p-4">
+                <p className="text-xs text-white/45">Fecha de registro</p>
+                <p className="mt-1 font-semibold text-white/85">
+                  {formatProfileDate(member.createdAt)}
+                </p>
+              </div>
+              <div className="rounded-md border border-white/5 bg-[#171822] p-4">
+                <p className="text-xs text-white/45">Última actualización</p>
+                <p className="mt-1 font-semibold text-white/85">
+                  {formatProfileDate(member.updatedAt)}
+                </p>
+              </div>
+            </div>
+          </section>
         </div>
-        <button
-          type="button"
-          onClick={onLogout}
-          className="mt-6 rounded-md bg-white/8 px-4 py-2 text-sm font-semibold hover:bg-white/12"
-        >
-          Cerrar sesión
-        </button>
-      </Panel>
+      </div>
     </div>
   );
 }

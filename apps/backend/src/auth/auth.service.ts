@@ -134,6 +134,7 @@ export class AuthService {
     const member = await this.membersRepository
       .createQueryBuilder('member')
       .leftJoinAndSelect('member.memberships', 'memberships')
+      .leftJoinAndSelect('memberships.area', 'area')
       .addSelect(['member.passwordHash', 'member.sessionVersion'])
       .where('member.institution = :institution', {
         institution: 'UNI',
