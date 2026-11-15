@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveAreaNavigation } from "./dashboard.model";
+import { canSeeNavItem, navItems, resolveAreaNavigation } from "./dashboard.model";
 import type { Area } from "./dashboard.types";
 
 const activeArea1: Area = {
@@ -76,4 +76,13 @@ test("Presidencia respects valid preferredAreaId while maintaining global areas 
   );
   assert.equal(result.targetView, "areas");
   assert.equal(result.targetAreaId, 2);
+});
+
+test("navItems includes 'Mi perfil' visible for all roles", () => {
+  const profileItem = navItems.find((item) => item.id === "profile");
+  assert.ok(profileItem);
+  assert.equal(profileItem.label, "Mi perfil");
+  assert.equal(canSeeNavItem("profile", "miembro"), true);
+  assert.equal(canSeeNavItem("profile", "directiva_de_area"), true);
+  assert.equal(canSeeNavItem("profile", "presidencia"), true);
 });

@@ -629,7 +629,11 @@ function DashboardContent() {
               <AuditManagementView accessToken={accessToken} />
             )}
             {view === "profile" && routeAuthorized && (
-              <ProfileView member={currentMember} onLogout={handleLogout} />
+              <ProfileView
+                member={currentMember}
+                projects={projects}
+                onLogout={handleLogout}
+              />
             )}
           </div>
         </section>

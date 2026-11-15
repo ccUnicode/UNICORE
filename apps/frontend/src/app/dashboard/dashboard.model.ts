@@ -19,7 +19,7 @@ export const navItems: Array<{ id: View; label: string; icon: string }> = [
     icon: "/unicore/nav-integrations.svg",
   },
   { id: "audit", label: "Auditoría", icon: "/unicore/nav-audit.svg" },
-  { id: "profile", label: "Perfil", icon: "/unicore/nav-profile.svg" },
+  { id: "profile", label: "Mi perfil", icon: "/unicore/nav-profile.svg" },
 ];
 
 export function canSeeNavItem(item: View, role?: string): boolean {
