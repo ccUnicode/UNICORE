@@ -122,6 +122,7 @@ Usar únicamente personas ficticias y contraseñas desechables; no adjuntar toke
 | 10 | Cambiar estados de tareas y comprobar avance de fase/proyecto. | Cálculo coherente con FR-43/44, solo si S4-B1 ya está fusionado. |
 
 Formato de registro: `fecha | SHA | paso | OK / falla / pendiente de fusión | evidencia`.
+Los resultados de cada corrida, reportes y capturas de pantalla se registran en los comentarios de la issue correspondiente en Linear ([UNI2-162](https://linear.app/id-unicode/issue/UNI2-162) / [UNI2-179](https://linear.app/id-unicode/issue/UNI2-179)), manteniendo el repositorio libre de artefactos locales.
 Ante una falla real en cambios ya integrados, registrar reproducción, esperado/actual y
 crear tarjeta Bug; no confundir una dependencia no fusionada con una regresión.
 El informe debe separar comprobación API, prueba automatizada y verificación en navegador.
