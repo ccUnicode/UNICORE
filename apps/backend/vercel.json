@@ -3,7 +3,4 @@
   "framework": "nestjs",
   "installCommand": "npm ci --include=dev",
   "buildCommand": "npm run build:vercel",
-  "functions": {
-    "src/main.ts": { "maxDuration": 60 }
-  }
 }
