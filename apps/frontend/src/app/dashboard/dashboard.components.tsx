@@ -7,7 +7,6 @@ import { BrandLogo } from "../components/brand-logo";
 import { BRAND_LOGO_WIDTHS } from "../components/brand-logo.config";
 import { fullName } from "./dashboard.model";
 import type { Member, Project } from "./dashboard.types";
-import { formatProjectProgress } from "../project-progress";
 
 const chartDays = [
   { day: "Lun", done: 46, planned: 72 },
@@ -168,14 +167,13 @@ export function DashboardView({
       <div className="mt-8 grid gap-6 xl:grid-cols-3">
         <Panel title="Proyectos recientes">
           <StackList
-            items={projects
-              .filter((project) => !project.isArchived)
-              .slice(0, 5)
-              .map((project) => ({
-                title: project.name,
-                subtitle: project.area?.name ?? "Sin área asignada",
-                meta: formatProjectProgress(project.hasTasks, project.progress),
-              }))}
+            items={projects.slice(0, 5).map((project) => ({
+              title: project.name,
+              subtitle: project.area?.name ?? "Sin área asignada",
+              meta: project.phases?.length
+                ? `${project.phases.length} fases`
+                : "Sin fases cargadas",
+            }))}
             empty="No hay proyectos para mostrar."
           />
         </Panel>
