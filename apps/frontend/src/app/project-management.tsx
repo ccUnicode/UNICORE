@@ -925,6 +925,7 @@ export function ProjectDetail({
         <InfoCard
           label="Avance"
           value={formatProjectProgress(project.hasTasks, project.progress)}
+          testId="project-progress-card"
         >
           {project.hasTasks && (
             <div className="mt-3">
@@ -1815,17 +1816,19 @@ function InfoCard({
   label,
   value,
   children,
+  testId,
 }: {
   label: string;
   value: string;
   children?: ReactNode;
+  testId?: string;
 }) {
   return (
-    <div className="rounded-md border border-white/10 bg-[#20212c] p-5">
+    <div data-testid={testId} className="rounded-md border border-white/10 bg-[#20212c] p-5">
       <p className="text-xs font-bold uppercase tracking-wider text-white/35">
         {label}
       </p>
-      <p className="mt-2 font-bold">{value}</p>
+      <p data-testid={testId ? `${testId}-value` : undefined} className="mt-2 font-bold">{value}</p>
       {children}
     </div>
   );

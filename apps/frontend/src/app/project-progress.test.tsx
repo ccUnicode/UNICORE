@@ -160,9 +160,22 @@ describe("Project progress UI components", () => {
       />,
     );
 
-    // Project avance card shows 50 %
+    // Project avance card specifically displays 50 %
+    const projectCard = getByTestId("project-progress-card");
+    const projectCardValue = getByTestId("project-progress-card-value");
+    assert.equal(projectCardValue.textContent, "50 %");
+    assert.ok(
+      projectCard.textContent?.includes("50 %"),
+      "La tarjeta de avance debe contener 50 %",
+    );
+
+    // Exactly two occurrences of 50 % appear in the detail view (card and phase 1)
     const progressTexts = getAllByText("50 %");
-    assert.ok(progressTexts.length >= 1, "Debe mostrar al menos un elemento con 50 %");
+    assert.equal(
+      progressTexts.length,
+      2,
+      "Debe mostrar exactamente dos elementos con 50 % (tarjeta de proyecto y fase 1)",
+    );
 
     // Phase 1 shows 50 %
     const phase1Progress = getByTestId("phase-progress-10");
@@ -177,5 +190,43 @@ describe("Project progress UI components", () => {
       container.querySelector('[data-testid="phase-progress-20"]')?.textContent?.includes("0 %"),
       false,
     );
+  });
+
+  it("renders 'Sin tareas' in project advance card when project has no tasks", async () => {
+    const { render } = await import("@testing-library/react");
+    const projectWithoutTasks: Project = {
+      id: 2,
+      name: "Proyecto Beta",
+      description: "Proyecto sin tareas",
+      startDate: null,
+      endDate: null,
+      status: "planned",
+      isArchived: false,
+      hasTasks: false,
+      totalTasks: 0,
+      completedTasks: 0,
+      progress: 0,
+      phases: [],
+      memberships: [],
+    };
+
+    const { getByTestId } = render(
+      <ProjectDetail
+        project={projectWithoutTasks}
+        portfolioProjects={[]}
+        members={[]}
+        canManage={false}
+        loading={false}
+        apiUrl="http://localhost:3000"
+        accessToken="test-token"
+        onEdit={() => {}}
+        onArchive={async () => {}}
+        onRefresh={async () => {}}
+        onError={() => {}}
+      />,
+    );
+
+    const projectCardValue = getByTestId("project-progress-card-value");
+    assert.equal(projectCardValue.textContent, "Sin tareas");
   });
 });
