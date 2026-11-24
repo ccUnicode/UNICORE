@@ -5,8 +5,13 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { BrandLogo } from "../components/brand-logo";
 import { BRAND_LOGO_WIDTHS } from "../components/brand-logo.config";
-import { fullName } from "./dashboard.model";
+import {
+  filterVisibleProjectsForRole,
+  fullName,
+  getMemberAreaIds,
+} from "./dashboard.model";
 import type { Member, Project } from "./dashboard.types";
+import { formatProjectProgress, ProgressBar } from "../project-progress";
 
 const chartDays = [
   { day: "Lun", done: 46, planned: 72 },
@@ -101,6 +106,7 @@ export function DashboardView({
   projects,
   loading,
   authRole,
+  currentMember,
 }: {
   areaCount: number;
   memberCount: number;
@@ -109,7 +115,17 @@ export function DashboardView({
   projects: Project[];
   loading: boolean;
   authRole: string;
+  currentMember?: Member | null;
 }) {
+  const visibleProjects = currentMember
+    ? filterVisibleProjectsForRole(
+        projects,
+        currentMember.role,
+        getMemberAreaIds(currentMember),
+        currentMember.id,
+      )
+    : (projects ?? []).filter((p) => !p.isArchived);
+
   return (
     <div>
         <SectionTitle
@@ -166,23 +182,14 @@ export function DashboardView({
 
       <div className="mt-8 grid gap-6 xl:grid-cols-3">
         <Panel title="Proyectos recientes">
-          <StackList
-            items={projects.slice(0, 5).map((project) => ({
-              title: project.name,
-              subtitle: project.area?.name ?? "Sin área asignada",
-              meta: project.phases?.length
-                ? `${project.phases.length} fases`
-                : "Sin fases cargadas",
-            }))}
-            empty="No hay proyectos para mostrar."
-          />
+          <DashboardProjectList projects={visibleProjects} />
         </Panel>
         <Panel title="Tu acceso">
           <StackList
             items={[
               {
                 title: "Modo de acceso",
-                subtitle: authRole.replaceAll("_", " "),
+                subtitle: authRole?.replaceAll("_", " ") ?? "",
                 meta: "Activo",
               },
             ]}
@@ -205,6 +212,59 @@ export function DashboardView({
           />
         </Panel>
       </div>
+    </div>
+  );
+}
+
+export function DashboardProjectList({
+  projects,
+}: {
+  projects: Project[];
+}) {
+  const activeProjects = (projects ?? []).filter((project) => !project.isArchived);
+
+  if (activeProjects.length === 0) {
+    return <EmptyState text="No hay proyectos para mostrar." compact />;
+  }
+
+  return (
+    <div className="space-y-3">
+      {activeProjects.slice(0, 5).map((project) => {
+        const progressFormatted = formatProjectProgress(
+          project.hasTasks,
+          project.progress,
+        );
+        return (
+          <div
+            key={project.id}
+            data-testid={`dashboard-project-${project.id}`}
+            className="rounded-md bg-[#171822] px-4 py-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-bold text-white">{project.name}</p>
+                <p className="truncate text-sm text-white/45">
+                  {project.area?.name ?? "Sin área asignada"}
+                </p>
+              </div>
+              <span
+                data-testid={`dashboard-project-progress-${project.id}`}
+                className="shrink-0 rounded bg-white/8 px-2 py-1 text-xs font-semibold text-white/75"
+              >
+                {progressFormatted}
+              </span>
+            </div>
+            {project.hasTasks && (
+              <div
+                className="mt-2.5"
+                data-testid={`dashboard-project-bar-${project.id}`}
+              >
+                <ProgressBar progress={project.progress ?? 0} />
+              </div>
+            )}
+          </div>
+        );
+      })}
     </div>
   );
 }

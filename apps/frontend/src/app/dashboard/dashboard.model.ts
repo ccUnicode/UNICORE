@@ -37,8 +37,10 @@ export function fullName(member: Member): string {
 export function getMemberAreaIds(member: Member): number[] {
   const ids = new Set<number>();
   if (typeof member.areaId === "number") ids.add(member.areaId);
+  if (typeof member.area?.id === "number") ids.add(member.area.id);
   member.memberships?.forEach((membership) => {
     if (typeof membership.areaId === "number") ids.add(membership.areaId);
+    if (typeof membership.area?.id === "number") ids.add(membership.area.id);
   });
   return [...ids];
 }
@@ -121,4 +123,39 @@ export function resolveAreaNavigation(
     targetView: "areas",
     targetAreaId: validPreferredId,
   };
+}
+
+export function filterVisibleProjectsForRole(
+  projects: Project[],
+  role?: string,
+  memberAreaIds: number[] = [],
+  memberId?: number,
+): Project[] {
+  const normalizedRole = role?.trim().toLowerCase();
+  const activeProjects = (projects ?? []).filter((p) => !p.isArchived);
+
+  if (normalizedRole === "presidencia") {
+    return activeProjects;
+  }
+
+  if (
+    normalizedRole === "directiva_de_area" ||
+    normalizedRole === "directiva"
+  ) {
+    return activeProjects.filter((p) => {
+      const areaId = typeof p.areaId === "number" ? p.areaId : p.area?.id;
+      return typeof areaId === "number" && memberAreaIds.includes(areaId);
+    });
+  }
+
+  if (normalizedRole === "miembro" || normalizedRole === "member") {
+    if (typeof memberId !== "number") return [];
+    return activeProjects.filter((p) =>
+      p.memberships?.some(
+        (m) => m.memberId === memberId || m.member?.id === memberId,
+      ),
+    );
+  }
+
+  return activeProjects;
 }
