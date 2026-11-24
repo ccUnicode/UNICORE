@@ -1,6 +1,6 @@
 export const DEFAULT_PROJECT_PHASES = [
-  'Planning',
-  'Execution',
-  'Review',
-  'Launch',
+  'Planificación',
+  'Ejecución',
+  'Revisión',
+  'Lanzamiento',
 ] as const;

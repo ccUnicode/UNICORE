@@ -31,6 +31,7 @@ describe('AreaService', () => {
     save: jest.fn(),
     find: jest.fn(),
     findOne: jest.fn(),
+    manager: { transaction: jest.fn() },
   };
 
   const mockAuditService = {
@@ -40,6 +41,10 @@ describe('AreaService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    mockAreaRepository.manager.transaction.mockImplementation(
+      async (work: (manager: unknown) => Promise<unknown>) =>
+        work({ getRepository: () => mockAreaRepository }),
+    );
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AreaService,
@@ -56,6 +61,82 @@ describe('AreaService', () => {
 
     service = module.get<AreaService>(AreaService);
     repository = module.get(getRepositoryToken(Area));
+  });
+
+  it('restores archived areas without changing their memberships', async () => {
+    const actor = { role: AreaRole.PRESIDENCIA };
+    const area = createArea({ isArchived: true });
+    const memberships = area.memberships;
+    repository.findOne.mockResolvedValue(area);
+    repository.save.mockImplementation((value: Area) => Promise.resolve(value));
+    await expect(service.restore(1, actor)).resolves.toMatchObject({
+      isArchived: false,
+    });
+    expect(repository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: area.id, isArchived: false }),
+    );
+    expect(area.memberships).toBe(memberships);
+    expect(mockAuditService.record).toHaveBeenCalledWith(
+      actor,
+      expect.objectContaining({
+        action: 'restore',
+        entityType: 'Area',
+        entityId: 1,
+      }),
+      expect.anything(),
+    );
+  });
+
+  it.each([AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO])(
+    'rejects area restoration by %s',
+    async (role) => {
+      await expect(service.restore(1, { role })).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(repository.findOne).not.toHaveBeenCalled();
+      expect(repository.save).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns 404 for missing areas on restoration', async () => {
+    repository.findOne.mockResolvedValue(null);
+    await expect(
+      service.restore(99, { role: AreaRole.PRESIDENCIA }),
+    ).rejects.toThrow(NotFoundException);
+    expect(repository.save).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate restoration or audit for active areas', async () => {
+    repository.findOne.mockResolvedValue(createArea());
+    await service.restore(1, { role: AreaRole.PRESIDENCIA });
+    expect(repository.save).not.toHaveBeenCalled();
+    expect(mockAuditService.record).not.toHaveBeenCalled();
+  });
+
+  it('propagates audit failure and writes only inside the restoration transaction', async () => {
+    let active = false;
+    repository.manager.transaction.mockImplementation(
+      async (work: (manager: unknown) => Promise<unknown>) => {
+        active = true;
+        try {
+          return await work({ getRepository: () => repository });
+        } finally {
+          active = false;
+        }
+      },
+    );
+    repository.findOne.mockResolvedValue(createArea({ isArchived: true }));
+    repository.save.mockImplementation((area: Area) => {
+      expect(active).toBe(true);
+      return Promise.resolve(area);
+    });
+    const error = new Error('Audit unavailable');
+    mockAuditService.record.mockRejectedValueOnce(error);
+    await expect(
+      service.restore(1, { role: AreaRole.PRESIDENCIA }),
+    ).rejects.toBe(error);
+    expect(repository.save).toHaveBeenCalledTimes(1);
+    expect(active).toBe(false);
   });
 
   it('should be defined', () => {

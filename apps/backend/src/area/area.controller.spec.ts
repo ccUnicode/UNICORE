@@ -31,6 +31,7 @@ describe('AreaController', () => {
     findOne: jest.fn(),
     update: jest.fn(),
     archive: jest.fn(),
+    restore: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -54,6 +55,19 @@ describe('AreaController', () => {
     }).compile();
 
     controller = module.get<AreaController>(AreaController);
+  });
+
+  it('restricts restoration to Presidencia and delegates the actor', async () => {
+    const actor = { role: AreaRole.PRESIDENCIA };
+    expect(
+      Reflect.getMetadata(ROLES_KEY, getAreaControllerMethod('restore')),
+    ).toEqual([AreaRole.PRESIDENCIA]);
+    mockAreaService.restore.mockResolvedValue({ id: 1, isArchived: false });
+    await expect(controller.restore(1, actor)).resolves.toEqual({
+      id: 1,
+      isArchived: false,
+    });
+    expect(mockAreaService.restore).toHaveBeenCalledWith(1, actor);
   });
 
   it('should be defined', () => {

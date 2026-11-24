@@ -67,6 +67,15 @@ export class ProjectsController {
     return this.projectsService.update(id, updateProjectDto, accessActor);
   }
 
+  @Patch(':id/restore')
+  @Roles(AreaRole.PRESIDENCIA)
+  restore(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentAccessActor() accessActor: RequestAccessActor,
+  ) {
+    return this.projectsService.restore(id, accessActor);
+  }
+
   @Patch(':id/archive')
   @Roles(AreaRole.PRESIDENCIA, AreaRole.DIRECTIVA_DE_AREA)
   archive(

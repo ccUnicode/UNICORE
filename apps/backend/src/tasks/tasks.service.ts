@@ -486,6 +486,7 @@ export class TasksService {
       const project = await this.findProjectOrThrow(
         task.projectId,
         entityManager.getRepository(Project),
+        true,
       );
 
       await this.assertProjectAccess(
@@ -721,7 +722,7 @@ export class TasksService {
     const ineligibleMembership = memberships.find(
       ({ member }) =>
         !availabilityExemptMemberIds.has(member.id) &&
-        member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE,
+        member.availabilityStatus === MemberAvailabilityStatus.DISABLED,
     );
 
     if (ineligibleMembership) {

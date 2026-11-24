@@ -28,6 +28,7 @@ import {
 import { MemberAvailabilityStatus } from '../members/enums/member-availability-status.enum';
 import { MemberActivityStatus } from '../members/enums/member-activity-status.enum';
 import { Member } from '../members/member.entity';
+import { canViewInternalMemberFields } from '../members/utils/member-response.util';
 import { MemberAvailabilityService } from '../members/member-availability.service';
 import { MemberActivityService } from '../members/member-activity.service';
 import { DEFAULT_PROJECT_PHASES } from './constants/default-project-phases.constant';
@@ -47,6 +48,8 @@ import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { Task } from '../tasks/entities/task.entity';
+import { TaskStatus } from '../tasks/enums/task-status.enum';
 import { AuditService } from '../audit/audit.service';
 
 @Injectable()
@@ -66,6 +69,8 @@ export class ProjectsService {
     private readonly membersRepository: Repository<Member>,
     @InjectRepository(TaskAssignee)
     private readonly taskAssigneesRepository: Repository<TaskAssignee>,
+    @InjectRepository(Task)
+    private readonly tasksRepository: Repository<Task>,
     private readonly areaService: AreaService,
     private readonly auditService: AuditService,
     private readonly memberAvailabilityService: MemberAvailabilityService,
@@ -110,6 +115,7 @@ export class ProjectsService {
           entityManager.getRepository(ProjectLink),
         );
         savedProject.labels = labels;
+        this.attachProjectProgress(savedProject, []);
 
         if (accessActor) {
           await this.auditService.record(
@@ -152,6 +158,29 @@ export class ProjectsService {
       take: limit,
     });
 
+    if (data.length > 0) {
+      const projectIds = data.map((project) => project.id);
+      const tasks = await this.tasksRepository.find({
+        where: this.buildTaskProgressWhere(
+          { projectId: In(projectIds) },
+          accessActor?.snapshotAt,
+        ),
+        select: ['id', 'status', 'phaseId', 'projectId'],
+      });
+      const tasksByProject = new Map<number, Task[]>();
+      for (const task of tasks) {
+        const list = tasksByProject.get(task.projectId) ?? [];
+        list.push(task);
+        tasksByProject.set(task.projectId, list);
+      }
+      for (const project of data) {
+        this.attachProjectProgress(
+          project,
+          tasksByProject.get(project.id) ?? [],
+        );
+      }
+    }
+
     return {
       data,
       meta: {
@@ -164,14 +193,19 @@ export class ProjectsService {
   }
 
   async findOne(id: number, accessActor: RequestAccessActor): Promise<Project> {
-    const project = await this.findProjectDetails(id);
+    const project = await this.findProjectDetails(id, accessActor);
     this.assertProjectReadAccess(project, accessActor);
+    this.limitProjectTeamMemberFields(project, accessActor);
 
     return project;
   }
 
-  private async findProjectDetails(id: number): Promise<Project> {
-    const project = await this.projectsRepository.findOne({
+  private async findProjectDetails(
+    id: number,
+    accessActor?: RequestAccessActor,
+    repository: Repository<Project> = this.projectsRepository,
+  ): Promise<Project> {
+    const project = await repository.findOne({
       where: { id },
       relations: [
         'area',
@@ -193,7 +227,15 @@ export class ProjectsService {
     }
 
     this.sortMembershipsByActivity(project);
-    this.limitProjectTeamMemberFields(project);
+
+    const tasks = await this.tasksRepository.find({
+      where: this.buildTaskProgressWhere(
+        { projectId: id },
+        accessActor?.snapshotAt,
+      ),
+      select: ['id', 'status', 'phaseId', 'projectId'],
+    });
+    this.attachProjectProgress(project, tasks);
 
     return project;
   }
@@ -353,13 +395,64 @@ export class ProjectsService {
     return this.findOne(id, accessActor);
   }
 
+  async restore(id: number, accessActor: RequestAccessActor): Promise<Project> {
+    if (accessActor.role !== AreaRole.PRESIDENCIA) {
+      throw new ForbiddenException('Only Presidencia can restore projects');
+    }
+    return this.projectsRepository.manager.transaction(
+      async (entityManager) => {
+        const projectsRepository = entityManager.getRepository(Project);
+        const project = await this.findProjectForUpdate(
+          id,
+          projectsRepository,
+          accessActor,
+        );
+        if (project.isArchived) {
+          project.isArchived = false;
+
+          const savedProject = await projectsRepository.save(project);
+          await this.memberActivityService.refreshProjectMembers(
+            savedProject.id,
+            entityManager,
+          );
+          await this.memberAvailabilityService.refreshProjectMembers(
+            savedProject.id,
+            entityManager,
+          );
+
+          await this.auditService.record(
+            accessActor,
+            {
+              action: 'restore',
+              entityType: 'Project',
+              entityId: savedProject.id,
+              areaId: savedProject.areaId,
+              metadata: { name: savedProject.name },
+            },
+            entityManager,
+          );
+        }
+        return this.findProjectDetails(id, accessActor, projectsRepository);
+      },
+    );
+  }
+
   async findPhases(
     projectId: number,
     accessActor: RequestAccessActor,
   ): Promise<ProjectPhase[]> {
     await this.ensureProjectExists(projectId, accessActor);
 
-    return this.findProjectPhases(projectId);
+    const phases = await this.findProjectPhases(projectId);
+    const tasks = await this.tasksRepository.find({
+      where: this.buildTaskProgressWhere(
+        { projectId },
+        accessActor?.snapshotAt,
+      ),
+      select: ['id', 'status', 'phaseId', 'projectId'],
+    });
+    this.attachPhasesProgress(phases, tasks);
+    return phases;
   }
 
   async createPhase(
@@ -388,7 +481,9 @@ export class ProjectsService {
           projectId: project.id,
         });
 
-        return projectPhasesRepository.save(phase);
+        const savedPhase = await projectPhasesRepository.save(phase);
+        this.attachPhaseProgress(savedPhase, []);
+        return savedPhase;
       },
     );
   }
@@ -437,7 +532,13 @@ export class ProjectsService {
       );
     }
 
-    return this.findPhaseOrThrow(projectId, phaseId);
+    const phase = await this.findPhaseOrThrow(projectId, phaseId);
+    const tasks = await this.tasksRepository.find({
+      where: this.buildTaskProgressWhere({ phaseId }, accessActor?.snapshotAt),
+      select: ['id', 'status', 'phaseId', 'projectId'],
+    });
+    this.attachPhaseProgress(phase, tasks);
+    return phase;
   }
 
   async reorderPhases(
@@ -482,7 +583,19 @@ export class ProjectsService {
 
         await projectPhasesRepository.save(reorderedPhases);
 
-        return this.findProjectPhases(projectId, projectPhasesRepository);
+        const updatedPhases = await this.findProjectPhases(
+          projectId,
+          projectPhasesRepository,
+        );
+        const tasks = await this.tasksRepository.find({
+          where: this.buildTaskProgressWhere(
+            { projectId },
+            accessActor?.snapshotAt,
+          ),
+          select: ['id', 'status', 'phaseId', 'projectId'],
+        });
+        this.attachPhasesProgress(updatedPhases, tasks);
+        return updatedPhases;
       },
     );
   }
@@ -572,8 +685,10 @@ export class ProjectsService {
           );
         }
 
-        if (member.availabilityStatus !== MemberAvailabilityStatus.AVAILABLE) {
-          return null;
+        if (member.availabilityStatus === MemberAvailabilityStatus.DISABLED) {
+          throw new BadRequestException(
+            'Disabled members cannot be added to a project team',
+          );
         }
 
         const belongsToArea = member.memberships?.some(
@@ -640,12 +755,6 @@ export class ProjectsService {
         }
       },
     );
-
-    if (!membership) {
-      throw new BadRequestException(
-        'Members marked as unavailable are not selectable when building a team',
-      );
-    }
 
     return membership;
   }
@@ -746,6 +855,19 @@ export class ProjectsService {
         'startDate must be before or equal to endDate',
       );
     }
+  }
+
+  private buildTaskProgressWhere(
+    where: FindOptionsWhere<Task>,
+    snapshotAt?: Date,
+  ): FindOptionsWhere<Task> {
+    return {
+      ...where,
+      ...(snapshotAt && {
+        createdAt: LessThanOrEqual(snapshotAt),
+        updatedAt: LessThanOrEqual(snapshotAt),
+      }),
+    };
   }
 
   private buildProjectFilters(
@@ -1031,7 +1153,10 @@ export class ProjectsService {
     });
   }
 
-  private limitProjectTeamMemberFields(project: Project): void {
+  private limitProjectTeamMemberFields(
+    project: Project,
+    accessActor: RequestAccessActor,
+  ): void {
     project.memberships?.forEach((membership) => {
       if (!membership.member) {
         return;
@@ -1041,14 +1166,93 @@ export class ProjectsService {
         membership.member;
 
       const isEligible =
-        availabilityStatus === MemberAvailabilityStatus.AVAILABLE;
+        availabilityStatus !== MemberAvailabilityStatus.DISABLED;
 
       membership.member = {
         id,
         firstNames,
         lastNames,
+        ...(canViewInternalMemberFields(accessActor.role)
+          ? { availabilityStatus }
+          : {}),
         isEligible,
       } as unknown as Member;
     });
   }
+
+  private attachPhaseProgress(
+    phase: ProjectPhase,
+    phaseTasks: Array<{ status: TaskStatus }>,
+  ): ProjectPhase {
+    const metrics = calculateTaskProgress(phaseTasks);
+    phase.totalTasks = metrics.totalTasks;
+    phase.completedTasks = metrics.completedTasks;
+    phase.progress = metrics.progress;
+    phase.progressPercentage = metrics.progressPercentage;
+    phase.isCompleted = metrics.isCompleted;
+    phase.isComplete = metrics.isComplete;
+    phase.hasTasks = metrics.hasTasks;
+    return phase;
+  }
+
+  private attachPhasesProgress(
+    phases: ProjectPhase[],
+    tasks: Task[],
+  ): ProjectPhase[] {
+    for (const phase of phases) {
+      const phaseTasks = tasks.filter((task) => task.phaseId === phase.id);
+      this.attachPhaseProgress(phase, phaseTasks);
+    }
+    return phases;
+  }
+
+  private attachProjectProgress(project: Project, tasks: Task[]): Project {
+    const metrics = calculateTaskProgress(tasks);
+    project.totalTasks = metrics.totalTasks;
+    project.completedTasks = metrics.completedTasks;
+    project.progress = metrics.progress;
+    project.progressPercentage = metrics.progressPercentage;
+    project.isCompleted = metrics.isCompleted;
+    project.isComplete = metrics.isComplete;
+    project.hasTasks = metrics.hasTasks;
+
+    if (project.phases && Array.isArray(project.phases)) {
+      this.attachPhasesProgress(project.phases, tasks);
+    }
+
+    return project;
+  }
+}
+
+export interface TaskProgressMetrics {
+  totalTasks: number;
+  completedTasks: number;
+  progress: number;
+  progressPercentage: number;
+  isCompleted: boolean;
+  isComplete: boolean;
+  hasTasks: boolean;
+}
+
+export function calculateTaskProgress(
+  tasks: Array<{ status: TaskStatus }>,
+): TaskProgressMetrics {
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(
+    (task) => task.status === TaskStatus.DONE,
+  ).length;
+  const progress =
+    totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+  const isCompleted = totalTasks > 0 && completedTasks === totalTasks;
+  const hasTasks = totalTasks > 0;
+
+  return {
+    totalTasks,
+    completedTasks,
+    progress,
+    progressPercentage: progress,
+    isCompleted,
+    isComplete: isCompleted,
+    hasTasks,
+  };
 }

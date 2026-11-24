@@ -8,8 +8,9 @@ import {
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import {
-  In,
   FindOperator,
+  FindOptionsWhere,
+  In,
   LessThanOrEqual,
   MoreThanOrEqual,
   ObjectLiteral,
@@ -34,8 +35,10 @@ import { ProjectMembership } from './entities/project-membership.entity';
 import { ProjectPhase } from './entities/project-phase.entity';
 import { Project } from './entities/project.entity';
 import { ProjectStatus } from './enums/project-status.enum';
-import { ProjectsService } from './projects.service';
+import { calculateTaskProgress, ProjectsService } from './projects.service';
 import { TaskAssignee } from '../tasks/entities/task-assignee.entity';
+import { Task } from '../tasks/entities/task.entity';
+import { TaskStatus } from '../tasks/enums/task-status.enum';
 import { AuditService } from '../audit/audit.service';
 
 type RepositoryMethodMocks<T extends ObjectLiteral> = Partial<
@@ -57,6 +60,7 @@ type ProjectLinkRepositoryMock = RepositoryMethodMocks<ProjectLink>;
 type ProjectMembershipRepositoryMock = RepositoryMethodMocks<ProjectMembership>;
 type MemberRepositoryMock = RepositoryMethodMocks<Member>;
 type TaskAssigneeRepositoryMock = RepositoryMethodMocks<TaskAssignee>;
+type TaskRepositoryMock = RepositoryMethodMocks<Task>;
 
 const createArea = (overrides: Partial<Area> = {}): Area => ({
   id: 1,
@@ -73,11 +77,18 @@ const createProjectPhase = (
   overrides: Partial<ProjectPhase> = {},
 ): ProjectPhase => ({
   id: 1,
-  name: 'Planning',
+  name: 'Planificación',
   description: null,
   orderIndex: 1,
   projectId: 1,
   project: {} as Project,
+  totalTasks: 0,
+  completedTasks: 0,
+  progress: 0,
+  progressPercentage: 0,
+  isCompleted: false,
+  isComplete: false,
+  hasTasks: false,
   createdAt: new Date(),
   updatedAt: new Date(),
   ...overrides,
@@ -124,6 +135,13 @@ const createProject = (overrides: Partial<Project> = {}): Project => {
     labels: [],
     links: [],
     memberships: [],
+    totalTasks: 0,
+    completedTasks: 0,
+    progress: 0,
+    progressPercentage: 0,
+    isCompleted: false,
+    isComplete: false,
+    hasTasks: false,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,
@@ -206,6 +224,8 @@ describe('ProjectsService', () => {
   let projectMembershipsRepository: ProjectMembershipRepositoryMock;
   let membersRepository: MemberRepositoryMock;
   let taskAssigneesRepository: TaskAssigneeRepositoryMock;
+  let tasksRepository: TaskRepositoryMock;
+  let transactionManager: unknown;
   let auditService: jest.Mocked<AuditService>;
   let memberAvailabilityService: jest.Mocked<MemberAvailabilityService>;
   let memberActivityService: jest.Mocked<MemberActivityService>;
@@ -273,6 +293,9 @@ describe('ProjectsService', () => {
     taskAssigneesRepository = {
       findOne: jest.fn(),
     };
+    tasksRepository = {
+      find: jest.fn().mockResolvedValue([]),
+    };
     const getRepository = jest.fn(
       (
         entity:
@@ -282,7 +305,8 @@ describe('ProjectsService', () => {
           | typeof ProjectLink
           | typeof ProjectMembership
           | typeof Member
-          | typeof TaskAssignee,
+          | typeof TaskAssignee
+          | typeof Task,
       ) => {
         if (entity === Project) return projectsRepository;
         if (entity === ProjectPhase) return projectPhasesRepository;
@@ -290,6 +314,7 @@ describe('ProjectsService', () => {
         if (entity === ProjectMembership) return projectMembershipsRepository;
         if (entity === Member) return membersRepository;
         if (entity === TaskAssignee) return taskAssigneesRepository;
+        if (entity === Task) return tasksRepository;
         return projectLinksRepository;
       },
     );
@@ -298,7 +323,11 @@ describe('ProjectsService', () => {
         callback: (entityManager: {
           getRepository: typeof getRepository;
         }) => Promise<unknown>,
-      ) => callback({ getRepository }),
+      ) => {
+        const manager = { getRepository };
+        transactionManager = manager;
+        return callback(manager);
+      },
     );
     projectsRepository.manager.transaction = transaction;
     projectPhasesRepository.manager.transaction = transaction;
@@ -340,6 +369,10 @@ describe('ProjectsService', () => {
         {
           provide: getRepositoryToken(TaskAssignee),
           useValue: taskAssigneesRepository,
+        },
+        {
+          provide: getRepositoryToken(Task),
+          useValue: tasksRepository,
         },
         {
           provide: AreaService,
@@ -422,25 +455,25 @@ describe('ProjectsService', () => {
     expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
     expect(projectPhasesRepository.save).toHaveBeenCalledWith([
       expect.objectContaining({
-        name: 'Planning',
+        name: 'Planificación',
         description: null,
         orderIndex: 1,
         projectId: project.id,
       }),
       expect.objectContaining({
-        name: 'Execution',
+        name: 'Ejecución',
         description: null,
         orderIndex: 2,
         projectId: project.id,
       }),
       expect.objectContaining({
-        name: 'Review',
+        name: 'Revisión',
         description: null,
         orderIndex: 3,
         projectId: project.id,
       }),
       expect.objectContaining({
-        name: 'Launch',
+        name: 'Lanzamiento',
         description: null,
         orderIndex: 4,
         projectId: project.id,
@@ -756,12 +789,10 @@ describe('ProjectsService', () => {
       id: membership.member.id,
       firstNames: membership.member.firstNames,
       lastNames: membership.member.lastNames,
+      availabilityStatus: MemberAvailabilityStatus.AVAILABLE,
       isEligible: true,
     });
     expect(result.memberships[0].member).not.toHaveProperty('activityStatus');
-    expect(result.memberships[0].member).not.toHaveProperty(
-      'availabilityStatus',
-    );
     expect(projectsRepository.findOne).toHaveBeenCalledWith({
       where: { id: 1 },
       relations: [
@@ -779,6 +810,50 @@ describe('ProjectsService', () => {
       },
     });
   });
+
+  it.each([
+    MemberAvailabilityStatus.AVAILABLE,
+    MemberAvailabilityStatus.NOT_AVAILABLE,
+    MemberAvailabilityStatus.DISABLED,
+  ])(
+    'hides availability from project members while retaining eligibility for %s',
+    async (availabilityStatus) => {
+      const membership = createProjectMembership({
+        member: createMember({ availabilityStatus }),
+      });
+      projectsRepository.findOne?.mockResolvedValue(
+        createProject({ memberships: [membership] }),
+      );
+
+      const result = await service.findOne(1, {
+        ...memberActor,
+        projectIds: ['1'],
+      });
+
+      expect(result.memberships[0].member).not.toHaveProperty(
+        'availabilityStatus',
+      );
+      expect(
+        (result.memberships[0].member as unknown as { isEligible: boolean })
+          .isEligible,
+      ).toBe(availabilityStatus !== MemberAvailabilityStatus.DISABLED);
+    },
+  );
+
+  it.each([presidencyActor, areaLeaderActor])(
+    'retains availability for internal-field viewers with role $role',
+    async (actor) => {
+      projectsRepository.findOne?.mockResolvedValue(
+        createProject({ memberships: [createProjectMembership()] }),
+      );
+
+      const result = await service.findOne(1, actor);
+
+      expect(result.memberships[0].member.availabilityStatus).toBe(
+        MemberAvailabilityStatus.AVAILABLE,
+      );
+    },
+  );
 
   it('rejects project detail when the project does not exist', async () => {
     projectsRepository.findOne?.mockResolvedValue(null);
@@ -895,6 +970,112 @@ describe('ProjectsService', () => {
         endDate: '2026-06-01',
       }),
     );
+  });
+
+  it('restores projects while preserving phases, team and status', async () => {
+    const project = createProject({
+      isArchived: true,
+      phases: [createProjectPhase()],
+      memberships: [createProjectMembership()],
+      tasks: [{ id: 42 } as import('../tasks/entities/task.entity').Task],
+    });
+    const tasks = project.tasks;
+    const phases = project.phases;
+    const memberships = project.memberships;
+    const status = project.status;
+    projectsRepository.findOne?.mockResolvedValue(project);
+    projectsRepository.save?.mockResolvedValue(project);
+    await expect(service.restore(1, presidencyActor)).resolves.toMatchObject({
+      isArchived: false,
+      status,
+    });
+    expect(projectsRepository.save).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 1, isArchived: false }),
+    );
+    expect(auditService.record.mock.calls[0][2]).toBe(transactionManager);
+    expect(project.tasks).toBe(tasks);
+    expect(project.phases).toBe(phases);
+    expect(project.memberships).toBe(memberships);
+    expect(memberActivityService.refreshProjectMembers).toHaveBeenCalledWith(
+      1,
+      transactionManager,
+    );
+    expect(
+      memberAvailabilityService.refreshProjectMembers,
+    ).toHaveBeenCalledWith(1, transactionManager);
+    expect(auditService.record).toHaveBeenCalledWith(
+      presidencyActor,
+      expect.objectContaining({
+        action: 'restore',
+        entityType: 'Project',
+        entityId: 1,
+      }),
+      transactionManager,
+    );
+  });
+
+  it.each([AreaRole.DIRECTIVA_DE_AREA, AreaRole.MIEMBRO])(
+    'rejects project restoration by %s',
+    async (role) => {
+      await expect(service.restore(1, { role })).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(projectsRepository.save).not.toHaveBeenCalled();
+      expect(projectsRepository.findOne).not.toHaveBeenCalled();
+    },
+  );
+
+  it('returns 404 for missing projects on restoration', async () => {
+    projectsRepository.findOne?.mockResolvedValue(null);
+    await expect(service.restore(99, presidencyActor)).rejects.toThrow(
+      NotFoundException,
+    );
+    expect(projectsRepository.save).not.toHaveBeenCalled();
+  });
+
+  it('does not duplicate restoration or audit for active projects', async () => {
+    projectsRepository.findOne?.mockResolvedValue(createProject());
+    await service.restore(1, presidencyActor);
+    expect(projectsRepository.save).not.toHaveBeenCalled();
+    expect(auditService.record).not.toHaveBeenCalled();
+    expect(memberActivityService.refreshProjectMembers).not.toHaveBeenCalled();
+  });
+
+  it('loads the restored response before the transaction completes', async () => {
+    const project = createProject({ isArchived: true });
+    const detail = createProject({ phases: [createProjectPhase()] });
+    let active = false;
+    const transactionalRepository = {
+      findOne: jest.fn((options: { relations?: string[] }) => {
+        expect(active).toBe(true);
+        return Promise.resolve(options.relations ? detail : project);
+      }),
+      save: jest.fn().mockResolvedValue(detail),
+    };
+    projectsRepository.manager.transaction.mockImplementation(
+      async (work: (manager: unknown) => Promise<unknown>) => {
+        active = true;
+        try {
+          return await work({ getRepository: () => transactionalRepository });
+        } finally {
+          active = false;
+        }
+      },
+    );
+    await expect(service.restore(1, presidencyActor)).resolves.toBe(detail);
+    expect(transactionalRepository.findOne).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        relations: [
+          'area',
+          'phases',
+          'labels',
+          'links',
+          'memberships',
+          'memberships.member',
+        ],
+      }),
+    );
+    expect(projectsRepository.findOne).not.toHaveBeenCalled();
   });
 
   it('archives projects', async () => {
@@ -1302,13 +1483,19 @@ describe('ProjectsService', () => {
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
     });
 
-    it('rejects unavailable members', async () => {
+    it('allows NOT_AVAILABLE members to be added to a project team per FR-23 and FR-32', async () => {
       const member = createMember({
         availabilityStatus: MemberAvailabilityStatus.NOT_AVAILABLE,
       });
+      const membership = createProjectMembership({ member });
 
       projectsRepository.findOne?.mockResolvedValue(createProject());
       membersRepository.findOne?.mockResolvedValue(member);
+      projectMembershipsRepository.findOne
+        ?.mockResolvedValueOnce(null)
+        .mockResolvedValueOnce(membership);
+      projectMembershipsRepository.create?.mockReturnValue(membership);
+      projectMembershipsRepository.save?.mockResolvedValue(membership);
 
       await expect(
         service.addTeamMember(
@@ -1316,21 +1503,7 @@ describe('ProjectsService', () => {
           { memberId: 1, role: ProjectRole.MEMBER },
           presidencyActor,
         ),
-      ).rejects.toThrow(
-        new BadRequestException(
-          'Members marked as unavailable are not selectable when building a team',
-        ),
-      );
-      expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
-      expect(memberActivityService.refreshMembers).toHaveBeenCalledWith(
-        [1],
-        expect.anything(),
-      );
-      expect(memberAvailabilityService.refreshMembers).toHaveBeenCalledWith(
-        [1],
-        expect.anything(),
-      );
-      expect(projectsRepository.manager.transaction).toHaveBeenCalledTimes(1);
+      ).resolves.toEqual(membership);
     });
 
     it('allows inactive members when their derived availability is available', async () => {
@@ -1357,13 +1530,10 @@ describe('ProjectsService', () => {
       ).resolves.toEqual(membership);
     });
 
-    it.each([
-      MemberAvailabilityStatus.NOT_AVAILABLE,
-      MemberAvailabilityStatus.DISABLED,
-    ])('rejects a member with %s derived availability', async (status) => {
+    it('rejects a member with DISABLED availability status', async () => {
       projectsRepository.findOne?.mockResolvedValue(createProject());
       membersRepository.findOne?.mockResolvedValue(
-        createMember({ availabilityStatus: status }),
+        createMember({ availabilityStatus: MemberAvailabilityStatus.DISABLED }),
       );
 
       await expect(
@@ -1372,7 +1542,11 @@ describe('ProjectsService', () => {
           { memberId: 1, role: ProjectRole.MEMBER },
           presidencyActor,
         ),
-      ).rejects.toThrow(BadRequestException);
+      ).rejects.toThrow(
+        new BadRequestException(
+          'Disabled members cannot be added to a project team',
+        ),
+      );
       expect(projectMembershipsRepository.save).not.toHaveBeenCalled();
     });
 
@@ -1518,6 +1692,365 @@ describe('ProjectsService', () => {
         ),
       );
       expect(projectMembershipsRepository.remove).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('progress calculation per phase and project [FR-43, FR-44]', () => {
+    describe('calculateTaskProgress formula', () => {
+      it('Case 1: Fase con 4 tareas, 3 en "Hecho" -> 75 %, no completa', () => {
+        const tasks = [
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.IN_PROGRESS },
+        ];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 4,
+          completedTasks: 3,
+          progress: 75,
+          progressPercentage: 75,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: true,
+        });
+      });
+
+      it('Case 2: Fase con 4 tareas, 4 en "Hecho" -> 100 %, completa', () => {
+        const tasks = [
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+        ];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 4,
+          completedTasks: 4,
+          progress: 100,
+          progressPercentage: 100,
+          isCompleted: true,
+          isComplete: true,
+          hasTasks: true,
+        });
+      });
+
+      it('Case 3: Fase sin tareas -> 0 %, marcada como "sin tareas", no completa', () => {
+        const tasks: Array<{ status: TaskStatus }> = [];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 0,
+          completedTasks: 0,
+          progress: 0,
+          progressPercentage: 0,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: false,
+        });
+      });
+
+      it('Case 4: Proyecto con 10 tareas, 2 sin fase, 5 en "Hecho" -> 50 %', () => {
+        const tasks = [
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.DONE },
+          { status: TaskStatus.TODO },
+          { status: TaskStatus.TODO },
+          { status: TaskStatus.IN_PROGRESS },
+          { status: TaskStatus.IN_PROGRESS },
+          { status: TaskStatus.IN_REVIEW },
+        ];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 10,
+          completedTasks: 5,
+          progress: 50,
+          progressPercentage: 50,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: true,
+        });
+      });
+
+      it('Case 5: Proyecto sin tareas -> 0 %, "sin tareas"', () => {
+        const tasks: Array<{ status: TaskStatus }> = [];
+
+        const result = calculateTaskProgress(tasks);
+
+        expect(result).toEqual({
+          totalTasks: 0,
+          completedTasks: 0,
+          progress: 0,
+          progressPercentage: 0,
+          isCompleted: false,
+          isComplete: false,
+          hasTasks: false,
+        });
+      });
+    });
+
+    describe('service integration: phases and projects progress', () => {
+      it('calculates phase progress correctly for Case 1, 2, and 3 via findPhases', async () => {
+        const phase1 = createProjectPhase({ id: 10, name: 'Planificación' });
+        const phase2 = createProjectPhase({ id: 20, name: 'Ejecución' });
+        const phase3 = createProjectPhase({ id: 30, name: 'Revisión' });
+
+        projectsRepository.findOne?.mockResolvedValue(createProject({ id: 1 }));
+        projectPhasesRepository.find?.mockResolvedValue([
+          phase1,
+          phase2,
+          phase3,
+        ]);
+
+        const mockTasks = [
+          // Phase 1 (Case 1: 4 tasks, 3 DONE)
+          { id: 1, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 2, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 3, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 4, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          // Phase 2 (Case 2: 4 tasks, 4 DONE)
+          { id: 5, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          { id: 6, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          { id: 7, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          { id: 8, phaseId: 20, projectId: 1, status: TaskStatus.DONE },
+          // Phase 3 (Case 3: 0 tasks)
+        ] as Task[];
+
+        tasksRepository.find?.mockResolvedValue(mockTasks);
+
+        const result = await service.findPhases(1, presidencyActor);
+
+        // Case 1 verification
+        expect(result[0].totalTasks).toBe(4);
+        expect(result[0].completedTasks).toBe(3);
+        expect(result[0].progress).toBe(75);
+        expect(result[0].isCompleted).toBe(false);
+        expect(result[0].hasTasks).toBe(true);
+
+        // Case 2 verification
+        expect(result[1].totalTasks).toBe(4);
+        expect(result[1].completedTasks).toBe(4);
+        expect(result[1].progress).toBe(100);
+        expect(result[1].isCompleted).toBe(true);
+        expect(result[1].hasTasks).toBe(true);
+
+        // Case 3 verification
+        expect(result[2].totalTasks).toBe(0);
+        expect(result[2].completedTasks).toBe(0);
+        expect(result[2].progress).toBe(0);
+        expect(result[2].isCompleted).toBe(false);
+        expect(result[2].hasTasks).toBe(false);
+      });
+
+      it('Case 4: calculates project progress with 10 tasks, 2 without phase, 5 DONE', async () => {
+        const phase1 = createProjectPhase({ id: 10, name: 'Fase 1' });
+        const project = createProject({
+          id: 1,
+          phases: [phase1],
+        });
+
+        projectsRepository.findOne?.mockResolvedValue(project);
+
+        const mockTasks = [
+          // 8 tasks in Phase 1 (3 DONE, 5 IN_PROGRESS)
+          { id: 1, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 2, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 3, phaseId: 10, projectId: 1, status: TaskStatus.DONE },
+          { id: 4, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 5, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 6, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 7, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          { id: 8, phaseId: 10, projectId: 1, status: TaskStatus.IN_PROGRESS },
+          // 2 tasks without phase (phaseId: null) (2 DONE) -> total 5 DONE out of 10
+          { id: 9, phaseId: null, projectId: 1, status: TaskStatus.DONE },
+          { id: 10, phaseId: null, projectId: 1, status: TaskStatus.DONE },
+        ] as Task[];
+
+        tasksRepository.find?.mockResolvedValue(mockTasks);
+
+        const result = await service.findOne(1, presidencyActor);
+
+        // Project totals include unphased tasks
+        expect(result.totalTasks).toBe(10);
+        expect(result.completedTasks).toBe(5);
+        expect(result.progress).toBe(50);
+        expect(result.hasTasks).toBe(true);
+        expect(result.isCompleted).toBe(false);
+
+        // Phase 1 totals DO NOT include unphased tasks
+        expect(result.phases[0].totalTasks).toBe(8);
+        expect(result.phases[0].completedTasks).toBe(3);
+        expect(result.phases[0].progress).toBe(38); // 3/8 = 37.5% -> rounded to 38%
+        expect(result.phases[0].hasTasks).toBe(true);
+        expect(result.phases[0].isCompleted).toBe(false);
+      });
+
+      it('Case 5: calculates project progress with 0 tasks (empty project)', async () => {
+        const project = createProject({
+          id: 1,
+          phases: [],
+        });
+
+        projectsRepository.findOne?.mockResolvedValue(project);
+        tasksRepository.find?.mockResolvedValue([]);
+
+        const result = await service.findOne(1, presidencyActor);
+
+        expect(result.totalTasks).toBe(0);
+        expect(result.completedTasks).toBe(0);
+        expect(result.progress).toBe(0);
+        expect(result.hasTasks).toBe(false);
+        expect(result.isCompleted).toBe(false);
+      });
+
+      it('excludes tasks created or updated after snapshotAt when calculating progress for disabled members', async () => {
+        const snapshotAt = new Date('2026-08-01T10:00:00.000Z');
+        const disabledActor: RequestAccessActor = {
+          role: AreaRole.MIEMBRO,
+          projectIds: ['1'],
+          readOnly: true,
+          snapshotAt,
+        };
+
+        const phase1 = createProjectPhase({ id: 10, name: 'Fase 1' });
+        const project = createProject({
+          id: 1,
+          phases: [phase1],
+          memberships: [
+            createProjectMembership({
+              memberId: 1,
+              projectId: 1,
+            }),
+          ],
+        });
+
+        projectsRepository.findOne?.mockResolvedValue(project);
+
+        const allTasks = [
+          // Tarea 1: anterior al corte, DONE
+          {
+            id: 1,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.DONE,
+            createdAt: new Date('2026-07-10T10:00:00.000Z'),
+            updatedAt: new Date('2026-07-10T10:00:00.000Z'),
+          },
+          // Tarea 2: anterior al corte, IN_PROGRESS
+          {
+            id: 2,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.IN_PROGRESS,
+            createdAt: new Date('2026-07-15T10:00:00.000Z'),
+            updatedAt: new Date('2026-07-15T10:00:00.000Z'),
+          },
+          // Tarea 3: creada después del corte (posterior al corte), DONE
+          {
+            id: 3,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.DONE,
+            createdAt: new Date('2026-08-10T10:00:00.000Z'),
+            updatedAt: new Date('2026-08-10T10:00:00.000Z'),
+          },
+          // Tarea 4: creada antes pero modificada después del corte, DONE
+          {
+            id: 4,
+            phaseId: 10,
+            projectId: 1,
+            status: TaskStatus.DONE,
+            createdAt: new Date('2026-07-10T10:00:00.000Z'),
+            updatedAt: new Date('2026-08-05T10:00:00.000Z'),
+          },
+        ] as Task[];
+
+        tasksRepository.find?.mockImplementation(
+          (options?: { where?: FindOptionsWhere<Task> }) => {
+            const where = options?.where;
+            const createdAtFilter = where?.createdAt as
+              | FindOperator<Date>
+              | undefined;
+            const cutoff = createdAtFilter?.value;
+            if (cutoff instanceof Date) {
+              return Promise.resolve(
+                allTasks.filter(
+                  (t) => t.createdAt <= cutoff && t.updatedAt <= cutoff,
+                ),
+              );
+            }
+            return Promise.resolve(allTasks);
+          },
+        );
+
+        // 1. Verificación en findOne (detalle del proyecto y sus fases)
+        const projectResult = await service.findOne(1, disabledActor);
+
+        expect(projectResult.totalTasks).toBe(2);
+        expect(projectResult.completedTasks).toBe(1);
+        expect(projectResult.progress).toBe(50);
+        expect(projectResult.hasTasks).toBe(true);
+        expect(projectResult.isCompleted).toBe(false);
+
+        expect(projectResult.phases[0].totalTasks).toBe(2);
+        expect(projectResult.phases[0].completedTasks).toBe(1);
+        expect(projectResult.phases[0].progress).toBe(50);
+        expect(projectResult.phases[0].isCompleted).toBe(false);
+
+        expect(tasksRepository.find).toHaveBeenCalledWith({
+          where: {
+            projectId: 1,
+            createdAt: LessThanOrEqual(snapshotAt),
+            updatedAt: LessThanOrEqual(snapshotAt),
+          },
+          select: ['id', 'status', 'phaseId', 'projectId'],
+        });
+
+        // 2. Verificación en findPhases
+        projectPhasesRepository.find?.mockResolvedValue([phase1]);
+        const phasesResult = await service.findPhases(1, disabledActor);
+
+        expect(phasesResult[0].totalTasks).toBe(2);
+        expect(phasesResult[0].completedTasks).toBe(1);
+        expect(phasesResult[0].progress).toBe(50);
+        expect(phasesResult[0].isCompleted).toBe(false);
+
+        expect(tasksRepository.find).toHaveBeenCalledWith({
+          where: {
+            projectId: 1,
+            createdAt: LessThanOrEqual(snapshotAt),
+            updatedAt: LessThanOrEqual(snapshotAt),
+          },
+          select: ['id', 'status', 'phaseId', 'projectId'],
+        });
+
+        // 3. Verificación en findAll
+        projectsRepository.findAndCount?.mockResolvedValue([[project], 1]);
+        const listResult = await service.findAll({}, disabledActor);
+
+        expect(listResult.data[0].totalTasks).toBe(2);
+        expect(listResult.data[0].completedTasks).toBe(1);
+        expect(listResult.data[0].progress).toBe(50);
+
+        expect(tasksRepository.find).toHaveBeenCalledWith({
+          where: {
+            projectId: In([1]),
+            createdAt: LessThanOrEqual(snapshotAt),
+            updatedAt: LessThanOrEqual(snapshotAt),
+          },
+          select: ['id', 'status', 'phaseId', 'projectId'],
+        });
+      });
     });
   });
 });
