@@ -1,139 +1,106 @@
 # DES-01 · Despliegue en Vercel y Neon
 
-**Borrador v0.3 · Actualizado según feedback · UNI2-163 (antes UNI2-76)**
+**Guía técnica · 24 de noviembre de 2026 · [UNI2-163](https://linear.app/id-unicode/issue/UNI2-163)**
 
-Base revisada: `main`, commit `95cf697`. Este documento contiene la especificación técnica de las secciones 4 y 8 de DES-01 (procedimiento de despliegue y variables de entorno) como documentación canónica en el repositorio de GitHub. No acredita un despliegue realizado.
+Esta guía documenta cómo reproducir, verificar y recuperar el despliegue de prueba de UNICORE. El primer despliegue se hizo desde `main` con el commit `1692a5f`, que incluye la [adaptación a Vercel](https://github.com/ccUnicode/UNICORE/pull/164) y el [ajuste del preset NestJS](https://github.com/ccUnicode/UNICORE/pull/167).
 
-## Alcance y dependencias
+## Arquitectura y entornos
 
-Se proponen dos proyectos Vercel sobre `ccUnicode/UNICORE`: `unicore-web`, raíz `apps/frontend`, y `unicore-api`, raíz `apps/backend`. Neon tendrá una rama de producción y otra `pruebas`. El repositorio es público al realizar esta revisión; no hace falta cambiar su visibilidad.
-
-Antes de publicar se deben resolver estas tarjetas en el espacio `id-unicode`:
-
-| Tarjeta | Condición necesaria |
+| Componente | Configuración del despliegue de prueba |
 | --- | --- |
-| [UNI2-174](https://linear.app/id-unicode/issue/UNI2-174) | Presidencia confirma cuentas, accesos, uso del plan gratuito y conexión con GitHub. |
-| [UNI2-175](https://linear.app/id-unicode/issue/UNI2-175) | Proyecto Neon, ramas y conexiones por entorno disponibles. |
-| [UNI2-176](https://linear.app/id-unicode/issue/UNI2-176) | Backend validado en Vercel, CORS restringido y pool configurado. |
-| [UNI2-177](https://linear.app/id-unicode/issue/UNI2-177) | Migraciones ejecutadas una vez por publicación, fuera del arranque de cada instancia. |
-| [UNI2-178](https://linear.app/id-unicode/issue/UNI2-178) | Proyectos y variables Vercel configurados por entorno. |
-| [UNI2-181](https://linear.app/id-unicode/issue/UNI2-181) | Las vistas previas solo acceden a la rama de pruebas (aislamiento de Neon). |
+| Web | Proyecto Vercel `unicore`, raíz `apps/frontend`, preset Next.js, Node.js 22.x. |
+| API | Proyecto Vercel `unicore-api`, raíz `apps/backend`, preset NestJS, Node.js 22.x. |
+| Base de datos | Proyecto Neon `unicore`, PostgreSQL 16, región AWS US East 1 (N. Virginia), base `unicore`. |
+| Repositorio | Ambos proyectos se conectan a `ccUnicode/UNICORE`, con `main` como rama de Production en Vercel. |
 
-Vercel reconoce actualmente aplicaciones NestJS con entrada `src/main.ts`; la ausencia de un adaptador manual no demuestra por sí sola que NestJS sea incompatible. UNI2-176 debe validar el arranque real y la reutilización de conexiones con el soporte nativo vigente. [Documentación de NestJS en Vercel](https://vercel.com/docs/frameworks/backend/nestjs).
+Según el registro del primer despliegue, **Production y Preview de Vercel usan la rama `pruebas` de Neon**. La rama `production` de Neon quedó vacía y reservada para el uso real. Los builds de la API en ambos entornos pueden modificar el esquema de `pruebas`.
 
-## 4 · Variables de entorno
-
-Esta tabla documenta nombres y finalidad, sin credenciales ni valores de configuración. Producción y Preview deben tener configuraciones independientes. Los secretos se introducen directamente en Vercel, nunca en este documento, capturas, comentarios o el repositorio.
-
-### Variables consumidas por el código actual
-
-| Variable | Componente | Finalidad y condición |
+| Entorno | Durante el piloto | Antes de cargar datos reales |
 | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | Frontend | URL pública del backend del mismo entorno. Next.js la incorpora al construir el frontend; un cambio requiere reconstruirlo. Si falta, el código recurre a localhost, que no sirve para el entorno publicado. |
-| `NODE_ENV` | Backend | Selecciona el comportamiento de base de datos. Solo desarrollo habilita sincronización de esquema; los demás entornos usan migraciones. No activar sincronización sobre Neon. |
-| `DATABASE_URL` | Backend | Conexión PostgreSQL de la rama correspondiente. Para ejecución en Vercel se prevé la conexión con pooler. Es un secreto. |
-| `DATABASE_SSL` | Backend | Habilita TLS para PostgreSQL. La implementación actual no verifica el certificado del servidor; revisar este comportamiento antes de la publicación. |
-| `PORT` | Backend local | Puerto del proceso NestJS al ejecutar localmente; no sustituye el enrutamiento de Vercel. |
-| `AUTH_JWT_SECRET` | Backend | Firma de sesiones; obligatorio, aleatorio, con al menos 32 caracteres, distinto por entorno. |
-| `AUTH_JWT_EXPIRES_IN_SECONDS` | Backend | Duración de la sesión en segundos; entero de al menos 60. |
-| `AUTH_BOOTSTRAP_SECRET` | Backend | Autoriza crear la primera cuenta con contraseña; obligatorio, de al menos 32 caracteres e independiente del secreto JWT. |
-| `AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS` | Backend | Ventana temporal del limitador de login. |
-| `AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP` | Backend | Máximo de intentos por IP dentro de la ventana. |
-| `AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_ACCOUNT` | Backend | Máximo de intentos por cuenta dentro de la ventana. |
-| `AUTH_LOGIN_RATE_LIMIT_MAX_CONCURRENT` | Backend | Máximo de verificaciones de contraseña simultáneas por instancia. |
-| `AUTH_LOGIN_RATE_LIMIT_MAX_CONCURRENT_PER_IP` | Backend | Máximo de verificaciones simultáneas por IP. |
-| `AUTH_LOGIN_RATE_LIMIT_MAX_CONCURRENT_PER_ACCOUNT` | Backend | Máximo de verificaciones simultáneas por cuenta. |
+| Vercel Production | API con ambas conexiones de la rama Neon `pruebas`. Web de prueba y API pública de prueba. | API con ambas conexiones de la rama Neon `production`. Configurar el par de URLs y secretos de producción. |
+| Vercel Preview | API con ambas conexiones de `pruebas`. Cada web debe apuntar a la API de prueba permitida. | Mantener ambas conexiones en `pruebas` y verificar el aislamiento en [UNI2-181](https://linear.app/id-unicode/issue/UNI2-181). |
+| Desarrollo local | PostgreSQL local o base desechable y API local. | Usar datos ficticios. |
 
-Las seis variables del limitador aceptan enteros positivos y tienen valores por defecto en el código. El limitador guarda estado en memoria por instancia: sus límites no se comparten entre todas las funciones de Vercel.
+CORS admite un origen por backend. Las URLs de Preview cambian entre despliegues. Antes de habilitar un Preview por PR, definir en UNI2-181 cómo se asignan `NEXT_PUBLIC_API_URL` y `CORS_ORIGIN` al par correcto.
 
-Fuentes del repositorio: [plantilla backend](../apps/backend/.env.example), [configuración PostgreSQL](../apps/backend/src/database/database-options.ts), [tokens](../apps/backend/src/auth/auth-token.service.ts), [limitador](../apps/backend/src/auth/login-rate-limit.service.ts) y [cliente frontend](../apps/frontend/src/lib/auth-client.ts).
+## Variables de entorno
 
-### Variables previstas, aún sin efecto en `main`
+Configurar cada variable en el entorno de Vercel que la usa. Las dos conexiones PostgreSQL de cada entorno deben apuntar a la misma rama de Neon. Cargar los secretos en el panel de Vercel y guardar los accesos por el canal privado autorizado.
 
-| Variable | Uso previsto | Trabajo pendiente |
+| Variable | Componente | Configuración |
 | --- | --- | --- |
-| `DATABASE_URL_UNPOOLED` | Conexión directa para ejecutar migraciones sobre la misma rama que usa el backend. | [UNI2-177](https://linear.app/id-unicode/issue/UNI2-177): el DataSource actual solo lee `DATABASE_URL`. |
-| `DATABASE_MIGRATIONS_RUN` | Desactivar migraciones durante el arranque de las funciones. | [UNI2-177](https://linear.app/id-unicode/issue/UNI2-177): actualmente `migrationsRun` depende de `NODE_ENV`; crear esta variable en Vercel no modifica ese comportamiento. |
-| `DATABASE_POOL_MAX` | Limitar las conexiones de cada instancia. | [UNI2-176](https://linear.app/id-unicode/issue/UNI2-176): pasar y validar la opción en TypeORM. |
-| `CORS_ORIGIN` | Permitir el origen del frontend asociado a cada backend. | [UNI2-176](https://linear.app/id-unicode/issue/UNI2-176): `main.ts` todavía llama `enableCors()` sin leer esta variable. |
+| `NEXT_PUBLIC_API_URL` | Web | URL de la API del mismo entorno, con HTTPS y sin barra final. Next.js la incorpora al build. Volver a publicar la web después de cambiarla. |
+| `NODE_ENV` | API | `production` en Production y Preview. `development` activa la sincronización de esquema y se reserva para desarrollo local. |
+| `DATABASE_URL` | API | Secreto. Conexión con pooler para las solicitudes de la API. |
+| `DATABASE_URL_UNPOOLED` | Build de la API | Secreto. Conexión directa que exige `migration:deploy`. |
+| `DATABASE_SSL` | API | `true` en Neon. La opción del driver se configura con `rejectUnauthorized: false` en el código actual. |
+| `DATABASE_MIGRATIONS_RUN` | API | `false`. El build aplica las migraciones pendientes y las instancias de NestJS arrancan con el esquema ya migrado. |
+| `DATABASE_POOL_MAX` | API | `5` en la configuración validada de prueba. Con `1`, la edición de un proyecto se bloqueó cuando hubo consultas fuera de la transacción (H-09). |
+| `CORS_ORIGIN` | API | Origen exacto de la web, con HTTPS y sin barra final. Si se omite, el backend habilita CORS sin restringir el origen. |
+| `AUTH_JWT_SECRET` | API | Secreto aleatorio de al menos 32 caracteres, distinto por entorno. Rotarlo invalida las sesiones existentes. |
+| `AUTH_JWT_EXPIRES_IN_SECONDS` | API | `3600` en la prueba. El código acepta enteros desde 60 segundos. |
+| `AUTH_BOOTSTRAP_SECRET` | API | Secreto aleatorio de al menos 32 caracteres, independiente del JWT y distinto por entorno. La API lo exige al arrancar. |
+| `PORT` | API local | Puerto del proceso NestJS en desarrollo. El enrutamiento del despliegue lo gestiona Vercel. |
 
-No considerar completada [UNI2-178](https://linear.app/id-unicode/issue/UNI2-178) únicamente porque estas variables existan en el panel: primero deben consumirlas y probarlas [UNI2-176](https://linear.app/id-unicode/issue/UNI2-176) y [UNI2-177](https://linear.app/id-unicode/issue/UNI2-177).
+Las variables `AUTH_LOGIN_RATE_LIMIT_WINDOW_SECONDS`, `AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_IP`, `AUTH_LOGIN_RATE_LIMIT_MAX_ATTEMPTS_PER_ACCOUNT`, `AUTH_LOGIN_RATE_LIMIT_MAX_CONCURRENT`, `AUTH_LOGIN_RATE_LIMIT_MAX_CONCURRENT_PER_IP` y `AUTH_LOGIN_RATE_LIMIT_MAX_CONCURRENT_PER_ACCOUNT` aceptan enteros positivos y tienen valores por defecto. El limitador conserva su estado en memoria de cada instancia.
 
-### Correspondencia de entornos
+[Plantilla del backend](../apps/backend/.env.example) · [Configuración de PostgreSQL](../apps/backend/src/database/database-options.ts) · [Configuración de migraciones](../apps/backend/src/database/deployment-options.ts) · [Configuración CORS](../apps/backend/src/configure-app.ts) · [Cliente web](../apps/frontend/src/lib/auth-client.ts)
 
-| Despliegue | Backend y base de datos | Frontend |
-| --- | --- | --- |
-| Production | Conexiones con pooler y directa de la rama Neon de producción. | API pública de producción. |
-| Preview | Conexiones con pooler y directa de la rama Neon `pruebas`. Nunca producción. | API de prueba verificada; no la URL de producción por omisión. |
-| Desarrollo local | PostgreSQL local o base desechable explícita. | API local. |
+## Procedimiento de despliegue
 
-Una URL Preview cambia entre despliegues. [UNI2-181](https://linear.app/id-unicode/issue/UNI2-181) debe concretar cómo cada frontend encuentra su API de prueba y cómo esa URL entra en CORS; comprobar el par de URLs antes de ejecutar el guion. Las ramas de Neon se clonan con datos: no copiar datos personales de producción para pruebas sin un proceso de anonimización.
+1. **Verificar el commit.** Confirmar que el SHA contiene los cambios de los PR #164 y #167. Ejecutar los controles de [CI y pruebas](testing.md), incluida la prueba de migraciones con PostgreSQL desechable.
+2. **Preparar Neon.** Crear el proyecto con la configuración indicada arriba y crear `pruebas` como rama hija de `production`, sin borrado automático. Obtener de Neon una conexión con pooler y otra directa de `pruebas`, ambas con TLS, y cargarlas como secretos según la tabla. Generar por separado los secretos de JWT y bootstrap.
+3. **Conectar GitHub.** Un Owner de `ccUnicode` autoriza a la integración GitHub de Vercel sobre el repositorio y verifica que la cuenta de GitHub vinculada tenga permiso **Write**. Si el repositorio no aparece al importarlo, revisar **Adjust GitHub App Permissions**.
+4. **Publicar la API.** Importar el repositorio con raíz `apps/backend` y habilitar **Include files outside the Root Directory** para el lockfile y los workspaces del monorepo. Cargar las variables de la API para cada entorno. [`vercel.json`](../apps/backend/vercel.json) configura NestJS, `npm ci --include=dev` y `npm run build:vercel`. El build compila y luego ejecuta `migration:deploy` por la conexión directa. Si una migración falla, falla el build. Confirmar la rama de destino antes de cada build y evitar builds simultáneos que migren la misma rama.
+5. **Publicar la web.** Importar el mismo repositorio con raíz `apps/frontend`, preset Next.js y `NEXT_PUBLIC_API_URL` configurada con la URL de la API. Al obtener la URL de la web, agregar su origen a `CORS_ORIGIN` y volver a desplegar la API. Revisar la rama de Neon también en el redeploy.
+6. **Crear la primera cuenta.** Ejecutar `POST /auth/bootstrap` contra el entorno correspondiente con `bootstrapSecret`, `password` y el objeto `member` de un miembro activo de Presidencia, según el [DTO](../apps/backend/src/auth/dto/bootstrap-auth.dto.ts) si la base está vacía. Si ya existe un miembro válido de Presidencia sin contraseña y aún procede el bootstrap, enviar su `memberId` en lugar de `member`. Una vez configurada cualquier contraseña, el bootstrap queda cerrado para esa base.
+7. **Habilitar otras cuentas.** Presidencia crea el registro desde **Miembros** y asigna la contraseña con una sesión autorizada mediante `PUT /auth/members/{id}/password` mientras la pantalla siga pendiente (H-05).
 
-## 8 · Procedimiento para publicar
+En PowerShell, usar una cadena literal entre comillas simples para evitar la expansión de `$` al preparar el cuerpo de la solicitud.
 
-### Preparación del commit
+## Comprobación y registro
 
-1. Actualizar referencias con `git fetch origin --prune`. Trabajar en una rama desde `origin/main`, según [CONTRIBUTING](../CONTRIBUTING.md). No existe una rama remota `dev` en la revisión del 28 de octubre; no asumir otro flujo.
-2. Revisar PR abiertos y sus archivos antes de crear otro cambio. Confirmar que el commit elegido contiene las correcciones necesarias; no fusionar PR solo para completar un despliegue.
-3. Ejecutar desde la raíz, sobre el commit que se publicará:
+- Confirmar que `GET /` en la API devuelve HTTP 200 con `Hello World!`. Abrir la web, entrar a **Iniciar sesión** y comprobar que el navegador puede enviar la solicitud de inicio de sesión a la API del mismo entorno.
+- Ejecutar el recorrido de CTL-03 y los diez pasos del [guion técnico](https://linear.app/id-unicode/issue/UNI2-162) con cuentas y datos de prueba. Cubrir permisos por rol, gestión de áreas, proyectos, fases, disponibilidad y cuentas inactivas.
+- Registrar en comentarios de [UNI2-179](https://linear.app/id-unicode/issue/UNI2-179) las URLs desplegadas, el SHA, los resultados y las capturas revisadas para que omitan secretos, tokens y datos personales. Medir una consulta después de diez minutos sin uso y otra con la base activa.
 
-   ```bash
-   npm ci
-   npm run type-check -w backend
-   npm run lint -w backend
-   npm run test -w backend -- --runInBand
-   npm run build -w backend
-   npm run type-check -w frontend
-   npm run lint -w frontend
-   npm run test -w frontend
-   npm run build -w frontend
-   ```
+| Síntoma observado | Qué revisar |
+| --- | --- |
+| Vercel rechaza el patrón `src/main.ts` de `functions`. | Publicar un commit que incluya el PR #167. El preset NestJS detecta el punto de entrada. |
+| Vercel solicita permiso de escritura o el repositorio no aparece. | Confirmar el permiso Write y el acceso de la integración al repositorio. |
+| El build indica `password authentication failed` o `getaddrinfo ENOTFOUND`. | Revisar que `DATABASE_URL_UNPOOLED` se haya copiado de Neon como conexión directa de la rama del entorno, sin etiquetas ni espacios agregados. |
+| Redeploy sigue fallando después de corregir el archivo de configuración. | Revisar el SHA. Redeploy reutiliza el commit del despliegue seleccionado. Crear un despliegue desde el commit corregido. |
+| Una edición de proyecto se queda esperando. | Confirmar `DATABASE_POOL_MAX=5` en el entorno afectado y volver a desplegar con la configuración corregida. |
 
-4. Validar las migraciones contra PostgreSQL desechable con `npm run test:migrations -w backend`, usando la configuración de [testing](testing.md). Registrar SHA y resultados. Nunca apuntar estas pruebas a producción.
+## Requisitos para el uso real
 
-### Configuración inicial y primera prueba
+1. Confirmar por separado `DATABASE_URL`, `DATABASE_URL_UNPOOLED`, secretos y orígenes de Production y Preview. Comprobar que ninguna vista previa pueda escribir en `production`. Mantener datos ficticios en `pruebas`. Las ramas clonadas de Neon incluyen los datos de su rama padre.
+2. Rotar las credenciales usadas durante la configuración inicial, actualizar ambas conexiones si cambia la contraseña de Neon y verificar una copia lógica de PostgreSQL mediante una restauración en una base desechable.
+3. Revisar en Vercel el consumo del plan Hobby, compartido con otros proyectos, y verificar el flujo de builds con los autores del equipo. [Integración Git de Vercel](https://vercel.com/docs/git)
+4. Revisar las evidencias de [UNI2-179](https://linear.app/id-unicode/issue/UNI2-179) y [UNI2-180](https://linear.app/id-unicode/issue/UNI2-180). Dirección autoriza el uso real y el equipo repite el guion sobre el par de URLs de producción.
 
-1. Presidencia coordina [UNI2-174](https://linear.app/id-unicode/issue/UNI2-174) y un administrador de `ccUnicode` concede a la aplicación GitHub de Vercel acceso al repositorio. La titularidad y accesos se coordinan de forma privada fuera del repositorio público.
-2. Crear Neon según [UNI2-175](https://linear.app/id-unicode/issue/UNI2-175), con producción y `pruebas`, región compatible con la ejecución del backend y PostgreSQL 16. Obtener las dos conexiones de cada rama y guardarlas como secretos del entorno adecuado.
-3. Completar [UNI2-176](https://linear.app/id-unicode/issue/UNI2-176) y [UNI2-177](https://linear.app/id-unicode/issue/UNI2-177) antes de publicar la API. Verificar que el pool se reutiliza, las migraciones no se ejecutan en cada arranque y CORS acepta solo los orígenes definidos.
-4. Presidencia crea los dos proyectos Vercel con sus raíces respectivas. Seleccionar los frameworks detectados y verificar instalación desde el monorepo con el lockfile raíz. El build actual de cada aplicación es `npm run build` desde su directorio; el paso definitivo de migración y build de la API lo debe aportar [UNI2-177](https://linear.app/id-unicode/issue/UNI2-177), no un comando inventado en el panel.
-5. Cargar la sección 4 en Production y Preview, conservando el aislamiento. Confirmar el tipo de entorno antes de ejecutar cualquier migración. El script actual `npm run migration:run -w backend` existe, pero usa `DATABASE_URL`; no consume automáticamente `DATABASE_URL_UNPOOLED`.
-6. Publicar primero el commit seleccionado en Preview. Aunque provenga de `main`, debe apuntar a `pruebas`; verificar explícitamente entorno y rama Neon en la configuración. No tratar un push automático de `main` como una prueba aislada.
-7. Verificar la API, obtener su URL de prueba y reconstruir el frontend con esa URL. Comprobar desde el navegador llamadas a la API y autorización CORS, además de la respuesta básica de `GET /`.
-8. Con base de pruebas vacía, crear Presidencia mediante `POST /auth/bootstrap`, usando el secreto del entorno y el objeto `member` definido en el [DTO](../apps/backend/src/auth/dto/bootstrap-auth.dto.ts). No usar `POST /members` sin autenticar. El endpoint deja de permitir bootstrap cuando ya existe una contraseña registrada; no borrar cuentas para repetirlo.
-9. Ejecutar los diez pasos del guion semanal ([UNI2-162](https://linear.app/id-unicode/issue/UNI2-162)): login, áreas, proyectos, fases, disponibilidad, cuentas inactivas, restricciones y privacidad por rol. Registrar cada resultado, URL, commit y capturas sin tokens ni datos reales en comentarios de la tarjeta en Linear ([UNI2-179](https://linear.app/id-unicode/issue/UNI2-179)). Medir una consulta tras diez minutos sin uso y otra normal, como solicita [UNI2-179](https://linear.app/id-unicode/issue/UNI2-179).
-10. Presidencia y el equipo revisan resultados de [UNI2-179](https://linear.app/id-unicode/issue/UNI2-179) y [UNI2-180](https://linear.app/id-unicode/issue/UNI2-180) y deciden la publicación de producción. Repetir la validación de variables, respaldo, migraciones y guion en el entorno elegido. Una configuración Preview satisfactoria no demuestra que Production use las mismas variables ni base de datos.
+## Recuperación
 
-El plan Hobby impone condiciones de colaboración y despliegue; probar que los commits de los autores del equipo generan previews antes de prometer una por cada PR. Mantener el flujo operativo de [UNI2-174](https://linear.app/id-unicode/issue/UNI2-174) y no alterar autoría de commits para superar restricciones. [Integración Git de Vercel](https://vercel.com/docs/git).
+- **Aplicaciones.** Registrar el SHA y los despliegues compatibles de web y API. En Vercel Hobby, **Instant Rollback** permite recuperar el despliegue de Production inmediatamente anterior con las variables de aquel build. Revisar la compatibilidad con el esquema actual y probar ambos proyectos después. Si es la primera publicación, desplegar un commit corregido. Una vez resuelta la incidencia, promover el despliegue correcto para reanudar la asignación automática del dominio. [Instant Rollback en Vercel](https://vercel.com/docs/instant-rollback)
+- **Datos.** Antes de migrar, registrar rama, hora UTC y ventana efectiva de recuperación. Neon Free conserva hasta seis horas y hasta 1 GB de historial. Si una migración falla, revisar su estado y las escrituras que se perderían, y restaurar primero en una rama o base de recuperación. Verificar el esquema y el acceso antes de actualizar ambas conexiones. Conservar la copia lógica en almacenamiento protegido y probar la restauración. Un rollback de Vercel deja intacta la base. [Ventana de historial de Neon](https://neon.com/docs/postgres/backup-restore/history-window)
+- **Reinicio de pruebas.** Si se ha autorizado descartar los datos de prueba, confirmar que la rama padre solo contiene datos aptos para pruebas, restablecer `pruebas` desde su padre, volver a desplegar la API y crear la primera cuenta si la base restaurada está vacía.
 
-### Recuperación en Vercel Hobby
+## Roles y seguimiento
 
-1. Conservar las URLs y SHA del frontend y backend de la última versión verificada, junto con el esquema compatible.
-2. Si falla una publicación de producción, Presidencia abre el proyecto afectado y selecciona **Instant Rollback**. En Hobby solo está disponible el despliegue de producción inmediatamente anterior; verificar que sigue retenido y es compatible con la otra aplicación.
-3. Repetir la comprobación de login, API y permisos. El rollback recupera el build y su configuración anterior: no incorpora variables modificadas después, ni revierte PostgreSQL.
-4. Tras solucionar la causa, revisar y promover el despliegue correcto para reanudar la asignación automática de producción. Con dos proyectos, verificar cada uno; el rollback no es atómico entre ambos.
+| Rol | Responsabilidad |
+| --- | --- |
+| Dirección | Custodia de cuentas de Vercel y Neon, aprobación del uso real y de restauraciones. |
+| Administración de GitHub | Autorizar la integración de Vercel en el repositorio y asignar los permisos requeridos. |
+| Despliegue | Configurar ramas de Neon y variables, ejecutar builds y migraciones, y operar las recuperaciones. |
+| Revisión y calidad | Revisar el PR, ejecutar el guion y registrar resultados en Linear. |
 
-Si falla la primera publicación y no hay producción anterior, corregir y volver a desplegar el commit válido. No prometer un rollback inexistente. [Instant Rollback](https://vercel.com/docs/instant-rollback).
+Las asignaciones nominales, la titularidad de cuentas, los accesos y las credenciales se gestionan de forma privada. Las evidencias de ejecución se registran en los comentarios de las tarjetas vigentes de `id-unicode`.
 
-### Recuperación de datos en Neon Free
-
-1. Antes de migrar, registrar la rama y el instante UTC de referencia; comprobar la ventana efectiva de historial. La documentación vigente indica hasta seis horas en Free, limitada a 1 GB de historial. No es una copia de seguridad de largo plazo. [Ventana de historial](https://neon.com/docs/postgres/backup-restore/history-window).
-2. Conservar además una copia lógica PostgreSQL en almacenamiento protegido, fuera del repositorio, y probar su restauración en una base desechable. Asignar rol responsable y registrar la confirmación en Linear antes de producción.
-3. Ante corrupción o migración incorrecta, detener las escrituras del entorno afectado y conservar evidencia. Elegir un punto anterior todavía recuperable o la copia lógica; revisar qué escrituras posteriores se perderían.
-4. Restaurar primero en una rama/base de recuperación cuando sea posible y comprobar esquema, cuentas y datos antes de sustituir la conexión del servicio. Si no existe capacidad gratuita para esa rama, Presidencia debe decidir el procedimiento disponible sin activar una ampliación de pago automáticamente.
-5. Actualizar de forma coordinada las conexiones con pooler y directa hacia la base recuperada y publicar un backend compatible. Ejecutar el guion de humo y registrar el punto recuperado y la posible pérdida de datos en Linear.
-
-Volver al código anterior no deshace una migración. No ejecutar un `down()` sin probarlo ni reiniciar automáticamente una función que pueda reaplicar la migración defectuosa. Fuera de la ventana recuperable, la alternativa es la copia lógica probada.
-
-## 9 · Roles y accesos
-
-Para mantener la seguridad del proyecto, la asignación nominal de personas, credenciales y titularidad de cuentas se gestiona de forma privada fuera del repositorio público. El procedimiento técnico se rige por los siguientes roles:
-
-| Rol | Recurso | Responsabilidad y alcance técnico |
-| --- | --- | --- |
-| Presidencia / Dirección | Vercel Hobby & Neon Free | Titularidad de cuentas en la nube; conexión con GitHub, carga de secretos y variables de entorno, autorización de despliegues a producción y ejecución de rollback. |
-| Administrador de `ccUnicode` | Organización GitHub | Instala o autoriza la app de Vercel para UNICORE; gestiona permisos de ramas y colaboradores. |
-| Desarrolladores / Despliegue | Proyecto Neon `unicore` & GitHub | Creación de rama `pruebas`, verificación de migraciones, validación de endpoints y ejecución técnica del despliegue en entornos de prueba. |
-| Revisores de código | Repositorio GitHub | Revisión técnica de Pull Requests, verificación de CI/checks automatizados y validación de guiones de integración. |
-
-> **Nota sobre evidencias y seguimiento:** El seguimiento operativo, resultados de ejecución, enlaces de despliegue, capturas de pantalla y confirmación de accesos se documentan exclusivamente en comentarios de las issues vigentes en el espacio `id-unicode` de Linear. Ningún secreto, token o credencial debe incluirse en la documentación ni en el repositorio.
+| Tarjeta | Seguimiento |
+| --- | --- |
+| [UNI2-174](https://linear.app/id-unicode/issue/UNI2-174) | Accesos e integración con GitHub. |
+| [UNI2-175](https://linear.app/id-unicode/issue/UNI2-175) | Proyecto Neon y ramas. |
+| [UNI2-176](https://linear.app/id-unicode/issue/UNI2-176) | Backend en Vercel, pool y CORS. |
+| [UNI2-177](https://linear.app/id-unicode/issue/UNI2-177) | Migraciones por despliegue. |
+| [UNI2-178](https://linear.app/id-unicode/issue/UNI2-178) | Proyectos y variables de Vercel. |
+| [UNI2-181](https://linear.app/id-unicode/issue/UNI2-181) | Aislamiento de Preview. |
