@@ -278,7 +278,7 @@ describe("Project progress UI components", () => {
       description: "Proyecto sin tareas",
       startDate: null,
       endDate: null,
-      status: "planned",
+      status: "active",
       isArchived: false,
       hasTasks: false,
       totalTasks: 0,
@@ -329,6 +329,132 @@ describe("Project progress UI components", () => {
     );
     assert.equal(archivedItem, null);
     assert.ok(getByText("No hay proyectos para mostrar."));
+  });
+
+  it("renders only active unarchived projects, excluding planned, completed, on_hold, and cancelled projects", async () => {
+    const { render } = await import("@testing-library/react");
+    const plannedProject: DashboardProject = {
+      id: 301,
+      name: "Proyecto Planificado",
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: "planned",
+      isArchived: false,
+      phases: [],
+      memberships: [],
+    };
+    const completedProject: DashboardProject = {
+      id: 302,
+      name: "Proyecto Terminado",
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: "completed",
+      isArchived: false,
+      phases: [],
+      memberships: [],
+    };
+    const onHoldProject: DashboardProject = {
+      id: 303,
+      name: "Proyecto En Pausa",
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: "on_hold",
+      isArchived: false,
+      phases: [],
+      memberships: [],
+    };
+    const cancelledProject: DashboardProject = {
+      id: 304,
+      name: "Proyecto Cancelado",
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: "cancelled",
+      isArchived: false,
+      phases: [],
+      memberships: [],
+    };
+    const archivedActiveProject: DashboardProject = {
+      id: 305,
+      name: "Proyecto Activo pero Archivado",
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: "active",
+      isArchived: true,
+      phases: [],
+      memberships: [],
+    };
+    const activeProject: DashboardProject = {
+      id: 306,
+      name: "Proyecto Activo Válido",
+      description: null,
+      startDate: null,
+      endDate: null,
+      status: "active",
+      isArchived: false,
+      hasTasks: true,
+      totalTasks: 2,
+      completedTasks: 1,
+      progress: 50,
+      phases: [],
+      memberships: [],
+    };
+
+    const { queryByTestId, getByTestId } = render(
+      <DashboardProjectList
+        projects={[
+          plannedProject,
+          completedProject,
+          onHoldProject,
+          cancelledProject,
+          archivedActiveProject,
+          activeProject,
+        ]}
+      />,
+    );
+
+    assert.equal(queryByTestId("dashboard-project-301"), null);
+    assert.equal(queryByTestId("dashboard-project-302"), null);
+    assert.equal(queryByTestId("dashboard-project-303"), null);
+    assert.equal(queryByTestId("dashboard-project-304"), null);
+    assert.equal(queryByTestId("dashboard-project-305"), null);
+    assert.ok(getByTestId("dashboard-project-306"));
+  });
+
+  it("renders all active projects without the 5-item cap when six active projects exist", async () => {
+    const { render } = await import("@testing-library/react");
+    const activeSixProjects: DashboardProject[] = [1, 2, 3, 4, 5, 6].map(
+      (idx) => ({
+        id: 400 + idx,
+        name: `Proyecto Activo ${idx}`,
+        description: null,
+        startDate: null,
+        endDate: null,
+        status: "active",
+        isArchived: false,
+        hasTasks: true,
+        totalTasks: 4,
+        completedTasks: idx % 4,
+        progress: Math.round(((idx % 4) / 4) * 100),
+        phases: [],
+        memberships: [],
+      }),
+    );
+
+    const { getByTestId } = render(
+      <DashboardProjectList projects={activeSixProjects} />,
+    );
+
+    for (let i = 1; i <= 6; i++) {
+      assert.ok(
+        getByTestId(`dashboard-project-${400 + i}`),
+        `El proyecto 40${i} debe renderizarse en el panel`,
+      );
+    }
   });
 
   it("renders role-scoped projects in DashboardView for Directiva", async () => {

@@ -132,7 +132,9 @@ export function filterVisibleProjectsForRole(
   memberId?: number,
 ): Project[] {
   const normalizedRole = role?.trim().toLowerCase();
-  const activeProjects = (projects ?? []).filter((p) => !p.isArchived);
+  const activeProjects = (projects ?? []).filter(
+    (p) => !p.isArchived && p.status === "active",
+  );
 
   if (normalizedRole === "presidencia") {
     return activeProjects;

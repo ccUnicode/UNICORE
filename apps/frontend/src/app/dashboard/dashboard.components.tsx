@@ -124,7 +124,7 @@ export function DashboardView({
         getMemberAreaIds(currentMember),
         currentMember.id,
       )
-    : (projects ?? []).filter((p) => !p.isArchived);
+    : (projects ?? []).filter((p) => !p.isArchived && p.status === "active");
 
   return (
     <div>
@@ -221,7 +221,9 @@ export function DashboardProjectList({
 }: {
   projects: Project[];
 }) {
-  const activeProjects = (projects ?? []).filter((project) => !project.isArchived);
+  const activeProjects = (projects ?? []).filter(
+    (project) => !project.isArchived && project.status === "active",
+  );
 
   if (activeProjects.length === 0) {
     return <EmptyState text="No hay proyectos para mostrar." compact />;
@@ -229,7 +231,7 @@ export function DashboardProjectList({
 
   return (
     <div className="space-y-3">
-      {activeProjects.slice(0, 5).map((project) => {
+      {activeProjects.map((project) => {
         const progressFormatted = formatProjectProgress(
           project.hasTasks,
           project.progress,

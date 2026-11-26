@@ -129,14 +129,54 @@ const projectArchived: Project = {
   memberships: [{ id: 3, role: "member", memberId: 10 }],
 };
 
-const sampleProjects = [projectArea1Active, projectArea2Active, projectArchived];
+const projectPlanned: Project = {
+  id: 104,
+  name: "Proyecto Planificado",
+  description: "Proyecto no activo",
+  startDate: "2026-06-01",
+  endDate: "2026-12-31",
+  areaId: 1,
+  status: "planned",
+  isArchived: false,
+  hasTasks: false,
+  totalTasks: 0,
+  completedTasks: 0,
+  progress: 0,
+  memberships: [{ id: 4, role: "member", memberId: 10 }],
+};
 
-test("filterVisibleProjectsForRole: Presidencia sees all active projects and excludes archived", () => {
+const projectCompletedUnarchived: Project = {
+  id: 105,
+  name: "Proyecto Terminado No Archivado",
+  description: "Proyecto completado",
+  startDate: "2025-01-01",
+  endDate: "2025-06-30",
+  areaId: 1,
+  status: "completed",
+  isArchived: false,
+  hasTasks: true,
+  totalTasks: 4,
+  completedTasks: 4,
+  progress: 100,
+  memberships: [{ id: 5, role: "member", memberId: 10 }],
+};
+
+const sampleProjects = [
+  projectArea1Active,
+  projectArea2Active,
+  projectArchived,
+  projectPlanned,
+  projectCompletedUnarchived,
+];
+
+test("filterVisibleProjectsForRole: Presidencia sees all active projects and excludes archived and non-active", () => {
   const result = filterVisibleProjectsForRole(sampleProjects, "presidencia");
   assert.equal(result.length, 2);
   assert.ok(result.some((p) => p.id === 101));
   assert.ok(result.some((p) => p.id === 102));
   assert.ok(!result.some((p) => p.id === 103));
+  assert.ok(!result.some((p) => p.id === 104));
+  assert.ok(!result.some((p) => p.id === 105));
 });
 
 test("filterVisibleProjectsForRole: Directiva sees only active projects of their area", () => {
