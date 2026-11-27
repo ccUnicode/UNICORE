@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { resolveAreaNavigation } from "./dashboard.model";
-import type { Area } from "./dashboard.types";
+import {
+  filterVisibleProjectsForRole,
+  resolveAreaNavigation,
+} from "./dashboard.model";
+import type { Area, Project } from "./dashboard.types";
 
 const activeArea1: Area = {
   id: 1,
@@ -76,4 +79,212 @@ test("Presidencia respects valid preferredAreaId while maintaining global areas 
   );
   assert.equal(result.targetView, "areas");
   assert.equal(result.targetAreaId, 2);
+});
+
+const projectArea1Active: Project = {
+  id: 101,
+  name: "Plataforma Web",
+  description: "Proyecto en Área 1",
+  startDate: "2026-01-01",
+  endDate: "2026-12-31",
+  areaId: 1,
+  status: "active",
+  isArchived: false,
+  hasTasks: true,
+  totalTasks: 4,
+  completedTasks: 3,
+  progress: 75,
+  memberships: [{ id: 1, role: "member", memberId: 10 }],
+};
+
+const projectArea2Active: Project = {
+  id: 102,
+  name: "Diseño UI",
+  description: "Proyecto en Área 2",
+  startDate: "2026-02-01",
+  endDate: "2026-10-31",
+  areaId: 2,
+  status: "active",
+  isArchived: false,
+  hasTasks: false,
+  totalTasks: 0,
+  completedTasks: 0,
+  progress: 0,
+  memberships: [{ id: 2, role: "member", memberId: 20 }],
+};
+
+const projectArchived: Project = {
+  id: 103,
+  name: "Proyecto Archivado",
+  description: "Proyecto antiguo archivado",
+  startDate: "2025-01-01",
+  endDate: "2025-06-30",
+  areaId: 1,
+  status: "completed",
+  isArchived: true,
+  hasTasks: true,
+  totalTasks: 2,
+  completedTasks: 2,
+  progress: 100,
+  memberships: [{ id: 3, role: "member", memberId: 10 }],
+};
+
+const projectPlanned: Project = {
+  id: 104,
+  name: "Proyecto Planificado",
+  description: "Proyecto no activo",
+  startDate: "2026-06-01",
+  endDate: "2026-12-31",
+  areaId: 1,
+  status: "planned",
+  isArchived: false,
+  hasTasks: false,
+  totalTasks: 0,
+  completedTasks: 0,
+  progress: 0,
+  memberships: [{ id: 4, role: "member", memberId: 10 }],
+};
+
+const projectCompletedUnarchived: Project = {
+  id: 105,
+  name: "Proyecto Terminado No Archivado",
+  description: "Proyecto completado",
+  startDate: "2025-01-01",
+  endDate: "2025-06-30",
+  areaId: 1,
+  status: "completed",
+  isArchived: false,
+  hasTasks: true,
+  totalTasks: 4,
+  completedTasks: 4,
+  progress: 100,
+  memberships: [{ id: 5, role: "member", memberId: 10 }],
+};
+
+const sampleProjects = [
+  projectArea1Active,
+  projectArea2Active,
+  projectArchived,
+  projectPlanned,
+  projectCompletedUnarchived,
+];
+
+test("filterVisibleProjectsForRole: Presidencia sees all active projects and excludes archived and non-active", () => {
+  const result = filterVisibleProjectsForRole(sampleProjects, "presidencia");
+  assert.equal(result.length, 2);
+  assert.ok(result.some((p) => p.id === 101));
+  assert.ok(result.some((p) => p.id === 102));
+  assert.ok(!result.some((p) => p.id === 103));
+  assert.ok(!result.some((p) => p.id === 104));
+  assert.ok(!result.some((p) => p.id === 105));
+});
+
+test("filterVisibleProjectsForRole: Directiva sees only active projects of their area", () => {
+  const resultArea1 = filterVisibleProjectsForRole(
+    sampleProjects,
+    "directiva_de_area",
+    [1],
+  );
+  assert.equal(resultArea1.length, 1);
+  assert.equal(resultArea1[0].id, 101);
+
+  const resultArea2 = filterVisibleProjectsForRole(
+    sampleProjects,
+    "directiva_de_area",
+    [2],
+  );
+  assert.equal(resultArea2.length, 1);
+  assert.equal(resultArea2[0].id, 102);
+
+  const resultNoAreas = filterVisibleProjectsForRole(
+    sampleProjects,
+    "directiva_de_area",
+    [],
+  );
+  assert.equal(resultNoAreas.length, 0);
+});
+
+test("filterVisibleProjectsForRole: Miembro sees only active projects where they participate", () => {
+  const resultMember10 = filterVisibleProjectsForRole(
+    sampleProjects,
+    "miembro",
+    [1],
+    10,
+  );
+  assert.equal(resultMember10.length, 1);
+  assert.equal(resultMember10[0].id, 101);
+
+  const resultMember20 = filterVisibleProjectsForRole(
+    sampleProjects,
+    "miembro",
+    [2],
+    20,
+  );
+  assert.equal(resultMember20.length, 1);
+  assert.equal(resultMember20[0].id, 102);
+
+  const resultNonParticipating = filterVisibleProjectsForRole(
+    sampleProjects,
+    "miembro",
+    [1],
+    99,
+  );
+  assert.equal(resultNonParticipating.length, 0);
+});
+
+test("filterVisibleProjectsForRole: resolves project area from relation object when areaId is undefined", () => {
+  const projectWithAreaObject: Project = {
+    id: 104,
+    name: "Proyecto con relation area",
+    description: null,
+    startDate: null,
+    endDate: null,
+    status: "active",
+    isArchived: false,
+    area: { id: 1, name: "Desarrollo", description: null },
+    phases: [],
+    memberships: [],
+  };
+  const result = filterVisibleProjectsForRole(
+    [projectWithAreaObject],
+    "directiva_de_area",
+    [1],
+  );
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, 104);
+});
+
+test("filterVisibleProjectsForRole: resolves member participation from nested member relation", () => {
+  const projectWithNestedMember: Project = {
+    id: 105,
+    name: "Proyecto con nested member",
+    description: null,
+    startDate: null,
+    endDate: null,
+    status: "active",
+    isArchived: false,
+    phases: [],
+    memberships: [
+      {
+        id: 1,
+        role: "member",
+        memberId: 0,
+        member: {
+          id: 50,
+          firstNames: "Juan",
+          lastNames: "Pérez",
+          major: "Ing",
+          role: "miembro",
+        },
+      },
+    ],
+  };
+  const result = filterVisibleProjectsForRole(
+    [projectWithNestedMember],
+    "miembro",
+    [],
+    50,
+  );
+  assert.equal(result.length, 1);
+  assert.equal(result[0].id, 105);
 });
