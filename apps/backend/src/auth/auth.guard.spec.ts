@@ -98,6 +98,7 @@ describe('AuthGuard', () => {
       relations: {
         projectMemberships: true,
         memberships: { area: true },
+        skills: true,
       },
     });
   });

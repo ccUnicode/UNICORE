@@ -43,6 +43,7 @@ export class AuthGuard implements CanActivate {
       relations: {
         projectMemberships: true,
         memberships: { area: true },
+        skills: true,
       },
     });
 

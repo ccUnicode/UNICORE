@@ -135,6 +135,7 @@ export class AuthService {
       .createQueryBuilder('member')
       .leftJoinAndSelect('member.memberships', 'memberships')
       .leftJoinAndSelect('memberships.area', 'area')
+      .leftJoinAndSelect('member.skills', 'skills')
       .addSelect(['member.passwordHash', 'member.sessionVersion'])
       .where('member.institution = :institution', {
         institution: 'UNI',
