@@ -41,6 +41,9 @@
     "src/app/dashboard/dashboard.components.tsx",
     "src/app/dashboard/dashboard-navigation.test.ts",
     "src/app/dashboard/profile-view.test.tsx",
-    "src/lib/auth-client.ts"
+    "src/lib/auth-client.ts",
+    "src/app/project-progress.tsx",
+    "src/app/project-management.tsx",
+    "src/app/project-progress.test.tsx"
   ]
 }

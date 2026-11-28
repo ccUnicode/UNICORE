@@ -60,6 +60,13 @@ export type ProjectPhase = {
   name: string;
   description?: string | null;
   orderIndex: number;
+  totalTasks?: number;
+  completedTasks?: number;
+  progress?: number;
+  progressPercentage?: number;
+  isCompleted?: boolean;
+  isComplete?: boolean;
+  hasTasks?: boolean;
 };
 
 export type ProjectLabel = { id?: number; name: string };
@@ -86,6 +93,13 @@ export type Project = {
   status: ProjectStatus;
   isArchived: boolean;
   createdAt?: string;
+  totalTasks?: number;
+  completedTasks?: number;
+  progress?: number;
+  progressPercentage?: number;
+  isCompleted?: boolean;
+  isComplete?: boolean;
+  hasTasks?: boolean;
 };
 
 export type PaginatedProjects = {

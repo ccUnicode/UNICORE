@@ -7,6 +7,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "build": "nest build",
+    "build:vercel": "npm run build && npm run migration:deploy",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "start": "nest start",
     "start:dev": "nest start --watch",
@@ -22,7 +23,8 @@
     "test:e2e": "jest --config ./test/jest-e2e.json",
     "test:migrations": "jest --config ./test/jest-migrations.json --runInBand",
     "migration:generate": "typeorm-ts-node-commonjs migration:generate -d src/database/data-source.ts",
-    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts"
+    "migration:run": "typeorm-ts-node-commonjs migration:run -d src/database/data-source.ts",
+    "migration:deploy": "typeorm migration:run -d dist/database/deploy-data-source.js"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",

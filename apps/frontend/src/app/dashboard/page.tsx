@@ -465,6 +465,7 @@ function DashboardContent() {
                 projects={projects}
                 loading={loadState === "loading"}
                 authRole={currentMember.role}
+                currentMember={currentMember}
               />
             )}
             {view === "areas" && routeAuthorized && (
