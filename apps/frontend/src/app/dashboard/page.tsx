@@ -613,6 +613,7 @@ function DashboardContent() {
                 apiUrl={API_URL}
                 currentRole={currentMember.role}
                 onProjectsChanged={refreshProjects}
+                currentMember={currentMember}
               />
             )}
             {view === "tasks" && routeAuthorized && accessToken && (

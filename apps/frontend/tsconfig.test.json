@@ -41,6 +41,8 @@
     "src/lib/auth-client.ts",
     "src/app/project-progress.tsx",
     "src/app/project-management.tsx",
-    "src/app/project-progress.test.tsx"
+    "src/app/project-progress.test.tsx",
+    "src/app/project-kanban.tsx",
+    "src/app/project-kanban.test.tsx"
   ]
 }
