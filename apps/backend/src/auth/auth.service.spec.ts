@@ -203,6 +203,10 @@ describe('AuthService', () => {
       tokenType: 'Bearer',
     });
     expect(response.member.passwordHash).toBeUndefined();
+    expect(queryBuilder.leftJoinAndSelect).toHaveBeenCalledWith(
+      'member.skills',
+      'skills',
+    );
     expect(tokenService.sign).toHaveBeenCalledWith(7, 5);
     expect(queryBuilder.where).toHaveBeenCalledWith(
       'member.institution = :institution',

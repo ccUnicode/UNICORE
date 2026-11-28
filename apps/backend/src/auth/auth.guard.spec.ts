@@ -95,7 +95,11 @@ describe('AuthGuard', () => {
     expect(request.authenticatedMember).toBe(member);
     expect(membersRepository.findOne).toHaveBeenCalledWith({
       where: { id: 7 },
-      relations: { projectMemberships: true, memberships: true },
+      relations: {
+        projectMemberships: true,
+        memberships: { area: true },
+        skills: true,
+      },
     });
   });
 

@@ -23,6 +23,9 @@ describe("dashboard canonical routes", () => {
     assert.deepEqual(parseDashboardPath("/dashboard/members/new"), {
       view: "member-create",
     });
+    assert.deepEqual(parseDashboardPath("/dashboard/profile"), {
+      view: "profile",
+    });
   });
 
   it("rejects invalid, duplicate, and incomplete paths", () => {
@@ -40,6 +43,7 @@ describe("dashboard canonical routes", () => {
   it("builds canonical paths for navigation", () => {
     assert.equal(getDashboardPath("dashboard"), "/dashboard");
     assert.equal(getDashboardPath("projects"), "/dashboard/projects");
+    assert.equal(getDashboardPath("profile"), "/dashboard/profile");
     assert.equal(getDashboardPath("area-detail", 12), "/dashboard/areas/12");
     assert.equal(
       getDashboardPath("member-profile", 15),
@@ -80,6 +84,18 @@ describe("dashboard canonical routes", () => {
     );
     assert.equal(
       canAccessDashboardRoute(parseDashboardPath("/dashboard/tasks"), "miembro"),
+      true,
+    );
+    assert.equal(
+      canAccessDashboardRoute(parseDashboardPath("/dashboard/profile"), "miembro"),
+      true,
+    );
+    assert.equal(
+      canAccessDashboardRoute(parseDashboardPath("/dashboard/profile"), "directiva_de_area"),
+      true,
+    );
+    assert.equal(
+      canAccessDashboardRoute(parseDashboardPath("/dashboard/profile"), "presidencia"),
       true,
     );
   });

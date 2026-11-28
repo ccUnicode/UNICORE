@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  canSeeNavItem,
   filterVisibleProjectsForRole,
+  navItems,
   resolveAreaNavigation,
 } from "./dashboard.model";
 import type { Area, Project } from "./dashboard.types";
@@ -287,4 +289,13 @@ test("filterVisibleProjectsForRole: resolves member participation from nested me
   );
   assert.equal(result.length, 1);
   assert.equal(result[0].id, 105);
+});
+
+test("navItems includes 'Mi perfil' visible for all roles", () => {
+  const profileItem = navItems.find((item) => item.id === "profile");
+  assert.ok(profileItem);
+  assert.equal(profileItem.label, "Mi perfil");
+  assert.equal(canSeeNavItem("profile", "miembro"), true);
+  assert.equal(canSeeNavItem("profile", "directiva_de_area"), true);
+  assert.equal(canSeeNavItem("profile", "presidencia"), true);
 });

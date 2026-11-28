@@ -40,7 +40,11 @@ export class AuthGuard implements CanActivate {
     const payload = this.tokenService.verify(this.extractBearerToken(request));
     const member = await this.membersRepository.findOne({
       where: { id: payload.sub },
-      relations: { projectMemberships: true, memberships: true },
+      relations: {
+        projectMemberships: true,
+        memberships: { area: true },
+        skills: true,
+      },
     });
 
     if (!member) {
