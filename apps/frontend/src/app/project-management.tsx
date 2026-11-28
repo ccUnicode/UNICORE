@@ -19,6 +19,7 @@ import {
   moveItemRelative,
 } from "./phase-reordering";
 import { TagInput } from "./components/tag-input";
+import { KanbanTask, ProjectKanbanBoard } from "./project-kanban";
 
 type Area = {
   id: number;
@@ -35,7 +36,7 @@ type AreaMembership = {
   areaId: number | null;
 };
 
-type Member = {
+export type Member = {
   id: number;
   firstNames: string;
   lastNames: string;
@@ -46,6 +47,7 @@ type Member = {
   availabilityStatus?: string;
   skills?: Skill[];
   memberships?: AreaMembership[];
+  role?: string;
 };
 
 type ProjectStatus =
@@ -137,6 +139,7 @@ type Props = {
   apiUrl: string;
   currentRole: string;
   onProjectsChanged: () => Promise<void>;
+  currentMember?: Member | null;
 };
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
@@ -264,6 +267,7 @@ export default function ProjectManagement({
   apiUrl,
   currentRole,
   onProjectsChanged,
+  currentMember,
 }: Props) {
   const canManage =
     currentRole === "presidencia" || currentRole === "directiva_de_area";
@@ -492,6 +496,7 @@ export default function ProjectManagement({
               loading={loading}
               apiUrl={apiUrl}
               accessToken={accessToken}
+              currentMember={currentMember}
               onEdit={() => setEditing(true)}
               onArchive={archiveProject}
               onRefresh={async (message) => {
@@ -861,6 +866,9 @@ export function ProjectDetail({
   onArchive,
   onRefresh,
   onError,
+  currentMember,
+  initialTab = "general",
+  initialTasks,
 }: {
   project: Project;
   portfolioProjects: Project[];
@@ -873,7 +881,12 @@ export function ProjectDetail({
   onArchive: () => Promise<void>;
   onRefresh: (message: string) => Promise<void>;
   onError: (message: string) => void;
+  currentMember?: Member | null;
+  initialTab?: "general" | "kanban";
+  initialTasks?: KanbanTask[];
 }) {
+  const [activeTab, setActiveTab] = useState<"general" | "kanban">(initialTab);
+
   return (
     <div>
       <header className="flex flex-col gap-6 border-b border-white/10 pb-8 lg:flex-row lg:items-start lg:justify-between">
@@ -948,46 +961,91 @@ export function ProjectDetail({
         </div>
       )}
 
-      <div className="mt-10 grid gap-8 2xl:grid-cols-[1.1fr_0.9fr]">
-        <TeamPanel
-          project={project}
-          portfolioProjects={portfolioProjects}
-          members={members}
-          canManage={canManage}
-          loading={loading}
-          apiUrl={apiUrl}
-          accessToken={accessToken}
-          onRefresh={onRefresh}
-          onError={onError}
-        />
-        <PhasesPanel
-          project={project}
-          canManage={canManage}
-          loading={loading}
-          apiUrl={apiUrl}
-          accessToken={accessToken}
-          onRefresh={onRefresh}
-          onError={onError}
-        />
+      <div className="mt-8 flex gap-2 border-b border-white/10" role="tablist">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "general"}
+          data-testid="project-tab-general"
+          onClick={() => setActiveTab("general")}
+          className={`border-b-2 px-4 py-2 text-sm font-bold transition-colors ${
+            activeTab === "general"
+              ? "border-[#7478ff] text-white"
+              : "border-transparent text-white/50 hover:text-white"
+          }`}
+        >
+          General
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={activeTab === "kanban"}
+          data-testid="project-tab-kanban"
+          onClick={() => setActiveTab("kanban")}
+          className={`border-b-2 px-4 py-2 text-sm font-bold transition-colors ${
+            activeTab === "kanban"
+              ? "border-[#7478ff] text-white"
+              : "border-transparent text-white/50 hover:text-white"
+          }`}
+        >
+          Tablero
+        </button>
       </div>
 
-      {!!project.links?.length && (
-        <section className="mt-8 rounded-md border border-white/10 bg-[#20212c] p-6">
-          <h2 className="text-xl font-black">Enlaces</h2>
-          <div className="mt-4 flex flex-wrap gap-3">
-            {project.links.map((link) => (
-              <a
-                key={link.id ?? link.url}
-                href={link.url}
-                target="_blank"
-                rel="noreferrer"
-                className="rounded-md bg-white/8 px-4 py-2 text-sm font-bold text-indigo-200 hover:bg-white/12"
-              >
-                {link.name} ↗
-              </a>
-            ))}
+      {activeTab === "general" ? (
+        <>
+          <div className="mt-10 grid gap-8 2xl:grid-cols-[1.1fr_0.9fr]">
+            <TeamPanel
+              project={project}
+              portfolioProjects={portfolioProjects}
+              members={members}
+              canManage={canManage}
+              loading={loading}
+              apiUrl={apiUrl}
+              accessToken={accessToken}
+              onRefresh={onRefresh}
+              onError={onError}
+            />
+            <PhasesPanel
+              project={project}
+              canManage={canManage}
+              loading={loading}
+              apiUrl={apiUrl}
+              accessToken={accessToken}
+              onRefresh={onRefresh}
+              onError={onError}
+            />
           </div>
-        </section>
+
+          {!!project.links?.length && (
+            <section className="mt-8 rounded-md border border-white/10 bg-[#20212c] p-6">
+              <h2 className="text-xl font-black">Enlaces</h2>
+              <div className="mt-4 flex flex-wrap gap-3">
+                {project.links.map((link) => (
+                  <a
+                    key={link.id ?? link.url}
+                    href={link.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md bg-white/8 px-4 py-2 text-sm font-bold text-indigo-200 hover:bg-white/12"
+                  >
+                    {link.name} ↗
+                  </a>
+                ))}
+              </div>
+            </section>
+          )}
+        </>
+      ) : (
+        <ProjectKanbanBoard
+          project={project}
+          currentMember={currentMember}
+          apiUrl={apiUrl}
+          accessToken={accessToken}
+          onRefresh={onRefresh}
+          onError={onError}
+          initialTasks={initialTasks}
+        />
       )}
     </div>
   );
